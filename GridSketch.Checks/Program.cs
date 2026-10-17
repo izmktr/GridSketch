@@ -105,8 +105,11 @@ internal static class Program
                 Check(!unavailable.Remember(temp) && unavailable.Entries.Count == 1, "History write failure retains in-session history without throwing");
             }
             finally { if (File.Exists(historyPath)) File.Delete(historyPath); }
-            var app = new App(); app.InitializeComponent(); var window = new MainWindow(); window.Show(); window.UpdateLayout();
+            SceneChecks.Run(Path.GetDirectoryName(temp)!);
+            // Construct only the test window; App.InitializeComponent queues a second StartupUri window.
+            var app = new App(); var window = new MainWindow(); window.Show(); window.UpdateLayout();
             Check(window.IsVisible && window.ActualWidth > 0, "WPF window initialization and layout");
+            WindowChecks.Run(window, Path.GetDirectoryName(temp)!);
             window.Close(); app.Shutdown();
             Console.WriteLine("All checks passed.");
         }

@@ -7,247 +7,454 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-
 namespace GridSketch;
-
 public partial class MainWindow : Window
 {
-    private Document document = new();
-    private string? path;
-    private bool dirty;
+    private SceneDocument document = new();
+    private string? path, selectedId;
+    private string savedState = "";
+    private bool refreshing;
     private readonly RecentFiles recentFiles = new();
+    private readonly Stack<string> undo = new(), redo = new();
+    private readonly List<Action> setters = [];
+    private Point? dragStart;
+    private Point dragPosition;
+    private string? dragSnapshot;
+    private SceneObject Selected => document.Find(selectedId) ?? document.Canvas;
+    private bool Dirty => savedState != document.Snapshot();
     public MainWindow()
     {
         InitializeComponent();
-        FontBox.ItemsSource = Fonts.SystemFontFamilies.Select(f => f.Source).OrderBy(f => f).ToList();
-        FontBox.Text = "Yu Gothic";
-        StrokeTarget.SelectedIndex = 0;
-        ShowDocument();
-        RefreshRecentFilesMenu();
+        TextCompositionManager.AddPreviewTextInputStartHandler(GridInput, (_, _) => gridComposing = true);
+        GridInput.AddHandler(TextCompositionManager.PreviewTextInputEvent, new TextCompositionEventHandler(GridInputText), true);
+        GridInput.AddHandler(TextCompositionManager.TextInputEvent, new TextCompositionEventHandler(GridInputText), true);
+        document.Canvas.Children.Add(SceneDocument.CreateGrid("基本の方眼紙"));
+        selectedId = document.Canvas.Id; savedState = document.Snapshot();
         CommandBindings.Add(new CommandBinding(ApplicationCommands.Save, (_, _) => Save(false)));
         CommandBindings.Add(new CommandBinding(ApplicationCommands.Open, (_, _) => OpenClick(this, new RoutedEventArgs())));
         CommandBindings.Add(new CommandBinding(ApplicationCommands.New, (_, _) => NewClick(this, new RoutedEventArgs())));
+        CommandBindings.Add(new CommandBinding(ApplicationCommands.Undo, (_, _) => Undo(), (_, e) => e.CanExecute = undo.Count > 0 && dragStart is null));
+        CommandBindings.Add(new CommandBinding(ApplicationCommands.Redo, (_, _) => Redo(), (_, e) => e.CanExecute = redo.Count > 0 && dragStart is null));
+        RefreshAll(); RefreshRecentFilesMenu(); Loaded += (_, _) => CenterClick(this, new RoutedEventArgs());
     }
     private void Try(Action action)
     {
-        try { action(); }
-        catch (Exception ex) { MessageBox.Show(this, ex.Message, "操作を完了できませんでした", MessageBoxButton.OK, MessageBoxImage.Warning); }
+        try { action(); } catch (Exception ex) { MessageBox.Show(this, ex.Message, "操作を完了できませんでした", MessageBoxButton.OK, MessageBoxImage.Warning); }
     }
-    private static double Number(TextBox box) => double.Parse(box.Text, CultureInfo.CurrentCulture);
-    private void UpdateTitle() => Title = $"{(dirty ? "* " : "")}{(path is null ? "無題" : Path.GetFileName(path))} — GridSketch";
-    private void Changed()
+    private void RememberUndo(string state)
     {
-        dirty = true;
-        Surface.Refresh(true);
-        UpdateTitle();
-        Status.Text = "変更しました。Ctrl+Sで保存できます。";
+        undo.Push(state);
+        if (undo.Count > 30) { var keep = undo.Take(30).Reverse().ToList(); undo.Clear(); foreach (var item in keep) undo.Push(item); }
+        redo.Clear();
     }
-    private void ShowDocument()
+    private void Change(Action action) => Try(() =>
     {
-        Surface.Document = document;
-        Surface.Selected = null;
-        Surface.HoveredEdge = null;
-        WallColorBox.Text = document.WallStroke.Color; WallWidthBox.Text = document.WallStroke.Width.ToString();
-        ColumnsBox.Text = document.Columns.ToString(); RowsBox.Text = document.Rows.ToString();
-        SizeBox.Text = document.CellSize.ToString(); MarginBox.Text = document.Margin.ToString();
-        ShowStroke(); ShowCell(); Surface.Refresh(true); UpdateTitle();
-    }
-    private void ShowStroke()
-    {
-        if (ColorBox is null || StrokeTarget.SelectedIndex < 0) return;
-        var stroke = document.Strokes[StrokeTarget.SelectedIndex];
-        ColorBox.Text = stroke.Color; WidthBox.Text = stroke.Width.ToString();
-        KindBox.SelectedIndex = stroke.Kind switch { "破線" => 1, "点線" => 2, _ => 0 };
-    }
-    private void StrokeTargetChanged(object sender, SelectionChangedEventArgs e) => ShowStroke();
-    private void ApplyStrokeClick(object sender, RoutedEventArgs e) => Try(() =>
-    {
-        var stroke = new Stroke { Color = ColorBox.Text, Width = Number(WidthBox), Kind = ((ComboBoxItem)KindBox.SelectedItem).Content.ToString()! };
-        var candidate = new Document { Strokes = [stroke, stroke, stroke, stroke] };
-        candidate.Validate();
-        document.Strokes[StrokeTarget.SelectedIndex] = stroke; Changed();
+        var before = document.Snapshot();
+        try { action(); document.Validate(); }
+        catch { document = SceneDocument.Restore(before); RefreshAll(); throw; }
+        if (document.Snapshot() != before) RememberUndo(before);
+        Surface.Preview = []; Surface.HoveredEdge = null; RefreshAll(); Status.Text = "変更しました。Ctrl+Sで保存できます。";
     });
-    private void ApplyGridClick(object sender, RoutedEventArgs e) => Try(() =>
+    private void Undo() { if (undo.Count == 0) return; redo.Push(document.Snapshot()); document = SceneDocument.Restore(undo.Pop()); RefreshAll(); }
+    private void Redo() { if (redo.Count == 0) return; undo.Push(document.Snapshot()); document = SceneDocument.Restore(redo.Pop()); RefreshAll(); }
+    private void RefreshAll()
     {
-        var candidate = new Document { Columns = int.Parse(ColumnsBox.Text), Rows = int.Parse(RowsBox.Text), CellSize = Number(SizeBox), Margin = Number(MarginBox) };
-        candidate.Validate();
-        if (document.Cells.Any(c => c.Column >= candidate.Columns || c.Row >= candidate.Rows))
-            throw new InvalidOperationException("縮小後の範囲外に配置があります。該当するマスの内容を先に削除してください。");
-        if (document.Walls.Any(w => !w.IsInside(candidate.Columns, candidate.Rows)))
-            throw new InvalidOperationException("縮小後の範囲外に壁があります。該当する壁を先に解除してください。");
-        document.Columns = candidate.Columns; document.Rows = candidate.Rows; document.CellSize = candidate.CellSize; document.Margin = candidate.Margin;
-        Surface.Selected = null; ShowCell(); Changed();
-    });
-    private void SurfaceClick(object sender, MouseButtonEventArgs e)
-    {
-        var p = e.GetPosition(Surface);
-        if (EditMode.SelectedIndex == 1)
+        refreshing = true;
+        if (Surface.Selected?.Id != Selected.Id) { Surface.ActiveCell = null; Surface.RangeEnd = null; }
+        var selectedGrid = document.GridFor(Selected);
+        if (selectedGrid is null || Surface.ActiveCell is { } cell && (cell.Column >= selectedGrid.Columns || cell.Row >= selectedGrid.Rows)) { Surface.ActiveCell = null; Surface.RangeEnd = null; }
+        if (selectedGrid is not null && Surface.RangeEnd is { } end && (end.Column >= selectedGrid.Columns || end.Row >= selectedGrid.Rows)) Surface.RangeEnd = null;
+        Surface.Selected = Selected; Surface.Preview = []; RefreshSurface(); Layers.Items.Clear();
+        TreeViewItem Item(SceneObject node)
         {
-            if (Surface.EdgeAt(p, Zoom.Value) is { } edge)
-            {
-                bool added = document.ToggleWall(edge);
-                Surface.HoveredEdge = null;
-                Changed();
-                Status.Text = added ? "壁を追加しました。同じ辺をクリックすると解除できます。" : "壁を解除して元の罫線に戻しました。";
-            }
-            return;
+            var item = new TreeViewItem { Header = node.Label, Tag = node.Id, IsExpanded = node.LayerExpanded };
+            item.Expanded += LayerExpansionChanged; item.Collapsed += LayerExpansionChanged;
+            foreach (var child in node.Children) item.Items.Add(Item(child)); if (node == Selected) item.IsSelected = true; return item;
         }
-        int c = (int)Math.Floor((p.X - Surface.PaddingSize) / document.CellSize), r = (int)Math.Floor((p.Y - Surface.PaddingSize) / document.CellSize);
-        if (c < 0 || r < 0 || c >= document.Columns || r >= document.Rows) return;
-        Surface.Selected = (c, r); Surface.InvalidateVisual(); ShowCell();
-        Status.Text = $"{c + 1}列・{r + 1}行を選択中";
+        Layers.Items.Add(Item(document.Canvas)); refreshing = false; BuildProperties();
+        Title = $"{(Dirty ? "* " : "")}{(path is null ? "無題" : Path.GetFileName(path))} — GridSketch"; CommandManager.InvalidateRequerySuggested();
     }
-    private void EditModeChanged(object sender, SelectionChangedEventArgs e)
+    private void LayerSelected(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
-        if (Surface is null) return;
-        Surface.Selected = null; Surface.HoveredEdge = null;
-        Surface.Cursor = EditMode.SelectedIndex == 1 ? Cursors.Cross : Cursors.Arrow;
-        ShowCell(); Surface.InvalidateVisual();
-        Status.Text = EditMode.SelectedIndex == 1 ? "マスの辺をクリックして壁を追加・解除してください。" : "マスをクリックして選択してください。";
+        if (refreshing || e.NewValue is not TreeViewItem item) return;
+        selectedId = (string)item.Tag; Surface.Selected = Selected; Surface.ActiveCell = null; Surface.RangeEnd = null; Surface.Preview = []; Surface.HoveredEdge = null; Surface.InvalidateVisual(); BuildProperties();
     }
+    private void LayerExpansionChanged(object sender, RoutedEventArgs e)
+    {
+        if (refreshing || !ReferenceEquals(sender, e.OriginalSource) || sender is not TreeViewItem item
+            || item.Tag is not string id || document.Find(id) is not { } node) return;
+        node.LayerExpanded = item.IsExpanded;
+        Title = $"{(Dirty ? "* " : "")}{(path is null ? "無題" : Path.GetFileName(path))} — GridSketch";
+    }
+    private void RefreshSurface()
+    {
+        double oldX = Surface.OriginX, oldY = Surface.OriginY;
+        double scrollX = Viewport.HorizontalOffset, scrollY = Viewport.VerticalOffset;
+        Surface.Refresh(document);
+        if (oldX != Surface.OriginX || oldY != Surface.OriginY)
+        {
+            Viewport.UpdateLayout();
+            Viewport.ScrollToHorizontalOffset(scrollX + (Surface.OriginX - oldX) * Zoom.Value);
+            Viewport.ScrollToVerticalOffset(scrollY + (Surface.OriginY - oldY) * Zoom.Value);
+        }
+    }
+    private void Label(string text) => Properties.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 2) });
+    private void TextField(string key, string value, Action<string> setter, bool multiline = false)
+    {
+        Label(key); var box = new TextBox { Text = value, AcceptsReturn = multiline, MinHeight = multiline ? 70 : 0, TextWrapping = multiline ? TextWrapping.Wrap : TextWrapping.NoWrap };
+        Properties.Children.Add(box); setters.Add(() => setter(box.Text));
+    }
+    private void Number(string key, double value, Action<double> setter) => TextField(key, value.ToString(CultureInfo.CurrentCulture), s => setter(double.Parse(s, CultureInfo.CurrentCulture)));
+    private void Integer(string key, int value, Action<int> setter) => TextField(key, value.ToString(), s => setter(int.Parse(s, CultureInfo.CurrentCulture)));
+    private void Check(string key, bool value, Action<bool> setter)
+    {
+        var box = new CheckBox { Content = key, IsChecked = value, Margin = new Thickness(0, 6, 0, 6) }; Properties.Children.Add(box); setters.Add(() => setter(box.IsChecked == true));
+    }
+    private void Choice(string key, string value, IEnumerable<string> options, Action<string> setter, bool editable = false)
+    {
+        Label(key); var combo = new ComboBox { ItemsSource = options.ToList(), IsEditable = editable, Text = value }; combo.SelectedItem = value; Properties.Children.Add(combo); setters.Add(() => setter(combo.Text));
+    }
+    private void Button(string label, Action action) { var button = new Button { Content = label }; button.Click += (_, _) => Try(action); Properties.Children.Add(button); }
+    private void RequireEditable(SceneObject node) { if (!document.Editable(node)) throw new InvalidOperationException("オブジェクトまたは親がロックされています。"); }
+    private void BuildProperties()
+    {
+        Properties.Children.Clear(); setters.Clear(); var node = Selected; Label(SceneObject.KindName(node.Kind)); TextField("名前", node.Name, v => node.Name = v);
+        if (node != document.Canvas) { Check("表示する", node.Visible, v => node.Visible = v); Check("ロック", node.Locked, v => node.Locked = v); }
+        int metadataCount = setters.Count;
+        if (node.Kind == ObjectKind.Canvas)
+        {
+            var bounds = Surface.Renderer!.OutputBounds; Label($"現在の出力：{bounds.Width:0} × {bounds.Height:0} px");
+            Check("サイズを自動調整", node.AutoSize, v => node.AutoSize = v);
+            Number("幅（固定時 / px）", node.AutoSize ? bounds.Width : node.Width, v => node.Width = v);
+            Number("高さ（固定時 / px）", node.AutoSize ? bounds.Height : node.Height, v => node.Height = v);
+            Number("出力原点 X（固定時）", node.AutoSize ? bounds.X : node.X, v => node.X = v);
+            Number("出力原点 Y（固定時）", node.AutoSize ? bounds.Y : node.Y, v => node.Y = v);
+            Number("DPI", node.Dpi, v => node.Dpi = v); Number("自動サイズの余白（px）", node.Padding, v => node.Padding = v);
+            TextField("背景色（透明は #00000000）", node.Background, v => node.Background = v);
+        }
+        else if (!node.IsGridContent) { Number("位置 X", node.X, v => node.X = v); Number("位置 Y", node.Y, v => node.Y = v); Number("回転（度 / 左上中心）", node.Angle, v => node.Angle = v); }
+        switch (node.Kind)
+        {
+            case ObjectKind.Grid:
+                Integer("列数", node.Columns, v => node.Columns = v); Integer("行数", node.Rows, v => node.Rows = v); Number("マスの大きさ（px）", node.CellSize, v => node.CellSize = v); Number("画像余白（px）", node.Margin, v => node.Margin = v);
+                Label("外枠・内枠はマス数に追従します。縮小時は個別罫線も範囲内に収めます。文字・画像・塗りは削除しません。"); break;
+            case ObjectKind.Border:
+                TextField("色", node.Color, v => node.Color = v); Number("太さ（0～64px）", node.Thickness, v => node.Thickness = v); Choice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v); Label($"対象：{node.Pattern}。辺のクリックで個別編集になります。"); break;
+            case ObjectKind.Fill:
+                TextField("塗り色", node.Color, v => node.Color = v); Check("この塗りのマスを文字入力から除外", node.BlockInput, v => node.BlockInput = v); Label("非表示でも入力除外を維持します。編集モードでマスをクリックして塗りを切り替えます。"); break;
+            case ObjectKind.GridText:
+            case ObjectKind.Text:
+                Choice("フォント", node.Font, Fonts.SystemFontFamilies.Select(f => f.Source).OrderBy(f => f), v => node.Font = v, true);
+                Number("文字サイズ（px）", node.FontSize, v => node.FontSize = v); TextField("文字色", node.Color, v => node.Color = v);
+                if (node.Kind == ObjectKind.GridText) Choice("配置", node.Alignment, ["中央", "左上"], v => node.Alignment = v); else TextField("文章", node.Text, v => node.Text = v, true); break;
+            case ObjectKind.Image:
+                if (document.Parent(node)?.Kind == ObjectKind.Grid) Check("マス中央に配置", node.SnapToCell, v => { node.SnapToCell = v; if (v) node.X = node.Y = node.Angle = 0; });
+                if (node.SnapToCell) { Integer("列（1から）", node.Column + 1, v => node.Column = v - 1); Integer("行（1から）", node.Row + 1, v => node.Row = v - 1); }
+                else { Number("幅（px）", node.Width, v => node.Width = v); Number("高さ（px）", node.Height, v => node.Height = v); } break;
+            case ObjectKind.Shape:
+                Choice("形", node.Shape, ["四角", "角丸", "楕円"], v => node.Shape = v); Number("幅（px）", node.Width, v => node.Width = v); Number("高さ（px）", node.Height, v => node.Height = v);
+                TextField("塗り色", node.FillColor, v => node.FillColor = v); TextField("線の色", node.Color, v => node.Color = v); Number("線の太さ", node.Thickness, v => node.Thickness = v); break;
+            case ObjectKind.Line:
+                Choice("経路", node.PathKind, ["直線", "折れ線", "曲線"], v => node.PathKind = v);
+                Number("終点 X（始点から）", node.EndX, v => node.EndX = v); Number("終点 Y（始点から）", node.EndY, v => node.EndY = v);
+                Number("制御点 X（始点から）", node.ControlX, v => node.ControlX = v); Number("制御点 Y（始点から）", node.ControlY, v => node.ControlY = v);
+                Choice("始点の矢印", node.StartArrow, ["なし", "三角", "開いた矢印"], v => node.StartArrow = v); Choice("終点の矢印", node.EndArrow, ["なし", "三角", "開いた矢印"], v => node.EndArrow = v);
+                Number("矢印の大きさ", node.ArrowSize, v => node.ArrowSize = v); TextField("線の色", node.Color, v => node.Color = v); Number("線の太さ", node.Thickness, v => node.Thickness = v); Choice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v); break;
+        }
+        var apply = setters.ToArray();
+        Button("プロパティを適用", () => Change(() =>
+        {
+            if (document.Parent(node) is { } parent) RequireEditable(parent);
+            var oldGrid = (node.Columns, node.Rows, node.CellSize, node.Margin);
+            bool editable = document.Editable(node); foreach (var set in apply.Take(metadataCount)) set();
+            if (editable) foreach (var set in apply.Skip(metadataCount)) set();
+            if (editable && node.Kind == ObjectKind.Grid)
+            {
+                var requested = (node.Columns, node.Rows, node.CellSize, node.Margin);
+                (node.Columns, node.Rows, node.CellSize, node.Margin) = oldGrid;
+                document.ResizeGrid(node, requested.Columns, requested.Rows, requested.CellSize, requested.Margin);
+            }
+        }));
+        if (node.Kind == ObjectKind.Border) BorderTools(node);
+        if (node.Kind == ObjectKind.GridText) TextTools(node);
+        if (node.Kind == ObjectKind.Fill) Button("選択範囲の塗りを削除", () => Change(() => { RequireEditable(node); foreach (var cell in CellRange(node)) node.FilledCells.Remove(cell); }));
+        if (node.Kind == ObjectKind.Image) Button("画像を読み込み / 置換…", () => ReplaceImage(node));
+        if (node.Kind == ObjectKind.Line && document.GridFor(node) is not null) Label("編集モード：クリックで始点、Shift+クリックで終点をマス中央へ配置します。");
+        if (node != document.Canvas && !node.IsGridContent)
+        {
+            Label("親の変更（見た目の位置・回転を維持）");
+            var candidates = document.All().Where(n => n.IsContainer && n != node && !Descendants(node).Contains(n)).ToList();
+            var parents = new ComboBox { ItemsSource = candidates, DisplayMemberPath = "Name", SelectedItem = document.Parent(node) }; Properties.Children.Add(parents);
+            Button("選択した親へ移動", () => Change(() => { if (parents.SelectedItem is SceneObject parent) document.Reparent(node, parent); }));
+        }
+        if (!document.Editable(node)) Label("ロック中です。解除してから内容を編集してください。");
+    }
+    private IEnumerable<SceneObject> Descendants(SceneObject node) => node.Children.SelectMany(c => new[] { c }.Concat(Descendants(c)));
+    private IEnumerable<CellPosition> CellRange(SceneObject node)
+    {
+        var grid = document.GridFor(node) ?? throw new InvalidOperationException("グリッドを選択してください。");
+        var start = Surface.ActiveCell ?? new CellPosition(0, 0); var end = Surface.RangeEnd ?? (Surface.ActiveCell ?? new CellPosition(grid.Columns - 1, grid.Rows - 1));
+        for (int r = Math.Min(start.Row, end.Row); r <= Math.Max(start.Row, end.Row); r++) for (int c = Math.Min(start.Column, end.Column); c <= Math.Max(start.Column, end.Column); c++) yield return new(c, r);
+    }
+    private void BorderTools(SceneObject node)
+    {
+        Label("辺の一括設定（未選択なら全体 / Shift+クリックで範囲）");
+        var preview = new Canvas { Width = 190, Height = 145, Margin = new Thickness(0, 8, 0, 8) };
+        var labels = new[] { "上辺", "左辺", "内側の縦", "右辺", "内側の横", "下辺" };
+        var positions = new[] { new Rect(20, 10, 140, 14), new Rect(10, 24, 14, 96), new Rect(83, 24, 14, 96), new Rect(156, 24, 14, 96), new Rect(24, 65, 132, 14), new Rect(20, 120, 140, 14) };
+        var toggles = new List<System.Windows.Controls.Primitives.ToggleButton>();
+        for (int i = 0; i < labels.Length; i++)
+        {
+            var rect = positions[i]; var check = new System.Windows.Controls.Primitives.ToggleButton { ToolTip = labels[i], IsChecked = true, Width = rect.Width, Height = rect.Height };
+            System.Windows.Automation.AutomationProperties.SetName(check, labels[i]); Canvas.SetLeft(check, rect.X); Canvas.SetTop(check, rect.Y); preview.Children.Add(check); toggles.Add(check);
+        }
+        Properties.Children.Add(preview);
+        var presets = new WrapPanel();
+        foreach (var name in new[] { "外枠", "内側", "すべて", "なし" })
+        {
+            var b = new Button { Content = name }; b.Click += (_, _) => Change(() => { RequireEditable(node); node.Pattern = name == "なし" ? "個別" : name; node.Edges.Clear(); }); presets.Children.Add(b);
+        }
+        Properties.Children.Add(presets); Label("プリセットは全体を置換し、マス数に追従します。下の操作は指定範囲へ適用します。");
+        void Apply(bool remove) => Change(() =>
+        {
+            RequireEditable(node); var grid = document.GridFor(node)!; var cells = CellRange(node).ToList();
+            int left = cells.Min(c => c.Column), right = cells.Max(c => c.Column) + 1, top = cells.Min(c => c.Row), bottom = cells.Max(c => c.Row) + 1; var edges = new HashSet<GridEdge>();
+            for (int c = left; c < right; c++)
+            {
+                if (toggles[0].IsChecked == true) edges.Add(new(c, top, false)); if (toggles[5].IsChecked == true) edges.Add(new(c, bottom, false));
+                if (toggles[4].IsChecked == true) for (int r = top + 1; r < bottom; r++) edges.Add(new(c, r, false));
+            }
+            for (int r = top; r < bottom; r++)
+            {
+                if (toggles[1].IsChecked == true) edges.Add(new(left, r, true)); if (toggles[3].IsChecked == true) edges.Add(new(right, r, true));
+                if (toggles[2].IsChecked == true) for (int c = left + 1; c < right; c++) edges.Add(new(c, r, true));
+            }
+            node.Edges = SceneDocument.BorderEdges(node, grid).ToHashSet(); node.Pattern = "個別"; if (remove) node.Edges.ExceptWith(edges); else node.Edges.UnionWith(edges);
+        });
+        Button("チェックした辺を追加", () => Apply(false)); Button("チェックした辺を削除", () => Apply(true));
+    }
+    private void TextTools(SceneObject node)
+    {
+        Label("文字列を一括入力（編集モードで開始マスをクリック）");
+        var entry = new TextBox(); Properties.Children.Add(entry);
+        var orientation = new ComboBox { ItemsSource = new[] { "横（右へ）", "縦（下へ）" }, SelectedIndex = 0 }; Properties.Children.Add(orientation);
+        List<Glyph> Plan()
+        {
+            var cell = Surface.ActiveCell ?? throw new InvalidOperationException("開始マスをクリックしてください。");
+            return document.PlanText(node, cell.Column, cell.Row, entry.Text, orientation.SelectedIndex == 1);
+        }
+        Button("配置をプレビュー", () => { Surface.Preview = Plan(); Surface.InvalidateVisual(); });
+        Button("文字を配置", () =>
+        {
+            RequireEditable(node); var plan = Plan(); var conflicts = plan.Count(p => node.Glyphs.Any(g => g.Column == p.Column && g.Row == p.Row && g.Text != p.Text));
+            if (conflicts > 0 && MessageBox.Show(this, $"{conflicts}マスの文字を上書きしますか？", "文字の上書き", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            Change(() => { foreach (var p in plan) { var old = node.Glyphs.Find(g => g.Column == p.Column && g.Row == p.Row); if (old is null) node.Glyphs.Add(p); else if (old.Text != p.Text) { old.Text = p.Text; old.Font = null; old.Size = null; } } });
+        });
+        Button("選択範囲の文字を削除", () => Change(() => { RequireEditable(node); var cells = CellRange(node).ToHashSet(); node.Glyphs.RemoveAll(g => cells.Contains(new(g.Column, g.Row))); }));
+        Button("個別書式を共通フォント・サイズへ統一", () => Change(() => { RequireEditable(node); foreach (var g in node.Glyphs) { g.Font = null; g.Size = null; } }));
+    }
+    private SceneObject AddParent(bool gridRequired)
+    {
+        var node = Selected;
+        if (gridRequired) return document.GridFor(node) ?? throw new InvalidOperationException("グリッドまたはグリッド直下のレイヤーを選択してください。");
+        return node.IsContainer ? node : document.Parent(node) ?? document.Canvas;
+    }
+    private void AddClick(object sender, RoutedEventArgs e) => Try(() =>
+    {
+        if (AddKind.SelectedIndex == 0)
+        {
+            var grid = GridDialog(false); if (grid is null) return;
+            Change(() => { var parent = AddParent(false); RequireEditable(parent); parent.Children.Insert(0, grid); selectedId = grid.Id; }); return;
+        }
+        var kinds = new[] { ObjectKind.Grid, ObjectKind.Group, ObjectKind.Border, ObjectKind.GridText, ObjectKind.Fill, ObjectKind.Image, ObjectKind.Text, ObjectKind.Line, ObjectKind.Shape }; var kind = kinds[AddKind.SelectedIndex];
+        byte[]? image = kind == ObjectKind.Image ? ReadImage() : null; if (kind == ObjectKind.Image && image is null) return;
+        Change(() =>
+        {
+            var parent = AddParent(kind is ObjectKind.Border or ObjectKind.GridText or ObjectKind.Fill); RequireEditable(parent);
+            var node = new SceneObject { Kind = kind, Name = SceneObject.KindName(kind), ImageData = image };
+            if (kind == ObjectKind.Image && parent.Kind == ObjectKind.Grid) { node.SnapToCell = true; node.Column = Surface.ActiveCell?.Column ?? 0; node.Row = Surface.ActiveCell?.Row ?? 0; }
+            if (kind == ObjectKind.Fill) { node.Color = "#000000"; parent.Children.Add(node); } else parent.Children.Insert(0, node); selectedId = node.Id;
+        });
+    });
+    private byte[]? ReadImage()
+    {
+        var dialog = new OpenFileDialog { Filter = "画像|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tif;*.tiff" }; if (dialog.ShowDialog(this) != true) return null;
+        if (new FileInfo(dialog.FileName).Length > 20_000_000) throw new InvalidOperationException("画像は20MB以下にしてください。");
+        var bytes = File.ReadAllBytes(dialog.FileName); _ = Document.DecodeImage(bytes); return bytes;
+    }
+    private void ReplaceImage(SceneObject node) { RequireEditable(node); var data = ReadImage(); if (data is not null) Change(() => node.ImageData = data); }
+    private SceneObject? GridDialog(bool isNew)
+    {
+        var dialog = new Window { Owner = this, Title = isNew ? "新規キャンバスとグリッド" : "グリッドを追加", Width = 390, Height = isNew ? 760 : 540, ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        var panel = new StackPanel { Margin = new Thickness(20) }; dialog.Content = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        TextBox Field(string title, string value) { panel.Children.Add(new TextBlock { Text = title }); var box = new TextBox { Text = value }; panel.Children.Add(box); return box; }
+        TextBox? dpi = null, canvasWidth = null, canvasHeight = null, background = null;
+        CheckBox? automatic = null;
+        if (isNew)
+        {
+            panel.Children.Add(new TextBlock { Text = "キャンバス", FontWeight = FontWeights.Bold });
+            automatic = new CheckBox { Content = "サイズを自動調整", IsChecked = true, Margin = new Thickness(0, 8, 0, 8) }; panel.Children.Add(automatic);
+            canvasWidth = Field("幅（固定時 / px）", "800"); canvasHeight = Field("高さ（固定時 / px）", "600");
+            dpi = Field("DPI", "96"); background = Field("背景色（透明は #00000000）", "#FFFFFF");
+        }
+        panel.Children.Add(new TextBlock { Text = "プリセット" });
+        var options = new List<string> { "基本の方眼紙", "クロスワード", "将棋盤", "空のグリッド" }; if (isNew) options.Add("キャンバスのみ");
+        var preset = new ComboBox { ItemsSource = options, SelectedIndex = 0 }; panel.Children.Add(preset);
+        var cols = Field("列数", "16"); var rows = Field("行数", "12"); var size = Field("マスの大きさ（px）", "48");
+        preset.SelectionChanged += (_, _) => { if (preset.SelectedIndex == 2) cols.Text = rows.Text = "9"; };
+        var button = new Button { Content = "作成" }; panel.Children.Add(button); SceneObject? result = null;
+        button.Click += (_, _) => Try(() =>
+        {
+            var test = new SceneDocument();
+            if (preset.Text != "キャンバスのみ") test.Canvas.Children.Add(SceneDocument.CreateGrid(preset.Text, int.Parse(cols.Text), int.Parse(rows.Text), double.Parse(size.Text)));
+            if (isNew)
+            {
+                test.Canvas.AutoSize = automatic!.IsChecked == true; test.Canvas.Dpi = double.Parse(dpi!.Text);
+                test.Canvas.Width = double.Parse(canvasWidth!.Text); test.Canvas.Height = double.Parse(canvasHeight!.Text); test.Canvas.Background = background!.Text;
+            }
+            test.Validate(); result = isNew ? test.Canvas : test.Canvas.Children[0]; dialog.DialogResult = true;
+        });
+        return dialog.ShowDialog() == true ? result : null;
+    }
+    private void LayerUp(object sender, RoutedEventArgs e) => MoveLayer(-1);
+    private void LayerDown(object sender, RoutedEventArgs e) => MoveLayer(1);
+    private void MoveLayer(int offset) => Change(() =>
+    {
+        var node = Selected; RequireEditable(node); var parent = document.Parent(node); if (parent is null) return;
+        int index = parent.Children.IndexOf(node), next = index + offset; if (next < 0 || next >= parent.Children.Count) return; parent.Children.RemoveAt(index); parent.Children.Insert(next, node);
+    });
+    private void DeleteClick(object sender, RoutedEventArgs e) => Try(() =>
+    {
+        var node = Selected; if (node == document.Canvas) return; RequireEditable(node);
+        if (node.Children.Count > 0 && MessageBox.Show(this, "子オブジェクトも削除しますか？", "削除", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+        Change(() => { var parent = document.Parent(node)!; parent.Children.Remove(node); selectedId = parent.Id; Surface.ActiveCell = null; Surface.RangeEnd = null; });
+    });
+    private void WrapClick(object sender, RoutedEventArgs e) => Change(() =>
+    {
+        var node = Selected; RequireEditable(node); if (node == document.Canvas || node.IsGridContent) throw new InvalidOperationException("グリッド依存の内容はグリッドごとグループ化してください。");
+        var parent = document.Parent(node)!; int index = parent.Children.IndexOf(node); var group = new SceneObject { Kind = ObjectKind.Group, Name = "グループ" }; parent.Children.Insert(index, group); document.Reparent(node, group); selectedId = group.Id;
+    });
+    private void UngroupClick(object sender, RoutedEventArgs e) => Change(() =>
+    {
+        var node = Selected; RequireEditable(node); if (node.Kind != ObjectKind.Group) throw new InvalidOperationException("通常のグループを選択してください。");
+        var parent = document.Parent(node)!; var children = node.Children.ToList(); int index = parent.Children.IndexOf(node);
+        foreach (var child in children) document.Reparent(child, parent); foreach (var child in children) parent.Children.Remove(child); parent.Children.Remove(node); parent.Children.InsertRange(index, children); selectedId = parent.Id;
+    });
+    private void ModeChanged(object sender, SelectionChangedEventArgs e) { if (Surface is null) return; Surface.HoveredEdge = null; Surface.Preview = []; Surface.InvalidateVisual(); }
+    private void SurfaceDown(object sender, MouseButtonEventArgs e) => Try(() =>
+    {
+        var p = e.GetPosition(Surface); var node = Selected;
+        if (ModeBox.SelectedIndex == 1)
+        {
+            RequireEditable(node); var grid = document.GridFor(node); if (grid is null) { Status.Text = "グリッド直下のレイヤーを選択してください。"; return; }
+            var cell = Surface.CellAt(grid, p);
+            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) && cell is { } rangeEnd && node.Kind != ObjectKind.Line) { Surface.ActiveCell ??= rangeEnd; Surface.RangeEnd = rangeEnd; Surface.InvalidateVisual(); return; }
+            if (node.Kind == ObjectKind.Border && Surface.EdgeAt(grid, p, Zoom.Value) is { } edge) { Change(() => document.ToggleEdge(node, edge)); return; }
+            if (cell is not { } c) return;
+            if (node.Kind == ObjectKind.GridText) { SelectTextCell(c); e.Handled = true; return; }
+            Surface.ActiveCell = c; Surface.RangeEnd = null; Surface.Preview = [];
+            if (node.Kind == ObjectKind.Fill) Change(() => { if (!node.FilledCells.Remove(c)) node.FilledCells.Add(c); });
+            else if (node.Kind == ObjectKind.Image && node.SnapToCell) Change(() => { node.Column = c.Column; node.Row = c.Row; });
+            else if (node.Kind == ObjectKind.Line) Change(() =>
+            {
+                var center = new Point((c.Column + 0.5) * grid.CellSize, (c.Row + 0.5) * grid.CellSize);
+                if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) { var inverse = SceneRenderer.LocalTransform(node).Value; inverse.Invert(); var end = inverse.Transform(center); node.EndX = end.X; node.EndY = end.Y; }
+                else { node.X = center.X; node.Y = center.Y; }
+            });
+            Surface.InvalidateVisual(); Status.Text = $"{c.Column + 1}列・{c.Row + 1}行を選択。Shift+クリックで範囲選択。"; return;
+        }
+        var world = Surface.ToWorld(p);
+        if (node == document.Canvas || !Surface.Renderer!.Bounds.TryGetValue(node.Id, out var selectedBounds) || !selectedBounds.Contains(world))
+        {
+            SceneObject? Hit(SceneObject root)
+            {
+                foreach (var child in root.Children)
+                {
+                    if (!document.Shown(child)) continue; var found = Hit(child); if (found is not null) return found;
+                    if (Surface.Renderer!.Bounds.TryGetValue(child.Id, out var b) && b.Contains(world)) return child;
+                }
+                return null;
+            }
+            var hit = Hit(document.Canvas); if (hit is null) return; selectedId = hit.Id; RefreshAll(); node = Selected;
+        }
+        if (node == document.Canvas || node.IsGridContent || !document.Editable(node)) return;
+        dragSnapshot = document.Snapshot(); dragStart = world; dragPosition = new Point(node.X, node.Y); Surface.CaptureMouse();
+    });
     private void SurfaceMove(object sender, MouseEventArgs e)
     {
-        var edge = EditMode.SelectedIndex == 1 ? Surface.EdgeAt(e.GetPosition(Surface), Zoom.Value) : null;
-        if (edge == Surface.HoveredEdge) return;
-        Surface.HoveredEdge = edge; Surface.InvalidateVisual();
-    }
-    private void SurfaceLeave(object sender, MouseEventArgs e)
-    {
-        Surface.HoveredEdge = null; Surface.InvalidateVisual();
-    }
-    private void ApplyWallClick(object sender, RoutedEventArgs e) => Try(() =>
-    {
-        var stroke = new Stroke { Color = WallColorBox.Text, Width = Number(WallWidthBox) };
-        new Document { WallStroke = stroke }.Validate();
-        document.WallStroke = stroke; Surface.HoveredEdge = null; Changed();
-    });
-    private Cell? SelectedCell() => Surface.Selected is { } s ? document.Cells.Find(c => c.Column == s.Column && c.Row == s.Row) : null;
-    private Cell RequireCell()
-    {
-        if (Surface.Selected is not { } s) throw new InvalidOperationException("先にマスをクリックしてください。");
-        var cell = SelectedCell();
-        if (cell is null) { cell = new Cell { Column = s.Column, Row = s.Row }; document.Cells.Add(cell); }
-        return cell;
-    }
-    private void ShowCell()
-    {
-        CellTitle.Text = Surface.Selected is { } s ? $"{s.Column + 1}列・{s.Row + 1}行" : "マスを選択";
-        var cell = SelectedCell(); TextBox.Text = cell?.Text ?? "";
-        if (cell is not null) { FontBox.Text = cell.Font; FontSizeBox.Text = cell.FontSize.ToString(); }
-    }
-    private void TextClick(object sender, RoutedEventArgs e) => Try(() =>
-    {
-        if (new StringInfo(TextBox.Text).LengthInTextElements != 1 || TextBox.Text.Any(char.IsControl)) throw new InvalidOperationException("1文字だけ入力してください。");
-        var fontSize = Number(FontSizeBox);
-        if (!double.IsFinite(fontSize) || fontSize < 1 || fontSize > 256 || string.IsNullOrWhiteSpace(FontBox.Text)) throw new InvalidOperationException("フォントと1～256pxの文字サイズを指定してください。");
-        var cell = RequireCell(); cell.Text = TextBox.Text; cell.Font = FontBox.Text; cell.FontSize = fontSize; Changed();
-    });
-    private void ImageClick(object sender, RoutedEventArgs e) => Try(() =>
-    {
-        if (Surface.Selected is null) throw new InvalidOperationException("先にマスをクリックしてください。");
-        var dialog = new OpenFileDialog { Filter = "画像|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tif;*.tiff" };
-        if (dialog.ShowDialog(this) != true) return;
-        if (new FileInfo(dialog.FileName).Length > 20_000_000) throw new InvalidOperationException("画像は20MB以下にしてください。");
-        var data = File.ReadAllBytes(dialog.FileName); _ = Document.DecodeImage(data);
-        RequireCell().Image = data; Changed();
-    });
-    private void DeleteClick(object sender, RoutedEventArgs e)
-    {
-        var cell = SelectedCell(); if (cell is null) return;
-        document.Cells.Remove(cell); ShowCell(); Changed();
-    }
-    private bool Save(bool saveAs)
-    {
-        var destination = path;
-        if (saveAs || destination is null)
+        var node = Selected; var p = e.GetPosition(Surface);
+        if (dragStart is { } start)
         {
-            var dialog = new SaveFileDialog { Filter = "GridSketchプロジェクト|*.gridsketch", DefaultExt = ".gridsketch", FileName = path is null ? "無題.gridsketch" : Path.GetFileName(path) };
-            if (dialog.ShowDialog(this) != true) return false;
-            destination = dialog.FileName;
+            var current = Surface.ToWorld(p); var parent = document.Parent(node)!; var inverse = document.World(parent); inverse.Invert(); var delta = inverse.Transform(current) - inverse.Transform(start);
+            node.X = dragPosition.X + delta.X; node.Y = dragPosition.Y + delta.Y; RefreshSurface(); return;
         }
-        bool saved = false;
-        Try(() => { document.Save(destination); path = destination; dirty = false; saved = true; UpdateTitle(); Status.Text = "プロジェクトを保存しました。"; RememberFile(destination); });
-        return saved;
+        var grid = document.GridFor(node); var edge = ModeBox.SelectedIndex == 1 && node.Kind == ObjectKind.Border && grid is not null ? Surface.EdgeAt(grid, p, Zoom.Value) : null;
+        if (edge != Surface.HoveredEdge) { Surface.HoveredEdge = edge; Surface.InvalidateVisual(); }
+    }
+    private void FinishDrag()
+    {
+        if (dragStart is null) return; dragStart = null;
+        if (dragSnapshot is { } snapshot) { try { document.Validate(); if (snapshot != document.Snapshot()) RememberUndo(snapshot); } catch { document = SceneDocument.Restore(snapshot); } }
+        dragSnapshot = null; RefreshAll();
+    }
+    private void SurfaceUp(object sender, MouseButtonEventArgs e) { FinishDrag(); Surface.ReleaseMouseCapture(); }
+    private void SurfaceLostCapture(object sender, MouseEventArgs e) => FinishDrag();
+    private void SurfaceLeave(object sender, MouseEventArgs e) { Surface.HoveredEdge = null; Surface.InvalidateVisual(); }
+    private void ZoomChanged(object sender, RoutedPropertyChangedEventArgs<double> e) { if (Surface is not null) Surface.LayoutTransform = new ScaleTransform(e.NewValue, e.NewValue); }
+    private void CenterClick(object sender, RoutedEventArgs e)
+    {
+        var bounds = Surface.Renderer!.OutputBounds; Viewport.ScrollToHorizontalOffset(Math.Max(0, (Surface.OriginX + bounds.X) * Zoom.Value - 40)); Viewport.ScrollToVerticalOffset(Math.Max(0, (Surface.OriginY + bounds.Y) * Zoom.Value - 40));
     }
     private bool CanDiscard()
     {
-        if (!dirty) return true;
-        var answer = MessageBox.Show(this, "変更を保存しますか？", "GridSketch", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
-        return answer == MessageBoxResult.No || (answer == MessageBoxResult.Yes && Save(false));
+        if (!Dirty) return true; var answer = MessageBox.Show(this, "変更を保存しますか？", "GridSketch", MessageBoxButton.YesNoCancel, MessageBoxImage.Question); return answer == MessageBoxResult.No || answer == MessageBoxResult.Yes && Save(false);
+    }
+    private bool Save(bool saveAs)
+    {
+        string? destination = path;
+        if (saveAs || destination is null)
+        {
+            var dialog = new SaveFileDialog { Filter = "GridSketchプロジェクト|*.gridsketch", DefaultExt = ".gridsketch", FileName = Path.GetFileName(path ?? "無題.gridsketch") };
+            if (dialog.ShowDialog(this) != true) return false; destination = dialog.FileName;
+        }
+        bool saved = false; Try(() => { document.Save(destination); path = destination; savedState = document.Snapshot(); saved = true; RefreshAll(); Status.Text = "プロジェクトを保存しました。"; RememberFile(destination); }); return saved;
     }
     private void SaveClick(object sender, RoutedEventArgs e) => Save(false);
     private void SaveAsClick(object sender, RoutedEventArgs e) => Save(true);
     private void ExitClick(object sender, RoutedEventArgs e) => Close();
-    private void NewClick(object sender, RoutedEventArgs e)
+    private void NewClick(object sender, RoutedEventArgs e) => Try(() =>
     {
-        if (!CanDiscard()) return; document = new(); path = null; dirty = false; ShowDocument();
-    }
+        if (!CanDiscard()) return; var grid = GridDialog(true); if (grid is null) return;
+        document = new SceneDocument { Canvas = grid }; path = null; selectedId = document.Canvas.Id; savedState = document.Snapshot(); undo.Clear(); redo.Clear(); Surface.ActiveCell = null; Surface.RangeEnd = null; RefreshAll(); CenterClick(this, new RoutedEventArgs());
+    });
     private void OpenClick(object sender, RoutedEventArgs e) => Try(() =>
     {
-        var dialog = new OpenFileDialog { Filter = "GridSketchプロジェクト|*.gridsketch" };
-        if (dialog.ShowDialog(this) != true) return;
-        OpenProject(dialog.FileName);
+        var dialog = new OpenFileDialog { Filter = "GridSketchプロジェクト|*.gridsketch" }; if (dialog.ShowDialog(this) == true) OpenProject(dialog.FileName);
     });
     private void OpenProject(string filePath)
     {
-        if (!CanDiscard()) return;
-        var loaded = Document.Load(filePath);
-        document = loaded; path = filePath; dirty = false; ShowDocument();
-        Status.Text = "プロジェクトを開きました。";
-        RememberFile(filePath);
+        if (!CanDiscard()) return; var loaded = SceneDocument.Load(filePath); document = loaded; path = filePath; selectedId = document.Canvas.Id; savedState = document.Snapshot(); undo.Clear(); redo.Clear(); Surface.ActiveCell = null; Surface.RangeEnd = null;
+        RefreshAll(); CenterClick(this, new RoutedEventArgs()); Status.Text = "プロジェクトを開きました。保存するとオブジェクト形式（v3）になります。"; RememberFile(filePath);
     }
-    private void RememberFile(string filePath)
-    {
-        if (!recentFiles.Remember(filePath)) Status.Text += " 最近使ったファイルの履歴を保存できませんでした。";
-        RefreshRecentFilesMenu();
-    }
+    private void RememberFile(string filePath) { if (!recentFiles.Remember(filePath)) Status.Text += " 履歴を保存できませんでした。"; RefreshRecentFilesMenu(); }
     private void RefreshRecentFilesMenu()
     {
-        RecentFilesMenu.Items.Clear();
-        if (recentFiles.Entries.Count == 0)
-        {
-            RecentFilesMenu.Items.Add(new MenuItem { Header = "履歴はありません", IsEnabled = false });
-            return;
-        }
+        RecentFilesMenu.Items.Clear(); if (recentFiles.Entries.Count == 0) { RecentFilesMenu.Items.Add(new MenuItem { Header = "履歴はありません", IsEnabled = false }); return; }
         foreach (var filePath in recentFiles.Entries)
         {
-            var item = new MenuItem
-            {
-                // TextBlock keeps underscores in file names literal, rather than access keys.
-                Header = new TextBlock { Text = filePath }, ToolTip = filePath
-            };
+            var item = new MenuItem { Header = new TextBlock { Text = filePath }, ToolTip = filePath };
             item.Click += (_, _) => Try(() =>
             {
                 try { OpenProject(filePath); }
-                catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
-                {
-                    bool persisted = recentFiles.Remove(filePath);
-                    RefreshRecentFilesMenu();
-                    Status.Text = persisted ? "見つからないファイルを履歴から削除しました。" : "履歴の変更を保存できませんでした。";
-                    throw new FileNotFoundException($"ファイルが見つかりません。履歴から削除しました。\n{filePath}", ex);
-                }
-            });
-            RecentFilesMenu.Items.Add(item);
+                catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException) { recentFiles.Remove(filePath); RefreshRecentFilesMenu(); throw new FileNotFoundException($"ファイルが見つかりません。履歴から削除しました。\n{filePath}", ex); }
+            }); RecentFilesMenu.Items.Add(item);
         }
-        RecentFilesMenu.Items.Add(new Separator());
-        var clear = new MenuItem { Header = "履歴をクリア(_C)" };
-        clear.Click += (_, _) =>
-        {
-            Status.Text = recentFiles.Clear() ? "履歴をクリアしました。" : "履歴の変更を保存できませんでした。";
-            RefreshRecentFilesMenu();
-        };
-        RecentFilesMenu.Items.Add(clear);
+        RecentFilesMenu.Items.Add(new Separator()); var clear = new MenuItem { Header = "履歴をクリア(_C)" }; clear.Click += (_, _) => { Status.Text = recentFiles.Clear() ? "履歴をクリアしました。" : "履歴を保存できませんでした。"; RefreshRecentFilesMenu(); }; RecentFilesMenu.Items.Add(clear);
     }
     private void ExportClick(object sender, RoutedEventArgs e) => Try(() =>
     {
-        var dialog = new SaveFileDialog { Filter = "PNG画像|*.png", DefaultExt = ".png", FileName = Path.GetFileNameWithoutExtension(path ?? "無題") + ".png" };
-        if (dialog.ShowDialog(this) != true) return;
-        var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(Surface.Export(ExportScale.SelectedIndex + 1)));
-        using var output = File.Create(dialog.FileName); encoder.Save(output); Status.Text = "PNGを書き出しました。";
+        var dialog = new SaveFileDialog { Filter = "PNG画像|*.png", DefaultExt = ".png", FileName = Path.GetFileNameWithoutExtension(path ?? "無題") + ".png" }; if (dialog.ShowDialog(this) != true) return;
+        var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(new SceneRenderer(document).Export(ExportScale.SelectedIndex + 1))); using var stream = new MemoryStream(); encoder.Save(stream); File.WriteAllBytes(dialog.FileName, stream.ToArray()); Status.Text = "PNGを書き出しました。";
     });
-    private void ZoomChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        if (Surface is not null) Surface.LayoutTransform = new ScaleTransform(e.NewValue, e.NewValue);
-    }
     private void WindowClosing(object? sender, CancelEventArgs e) => e.Cancel = !CanDiscard();
 }
