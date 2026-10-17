@@ -16,14 +16,22 @@
     <MenuItem Header="元に戻す(_U)" Command="ApplicationCommands.Undo"/>
     <MenuItem Header="やり直し(_R)" Command="ApplicationCommands.Redo"/>
    </MenuItem>
+   <MenuItem Header="追加(_A)">
+    <MenuItem Header="グリッド（プリセット）…" Tag="Grid" Click="AddClick"/>
+    <MenuItem Header="グループ" Tag="Group" Click="AddClick"/>
+    <Separator/>
+    <MenuItem Header="罫線" Tag="Border" Click="AddClick"/>
+    <MenuItem Header="グリッド文字" Tag="GridText" Click="AddClick"/>
+    <MenuItem Header="セル塗り" Tag="Fill" Click="AddClick"/>
+    <Separator/>
+    <MenuItem Header="画像…" Tag="Image" Click="AddClick"/>
+    <MenuItem Header="フリーテキスト" Tag="Text" Click="AddClick"/>
+    <MenuItem Header="ライン・矢印" Tag="Line" Click="AddClick"/>
+    <MenuItem Header="図形" Tag="Shape" Click="AddClick"/>
+   </MenuItem>
   </Menu>
   <Border DockPanel.Dock="Top" Background="White" Padding="8">
    <WrapPanel VerticalAlignment="Center">
-    <TextBlock Text="追加" VerticalAlignment="Center" Margin="8,0"/>
-    <ComboBox x:Name="AddKind" Width="155" SelectedIndex="0" Margin="0">
-     <ComboBoxItem Content="グリッド（プリセット）"/><ComboBoxItem Content="グループ"/><ComboBoxItem Content="罫線"/><ComboBoxItem Content="グリッド文字"/><ComboBoxItem Content="セル塗り"/><ComboBoxItem Content="画像"/><ComboBoxItem Content="フリーテキスト"/><ComboBoxItem Content="ライン・矢印"/><ComboBoxItem Content="図形"/>
-    </ComboBox><Button Content="追加する" Click="AddClick"/>
-    <Separator Width="12"/>
     <ComboBox x:Name="ModeBox" Width="170" SelectedIndex="1" SelectionChanged="ModeChanged" Margin="8,0">
      <ComboBoxItem Content="選択・ドラッグ移動"/><ComboBoxItem Content="マス・辺を編集"/>
     </ComboBox>

@@ -105,6 +105,27 @@ public partial class MainWindow : Window
         Properties.Children.Add(box); setters.Add(() => setter(box.Text));
     }
     private void Number(string key, double value, Action<double> setter) => TextField(key, value.ToString(CultureInfo.CurrentCulture), s => setter(double.Parse(s, CultureInfo.CurrentCulture)));
+    private void ColorField(string key, string value, Action<string> setter)
+    {
+        Label(key); Properties.Children.Add(ColorEditor(value, out var box)); setters.Add(() => setter(box.Text));
+    }
+    private FrameworkElement ColorEditor(string value, out TextBox textBox)
+    {
+        var row = new DockPanel(); var box = new TextBox { Text = value }; textBox = box;
+        var swatch = ColorPicker.Swatch(); swatch.Width = 38; swatch.Height = 24;
+        var button = new Button { Content = swatch, Padding = new Thickness(3), Margin = new Thickness(6, 3, 0, 8), ToolTip = "色を選択…" };
+        System.Windows.Automation.AutomationProperties.SetName(button, "色を選択");
+        DockPanel.SetDock(button, Dock.Right); row.Children.Add(button); row.Children.Add(box);
+        void UpdatePreview() { swatch.Child = ColorPicker.TryColor(box.Text, out var color) ? new Border { Background = new SolidColorBrush(color) } : new TextBlock { Text = "?", HorizontalAlignment = HorizontalAlignment.Center }; }
+        box.TextChanged += (_, _) => UpdatePreview(); UpdatePreview();
+        button.Click += (_, _) =>
+        {
+            ColorPicker.TryColor(box.Text, out var initial);
+            var picker = new ColorPicker(initial) { Owner = Window.GetWindow(button) ?? this };
+            if (picker.ShowDialog() == true) box.Text = ColorPicker.Format(picker.SelectedColor);
+        };
+        return row;
+    }
     private void Integer(string key, int value, Action<int> setter) => TextField(key, value.ToString(), s => setter(int.Parse(s, CultureInfo.CurrentCulture)));
     private void Check(string key, bool value, Action<bool> setter)
     {
@@ -130,7 +151,7 @@ public partial class MainWindow : Window
             Number("出力原点 X（固定時）", node.AutoSize ? bounds.X : node.X, v => node.X = v);
             Number("出力原点 Y（固定時）", node.AutoSize ? bounds.Y : node.Y, v => node.Y = v);
             Number("DPI", node.Dpi, v => node.Dpi = v); Number("自動サイズの余白（px）", node.Padding, v => node.Padding = v);
-            TextField("背景色（透明は #00000000）", node.Background, v => node.Background = v);
+            ColorField("背景色（透明は #00000000）", node.Background, v => node.Background = v);
         }
         else if (!node.IsGridContent) { Number("位置 X", node.X, v => node.X = v); Number("位置 Y", node.Y, v => node.Y = v); Number("回転（度 / 左上中心）", node.Angle, v => node.Angle = v); }
         switch (node.Kind)
@@ -139,13 +160,13 @@ public partial class MainWindow : Window
                 Integer("列数", node.Columns, v => node.Columns = v); Integer("行数", node.Rows, v => node.Rows = v); Number("マスの大きさ（px）", node.CellSize, v => node.CellSize = v); Number("画像余白（px）", node.Margin, v => node.Margin = v);
                 Label("外枠・内枠はマス数に追従します。縮小時は個別罫線も範囲内に収めます。文字・画像・塗りは削除しません。"); break;
             case ObjectKind.Border:
-                TextField("色", node.Color, v => node.Color = v); Number("太さ（0～64px）", node.Thickness, v => node.Thickness = v); Choice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v); Label($"対象：{node.Pattern}。辺のクリックで個別編集になります。"); break;
+                ColorField("色", node.Color, v => node.Color = v); Number("太さ（0～64px）", node.Thickness, v => node.Thickness = v); Choice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v); Label($"対象：{node.Pattern}。辺のクリックで個別編集になります。"); break;
             case ObjectKind.Fill:
-                TextField("塗り色", node.Color, v => node.Color = v); Check("この塗りのマスを文字入力から除外", node.BlockInput, v => node.BlockInput = v); Label("非表示でも入力除外を維持します。編集モードでマスをクリックして塗りを切り替えます。"); break;
+                ColorField("塗り色", node.Color, v => node.Color = v); Check("この塗りのマスを文字入力から除外", node.BlockInput, v => node.BlockInput = v); Label("非表示でも入力除外を維持します。編集モードでマスをクリックして塗りを切り替えます。"); break;
             case ObjectKind.GridText:
             case ObjectKind.Text:
                 Choice("フォント", node.Font, Fonts.SystemFontFamilies.Select(f => f.Source).OrderBy(f => f), v => node.Font = v, true);
-                Number("文字サイズ（px）", node.FontSize, v => node.FontSize = v); TextField("文字色", node.Color, v => node.Color = v);
+                Number("文字サイズ（px）", node.FontSize, v => node.FontSize = v); ColorField("文字色", node.Color, v => node.Color = v);
                 if (node.Kind == ObjectKind.GridText) Choice("配置", node.Alignment, ["中央", "左上"], v => node.Alignment = v); else TextField("文章", node.Text, v => node.Text = v, true); break;
             case ObjectKind.Image:
                 if (document.Parent(node)?.Kind == ObjectKind.Grid) Check("マス中央に配置", node.SnapToCell, v => { node.SnapToCell = v; if (v) node.X = node.Y = node.Angle = 0; });
@@ -153,13 +174,13 @@ public partial class MainWindow : Window
                 else { Number("幅（px）", node.Width, v => node.Width = v); Number("高さ（px）", node.Height, v => node.Height = v); } break;
             case ObjectKind.Shape:
                 Choice("形", node.Shape, ["四角", "角丸", "楕円"], v => node.Shape = v); Number("幅（px）", node.Width, v => node.Width = v); Number("高さ（px）", node.Height, v => node.Height = v);
-                TextField("塗り色", node.FillColor, v => node.FillColor = v); TextField("線の色", node.Color, v => node.Color = v); Number("線の太さ", node.Thickness, v => node.Thickness = v); break;
+                ColorField("塗り色", node.FillColor, v => node.FillColor = v); ColorField("線の色", node.Color, v => node.Color = v); Number("線の太さ", node.Thickness, v => node.Thickness = v); break;
             case ObjectKind.Line:
                 Choice("経路", node.PathKind, ["直線", "折れ線", "曲線"], v => node.PathKind = v);
                 Number("終点 X（始点から）", node.EndX, v => node.EndX = v); Number("終点 Y（始点から）", node.EndY, v => node.EndY = v);
                 Number("制御点 X（始点から）", node.ControlX, v => node.ControlX = v); Number("制御点 Y（始点から）", node.ControlY, v => node.ControlY = v);
                 Choice("始点の矢印", node.StartArrow, ["なし", "三角", "開いた矢印"], v => node.StartArrow = v); Choice("終点の矢印", node.EndArrow, ["なし", "三角", "開いた矢印"], v => node.EndArrow = v);
-                Number("矢印の大きさ", node.ArrowSize, v => node.ArrowSize = v); TextField("線の色", node.Color, v => node.Color = v); Number("線の太さ", node.Thickness, v => node.Thickness = v); Choice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v); break;
+                Number("矢印の大きさ", node.ArrowSize, v => node.ArrowSize = v); ColorField("線の色", node.Color, v => node.Color = v); Number("線の太さ", node.Thickness, v => node.Thickness = v); Choice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v); break;
         }
         var apply = setters.ToArray();
         Button("プロパティを適用", () => Change(() =>
@@ -261,12 +282,12 @@ public partial class MainWindow : Window
     }
     private void AddClick(object sender, RoutedEventArgs e) => Try(() =>
     {
-        if (AddKind.SelectedIndex == 0)
+        if (sender is not MenuItem { Tag: string tag } || !Enum.TryParse<ObjectKind>(tag, out var kind)) return;
+        if (kind == ObjectKind.Grid)
         {
             var grid = GridDialog(false); if (grid is null) return;
             Change(() => { var parent = AddParent(false); RequireEditable(parent); parent.Children.Insert(0, grid); selectedId = grid.Id; }); return;
         }
-        var kinds = new[] { ObjectKind.Grid, ObjectKind.Group, ObjectKind.Border, ObjectKind.GridText, ObjectKind.Fill, ObjectKind.Image, ObjectKind.Text, ObjectKind.Line, ObjectKind.Shape }; var kind = kinds[AddKind.SelectedIndex];
         byte[]? image = kind == ObjectKind.Image ? ReadImage() : null; if (kind == ObjectKind.Image && image is null) return;
         Change(() =>
         {
@@ -295,7 +316,7 @@ public partial class MainWindow : Window
             panel.Children.Add(new TextBlock { Text = "キャンバス", FontWeight = FontWeights.Bold });
             automatic = new CheckBox { Content = "サイズを自動調整", IsChecked = true, Margin = new Thickness(0, 8, 0, 8) }; panel.Children.Add(automatic);
             canvasWidth = Field("幅（固定時 / px）", "800"); canvasHeight = Field("高さ（固定時 / px）", "600");
-            dpi = Field("DPI", "96"); background = Field("背景色（透明は #00000000）", "#FFFFFF");
+            dpi = Field("DPI", "96"); panel.Children.Add(new TextBlock { Text = "背景色" }); panel.Children.Add(ColorEditor("#FFFFFF", out background));
         }
         panel.Children.Add(new TextBlock { Text = "プリセット" });
         var options = new List<string> { "基本の方眼紙", "クロスワード", "将棋盤", "空のグリッド" }; if (isNew) options.Add("キャンバスのみ");
@@ -458,3 +479,4 @@ public partial class MainWindow : Window
     });
     private void WindowClosing(object? sender, CancelEventArgs e) => e.Cancel = !CanDiscard();
 }
+
