@@ -37,6 +37,9 @@ public sealed class SceneObject
     public double Height { get; set; } = 80;
     public bool AutoSize { get; set; } = true;
     public double Dpi { get; set; } = 96;
+    public string CanvasUnit { get; set; } = "px";
+    [JsonIgnore] public double CanvasPixelWidth => CanvasUnit == "mm" ? Math.Max(1, Math.Round(Width * Dpi / 25.4)) : Math.Ceiling(Width);
+    [JsonIgnore] public double CanvasPixelHeight => CanvasUnit == "mm" ? Math.Max(1, Math.Round(Height * Dpi / 25.4)) : Math.Ceiling(Height);
     public double Padding { get; set; } = 8;
     public string Background { get; set; } = "#FFFFFF";
     public int Columns { get; set; } = 16;
@@ -213,6 +216,7 @@ public sealed class SceneDocument
 
     public void Validate()
     {
+        if (Canvas is not null && Canvas.CanvasUnit is not ("px" or "mm")) throw new InvalidDataException("キャンバスの単位はpxまたはmmです。");
         if (Version != 3 || Canvas is null || Canvas.Kind != ObjectKind.Canvas) throw new InvalidDataException("未対応のプロジェクト形式です。");
         var ids = new HashSet<string>();
         void Check(SceneObject node, SceneObject? parent, int depth)

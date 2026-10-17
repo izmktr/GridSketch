@@ -144,14 +144,7 @@ public partial class MainWindow : Window
         int metadataCount = setters.Count;
         if (node.Kind == ObjectKind.Canvas)
         {
-            var bounds = Surface.Renderer!.OutputBounds; Label($"現在の出力：{bounds.Width:0} × {bounds.Height:0} px");
-            Check("サイズを自動調整", node.AutoSize, v => node.AutoSize = v);
-            Number("幅（固定時 / px）", node.AutoSize ? bounds.Width : node.Width, v => node.Width = v);
-            Number("高さ（固定時 / px）", node.AutoSize ? bounds.Height : node.Height, v => node.Height = v);
-            Number("出力原点 X（固定時）", node.AutoSize ? bounds.X : node.X, v => node.X = v);
-            Number("出力原点 Y（固定時）", node.AutoSize ? bounds.Y : node.Y, v => node.Y = v);
-            Number("DPI", node.Dpi, v => node.Dpi = v); Number("自動サイズの余白（px）", node.Padding, v => node.Padding = v);
-            ColorField("背景色（透明は #00000000）", node.Background, v => node.Background = v);
+            setters.Add(CanvasSettings(Properties, node, Surface.Renderer!.OutputBounds));
         }
         else if (!node.IsGridContent) { Number("位置 X", node.X, v => node.X = v); Number("位置 Y", node.Y, v => node.Y = v); Number("回転（度 / 左上中心）", node.Angle, v => node.Angle = v); }
         switch (node.Kind)
@@ -309,15 +302,8 @@ public partial class MainWindow : Window
         var dialog = new Window { Owner = this, Title = isNew ? "新規キャンバスとグリッド" : "グリッドを追加", Width = 390, Height = isNew ? 760 : 540, ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterOwner };
         var panel = new StackPanel { Margin = new Thickness(20) }; dialog.Content = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         TextBox Field(string title, string value) { panel.Children.Add(new TextBlock { Text = title }); var box = new TextBox { Text = value }; panel.Children.Add(box); return box; }
-        TextBox? dpi = null, canvasWidth = null, canvasHeight = null, background = null;
-        CheckBox? automatic = null;
-        if (isNew)
-        {
-            panel.Children.Add(new TextBlock { Text = "キャンバス", FontWeight = FontWeights.Bold });
-            automatic = new CheckBox { Content = "サイズを自動調整", IsChecked = true, Margin = new Thickness(0, 8, 0, 8) }; panel.Children.Add(automatic);
-            canvasWidth = Field("幅（固定時 / px）", "800"); canvasHeight = Field("高さ（固定時 / px）", "600");
-            dpi = Field("DPI", "96"); panel.Children.Add(new TextBlock { Text = "背景色" }); panel.Children.Add(ColorEditor("#FFFFFF", out background));
-        }
+        var canvasDraft = new SceneObject { Kind = ObjectKind.Canvas, Name = "キャンバス", Width = 800, Height = 600 };
+        Action? applyCanvas = isNew ? CanvasSettings(panel, canvasDraft, new Rect(0, 0, 800, 600)) : null;
         panel.Children.Add(new TextBlock { Text = "プリセット" });
         var options = new List<string> { "基本の方眼紙", "クロスワード", "将棋盤", "空のグリッド" }; if (isNew) options.Add("キャンバスのみ");
         var preset = new ComboBox { ItemsSource = options, SelectedIndex = 0 }; panel.Children.Add(preset);
@@ -330,8 +316,7 @@ public partial class MainWindow : Window
             if (preset.Text != "キャンバスのみ") test.Canvas.Children.Add(SceneDocument.CreateGrid(preset.Text, int.Parse(cols.Text), int.Parse(rows.Text), double.Parse(size.Text)));
             if (isNew)
             {
-                test.Canvas.AutoSize = automatic!.IsChecked == true; test.Canvas.Dpi = double.Parse(dpi!.Text);
-                test.Canvas.Width = double.Parse(canvasWidth!.Text); test.Canvas.Height = double.Parse(canvasHeight!.Text); test.Canvas.Background = background!.Text;
+                applyCanvas!(); canvasDraft.Children = test.Canvas.Children; test.Canvas = canvasDraft;
             }
             test.Validate(); result = isNew ? test.Canvas : test.Canvas.Children[0]; dialog.DialogResult = true;
         });
@@ -475,8 +460,9 @@ public partial class MainWindow : Window
     private void ExportClick(object sender, RoutedEventArgs e) => Try(() =>
     {
         var dialog = new SaveFileDialog { Filter = "PNG画像|*.png", DefaultExt = ".png", FileName = Path.GetFileNameWithoutExtension(path ?? "無題") + ".png" }; if (dialog.ShowDialog(this) != true) return;
-        var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(new SceneRenderer(document).Export(ExportScale.SelectedIndex + 1))); using var stream = new MemoryStream(); encoder.Save(stream); File.WriteAllBytes(dialog.FileName, stream.ToArray()); Status.Text = "PNGを書き出しました。";
+        var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(new SceneRenderer(document).Export(1))); using var stream = new MemoryStream(); encoder.Save(stream); File.WriteAllBytes(dialog.FileName, stream.ToArray()); Status.Text = "PNGを書き出しました。";
     });
     private void WindowClosing(object? sender, CancelEventArgs e) => e.Cancel = !CanDiscard();
 }
+
 

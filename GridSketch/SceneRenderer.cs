@@ -24,7 +24,7 @@ public sealed class SceneRenderer
             rect.Inflate(root.Padding, root.Padding);
             OutputBounds = new Rect(Math.Floor(rect.Left), Math.Floor(rect.Top), Math.Max(1, Math.Ceiling(rect.Right) - Math.Floor(rect.Left)), Math.Max(1, Math.Ceiling(rect.Bottom) - Math.Floor(rect.Top)));
         }
-        else OutputBounds = new Rect(root.X, root.Y, root.Width, root.Height);
+        else OutputBounds = new Rect(root.X, root.Y, root.CanvasPixelWidth, root.CanvasPixelHeight);
         Bounds[root.Id] = OutputBounds;
     }
     public static Brush Brush(string color) => new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
@@ -165,7 +165,9 @@ public sealed class SceneRenderer
     public BitmapSource Export(int scale = 1)
     {
         if (scale is < 1 or > 4) throw new InvalidOperationException("出力倍率は1～4です。");
-        int width = (int)Math.Ceiling(OutputBounds.Width * scale), height = (int)Math.Ceiling(OutputBounds.Height * scale);
+        double requestedWidth = Math.Ceiling(OutputBounds.Width * scale), requestedHeight = Math.Ceiling(OutputBounds.Height * scale);
+        if (requestedWidth * requestedHeight > 40_000_000) throw new InvalidOperationException("PNGは4000万画素以下にしてください。");
+        int width = (int)requestedWidth, height = (int)requestedHeight;
         if (width < 1 || height < 1 || (long)width * height > 40_000_000) throw new InvalidOperationException("PNGは4000万画素以下にしてください。");
         var visual = new DrawingVisual();
         using (var dc = visual.RenderOpen())
@@ -175,7 +177,7 @@ public sealed class SceneRenderer
         }
         var rendered = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32); rendered.Render(visual);
         var pixels = new byte[width * height * 4]; rendered.CopyPixels(pixels, width * 4, 0);
-        // DPI is metadata: changing it must not resample or change pixel dimensions.
+        // Pixel dimensions already reflect the canvas unit and DPI; render at those exact dimensions.
         return BitmapSource.Create(width, height, Document.Canvas.Dpi, Document.Canvas.Dpi, PixelFormats.Pbgra32, null, pixels, width * 4);
     }
 }

@@ -37,8 +37,6 @@
     </ComboBox>
     <TextBlock Text="表示" VerticalAlignment="Center"/><Slider x:Name="Zoom" Width="110" Minimum="0.25" Maximum="3" Value="1" TickFrequency="0.25" IsSnapToTickEnabled="True" ValueChanged="ZoomChanged" Margin="8,0"/>
     <Button Content="キャンバスへ" Click="CenterClick"/>
-    <TextBlock Text="PNG倍率" VerticalAlignment="Center" Margin="12,0,4,0"/>
-    <ComboBox x:Name="ExportScale" Width="60" SelectedIndex="0" Margin="0"><ComboBoxItem Content="1倍"/><ComboBoxItem Content="2倍"/><ComboBoxItem Content="3倍"/><ComboBoxItem Content="4倍"/></ComboBox>
    </WrapPanel>
   </Border>
   <StatusBar DockPanel.Dock="Bottom"><TextBlock x:Name="Status" Text="レイヤーを選択して編集します。"/></StatusBar>
