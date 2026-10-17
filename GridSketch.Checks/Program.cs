@@ -112,6 +112,7 @@ internal static class Program
             WindowChecks.Run(window, Path.GetDirectoryName(temp)!);
             CanvasChecks.Run(window, Path.GetDirectoryName(temp)!);
             ColorPickerChecks.Run(window, Path.GetDirectoryName(temp)!);
+            PdfChecks.Run(Path.GetDirectoryName(temp)!);
             window.Close(); app.Shutdown();
             Console.WriteLine("All checks passed.");
         }

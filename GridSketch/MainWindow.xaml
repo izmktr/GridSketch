@@ -9,7 +9,8 @@
     <Separator/>
     <MenuItem Header="保存(_S)" InputGestureText="Ctrl+S" Click="SaveClick"/>
     <MenuItem Header="名前を付けて保存(_A)…" Click="SaveAsClick"/>
-    <MenuItem Header="エクスポート(_E)"><MenuItem Header="PNG(_P)…" Click="ExportClick"/></MenuItem>
+    <MenuItem Header="エクスポート(_E)"><MenuItem Header="PNG(_P)…" Click="ExportClick"/><MenuItem Header="PDF(_D)…" Click="ExportPdfClick"/></MenuItem>
+    <MenuItem Header="エクスポート設定…" Click="ExportSettingsClick"/>
     <Separator/><MenuItem Header="終了(_X)" InputGestureText="Alt+F4" Click="ExitClick"/>
    </MenuItem>
    <MenuItem Header="編集(_E)">

@@ -88,6 +88,7 @@ public sealed class SceneObject
 
 public sealed class SceneDocument
 {
+    public PdfSettings PdfExport { get; set; } = new();
     public int Version { get; set; } = 3;
     public SceneObject Canvas { get; set; } = new() { Kind = ObjectKind.Canvas, Name = "キャンバス", Width = 800, Height = 600 };
     public static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, MaxDepth = 128 };
@@ -216,6 +217,8 @@ public sealed class SceneDocument
 
     public void Validate()
     {
+        if (PdfExport is null) throw new InvalidDataException("PDF出力設定が不正です。");
+        PdfExport.Validate();
         if (Canvas is not null && Canvas.CanvasUnit is not ("px" or "mm")) throw new InvalidDataException("キャンバスの単位はpxまたはmmです。");
         if (Version != 3 || Canvas is null || Canvas.Kind != ObjectKind.Canvas) throw new InvalidDataException("未対応のプロジェクト形式です。");
         var ids = new HashSet<string>();
