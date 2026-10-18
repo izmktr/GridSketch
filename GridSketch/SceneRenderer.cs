@@ -60,15 +60,16 @@ public sealed class SceneRenderer
                     {
                         var box = new Rect(glyph.Column * grid.CellSize, glyph.Row * grid.CellSize, grid.CellSize, grid.CellSize);
                         dc.PushClip(new RectangleGeometry(box));
-                        var text = TextGeometry(glyph.Text, glyph.Font ?? node.Font, glyph.Size ?? node.FontSize);
+                        var text = StyledText(node, glyph.Text, glyph.Font ?? node.Font, glyph.Size ?? node.FontSize);
                         var bounds = text.Bounds;
                         if (!bounds.IsEmpty)
                         {
-                            double scale = Math.Min(1, Math.Min((grid.CellSize - 2) / Math.Max(1, bounds.Width), (grid.CellSize - 2) / Math.Max(1, bounds.Height)));
+                            double available = grid.CellSize - (node.Alignment == "左上" ? 4 : 2);
+                            double scale = Math.Min(1, Math.Min(available / Math.Max(1, bounds.Width), available / Math.Max(1, bounds.Height)));
                             var x = node.Alignment == "左上" ? box.X + 2 : box.X + (box.Width - bounds.Width * scale) / 2;
                             var y = node.Alignment == "左上" ? box.Y + 2 : box.Y + (box.Height - bounds.Height * scale) / 2;
                             dc.PushTransform(new TranslateTransform(x, y)); dc.PushTransform(new ScaleTransform(scale, scale)); dc.PushTransform(new TranslateTransform(-bounds.X, -bounds.Y));
-                            dc.DrawGeometry(Brush(node.Color), null, text); dc.Pop(); dc.Pop(); dc.Pop();
+                            dc.DrawDrawing(text); dc.Pop(); dc.Pop(); dc.Pop();
                         }
                         dc.Pop();
                     }
@@ -90,7 +91,7 @@ public sealed class SceneRenderer
                     dc.DrawImage(bitmap, imageBox);
                     break;
                 case ObjectKind.Text:
-                    dc.DrawGeometry(Brush(node.Color), null, TextGeometry(node.Text, node.Font, node.FontSize)); break;
+                    dc.DrawDrawing(StyledText(node, node.Text, node.Font, node.FontSize)); break;
                 case ObjectKind.Shape:
                     var rect = new Rect(0, 0, node.Width, node.Height);
                     if (node.Shape == "楕円") dc.DrawEllipse(Brush(node.FillColor), pen, new Point(node.Width / 2, node.Height / 2), node.Width / 2, node.Height / 2);
@@ -149,6 +150,22 @@ public sealed class SceneRenderer
         }
     }
     private static Geometry TextGeometry(string text, string font, double size) => new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, new Typeface(font), size, Brushes.Black, 1).BuildGeometry(new Point());
+    private static DrawingGroup StyledText(SceneObject node, string value, string font, double size)
+    {
+        var geometry = TextGeometry(value, font, size);
+        var drawing = new DrawingGroup();
+        using var dc = drawing.Open();
+        if (node.Style.OutlineEnabled && node.Style.OutlineWidth > 0 && !geometry.Bounds.IsEmpty)
+        {
+            // Subtract the glyph interior so translucent text never reveals an underlying stroke.
+            var pen = new Pen(Brushes.Black, node.Style.OutlineWidth * 2) { LineJoin = PenLineJoin.Round };
+            var widened = geometry.GetWidenedPathGeometry(pen, 0.02, ToleranceType.Absolute);
+            var outline = Geometry.Combine(widened, geometry, GeometryCombineMode.Exclude, null, 0.02, ToleranceType.Absolute);
+            dc.DrawGeometry(Brush(node.Style.OutlineColor), null, outline);
+        }
+        dc.DrawGeometry(Brush(node.Color), null, geometry);
+        return drawing;
+    }
     private static void Arrow(DrawingContext dc, SceneObject node, Point tip, Vector direction, string type)
     {
         if (type == "なし" || direction.Length < 0.001) return;

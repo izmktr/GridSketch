@@ -160,7 +160,13 @@ public partial class MainWindow : Window
             case ObjectKind.Text:
                 Choice("フォント", node.Font, Fonts.SystemFontFamilies.Select(f => f.Source).OrderBy(f => f), v => node.Font = v, true);
                 Number("文字サイズ（px）", node.FontSize, v => node.FontSize = v); ColorField("文字色", node.Color, v => node.Color = v);
-                if (node.Kind == ObjectKind.GridText) Choice("配置", node.Alignment, ["中央", "左上"], v => node.Alignment = v); else TextField("文章", node.Text, v => node.Text = v, true); break;
+                if (node.Kind == ObjectKind.GridText) Choice("配置", node.Alignment, ["中央", "左上"], v => node.Alignment = v); else TextField("文章", node.Text, v => node.Text = v, true);
+                Label("レイヤースタイル ― 縁取り");
+                Check("縁取りを有効にする", node.Style.OutlineEnabled, v => node.Style.OutlineEnabled = v);
+                ColorField("縁の色・不透明度", node.Style.OutlineColor, v => node.Style.OutlineColor = v);
+                Number("縁の太さ（外側 / 0～64px）", node.Style.OutlineWidth, v => node.Style.OutlineWidth = v);
+                if (node.Kind == ObjectKind.GridText) Label("すべての文字に適用します。縁も含めてマスに収まるように縮小します。");
+                break;
             case ObjectKind.Image:
                 if (document.Parent(node)?.Kind == ObjectKind.Grid) Check("マス中央に配置", node.SnapToCell, v => { node.SnapToCell = v; if (v) node.X = node.Y = node.Angle = 0; });
                 if (node.SnapToCell) { Integer("列（1から）", node.Column + 1, v => node.Column = v - 1); Integer("行（1から）", node.Row + 1, v => node.Row = v - 1); }

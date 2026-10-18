@@ -8,7 +8,7 @@ internal static class PdfChecks
     public static void Run(string directory)
     {
         var scene = new SceneDocument(); scene.Canvas.AutoSize = false; scene.Canvas.Width = 600; scene.Canvas.Height = 450; scene.Canvas.Background = "#00000000";
-        scene.Canvas.Children.Add(new SceneObject { Kind = ObjectKind.Text, X = 30, Y = 10, Text = "日本語 PDF / GridSketch", FontSize = 24 });
+        scene.Canvas.Children.Add(new SceneObject { Kind = ObjectKind.Text, X = 30, Y = 10, Text = "日本語 PDF / GridSketch", FontSize = 24, Style = new LayerStyle { OutlineEnabled = true, OutlineColor = "#88FF9900", OutlineWidth = 2 } });
         var grid = SceneDocument.CreateGrid("基本の方眼紙", 6, 4, 44); grid.X = 40; grid.Y = 90; grid.Angle = 7; scene.Canvas.Children.Add(grid);
         grid.Children.First(n => n.Kind == ObjectKind.GridText).Glyphs.Add(new Glyph { Column = 1, Row = 1, Text = "字" });
         grid.Children.Add(new SceneObject { Kind = ObjectKind.Fill, Color = "#8800AAFF", FilledCells = [new(2, 2)] });

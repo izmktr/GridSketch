@@ -21,6 +21,13 @@ public sealed class Glyph
 
 public readonly record struct CellPosition(int Column, int Row);
 
+public sealed class LayerStyle
+{
+    public bool OutlineEnabled { get; set; }
+    public string OutlineColor { get; set; } = "#FFFFFF";
+    public double OutlineWidth { get; set; } = 2;
+}
+
 public sealed class SceneObject
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
@@ -29,6 +36,7 @@ public sealed class SceneObject
     public bool Visible { get; set; } = true;
     public bool Locked { get; set; }
     public bool LayerExpanded { get; set; } = true;
+    public LayerStyle Style { get; set; } = new();
     public double X { get; set; }
     public double Y { get; set; }
     public double Angle { get; set; }
@@ -226,6 +234,8 @@ public sealed class SceneDocument
         {
             if (node is null || depth > 24 || ids.Count > 5000 || string.IsNullOrWhiteSpace(node.Id) || !ids.Add(node.Id)) throw new InvalidDataException("階層が深すぎるか、IDが重複しています。");
             if (!Enum.IsDefined(node.Kind) || node.Children is null || node.Name is null || node.Name.Length > 200 || node.Glyphs is null || node.Edges is null || node.FilledCells is null) throw new InvalidDataException("オブジェクトが不正です。");
+            if (node.Style is null || !double.IsFinite(node.Style.OutlineWidth) || node.Style.OutlineWidth < 0 || node.Style.OutlineWidth > 64) throw new InvalidDataException("縁取りの太さは0～64pxで指定してください。");
+            _ = (Color)ColorConverter.ConvertFromString(node.Style.OutlineColor);
             if (parent is not null && (node.Kind == ObjectKind.Canvas || !parent.IsContainer)) throw new InvalidDataException("不正な親子構造です。");
             if (node.IsGridContent && (parent?.Kind != ObjectKind.Grid || node.X != 0 || node.Y != 0 || node.Angle != 0)) throw new InvalidDataException("マスに配置する内容はグリッド直下で管理し、個別に移動・回転できません。");
             foreach (var value in new[] { node.X, node.Y, node.Angle, node.Width, node.Height, node.Dpi, node.Padding, node.CellSize, node.Margin, node.Thickness, node.FontSize, node.EndX, node.EndY, node.ControlX, node.ControlY, node.ArrowSize })
