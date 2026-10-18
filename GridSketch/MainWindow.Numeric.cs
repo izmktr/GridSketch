@@ -2,11 +2,24 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Media;
 
 namespace GridSketch;
 
 public partial class MainWindow
 {
+    private static double[] SliderValues(double minimum, double maximum)
+    {
+        var values = new SortedSet<double> { minimum, maximum };
+        if (minimum == 0)
+            values.UnionWith(new[] { 0.25, 0.5, 0.75, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10 });
+        else
+            values.UnionWith(Enumerable.Range(1, 11).Select(n => (double)n));
+        for (double factor = 1; 12 * factor <= maximum; factor *= 2)
+            foreach (double basis in new[] { 12d, 16, 20 }) values.Add(basis * factor);
+        return values.Where(v => v >= minimum && v <= maximum).ToArray();
+    }
+
     private static FrameworkElement NumericEditor(string label, double value, out TextBox box, double? minimum = null, double maximum = 1000)
     {
         var panel = new StackPanel();
@@ -18,7 +31,13 @@ public partial class MainWindow
         if (minimum is not double min) return panel;
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var slider = new Slider { Minimum = min, Maximum = maximum, Value = Math.Clamp(value, min, maximum), SmallChange = 1, LargeChange = 10,
+        var choices = SliderValues(min, maximum);
+        // A small offset keeps zero available for strokes while retaining logarithmic spacing.
+        double offset = min == 0 ? 0.25 : 0;
+        double Position(double number) => Math.Log2(Math.Clamp(number, min, maximum) + offset);
+        var ticks = choices.Select(Position).ToArray();
+        var slider = new Slider { Minimum = ticks[0], Maximum = ticks[^1], Value = Position(value), SmallChange = 0.001, LargeChange = 1,
+            Ticks = new DoubleCollection(ticks), IsSnapToTickEnabled = true,
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 3, 0, 8), MinWidth = 35 };
         AutomationProperties.SetName(slider, label + " スライダー");
         Grid.SetColumn(slider, 1); row.Children.Add(slider);
@@ -27,17 +46,21 @@ public partial class MainWindow
         {
             if (synchronizing || !double.TryParse(input.Text, out var number) || !double.IsFinite(number)) return;
             synchronizing = true;
-            slider.Value = Math.Clamp(number, min, maximum);
+            slider.Value = Position(number);
+            slider.ToolTip = number.ToString(CultureInfo.CurrentCulture);
             synchronizing = false;
         };
         slider.ValueChanged += (_, _) =>
         {
             if (synchronizing) return;
             synchronizing = true;
-            input.Text = Math.Round(slider.Value, 1).ToString(CultureInfo.CurrentCulture);
+            int index = Enumerable.Range(0, ticks.Length).MinBy(i => Math.Abs(ticks[i] - slider.Value));
+            slider.Value = ticks[index];
+            input.Text = choices[index].ToString(CultureInfo.CurrentCulture);
+            slider.ToolTip = input.Text;
             synchronizing = false;
         };
-        slider.ToolTip = $"{min}～{maximum}（範囲外の値は数値欄で入力）";
+        slider.ToolTip = input.Text;
         return panel;
     }
 
