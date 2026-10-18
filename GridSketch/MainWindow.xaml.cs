@@ -135,6 +135,21 @@ public partial class MainWindow : Window
     {
         Label(key); var combo = new ComboBox { ItemsSource = options.ToList(), IsEditable = editable, Text = value }; combo.SelectedItem = value; Properties.Children.Add(combo); setters.Add(() => setter(combo.Text));
     }
+    private void FontField(SceneObject node)
+    {
+        Label("フォント");
+        var original = node.Font;
+        var current = FontNames.Installed.FirstOrDefault(font => font.Matches(original));
+        var combo = new ComboBox { ItemsSource = FontNames.Installed, DisplayMemberPath = nameof(FontName.DisplayName), IsEditable = true };
+        combo.SelectedItem = current; combo.Text = current?.DisplayName ?? original;
+        Properties.Children.Add(combo);
+        setters.Add(() =>
+        {
+            var matched = combo.SelectedItem is FontName selected && combo.Text == selected.DisplayName
+                ? selected : FontNames.Installed.FirstOrDefault(font => font.Matches(combo.Text));
+            node.Font = matched == current && matched is not null ? original : matched?.Source ?? combo.Text;
+        });
+    }
     private void Button(string label, Action action) { var button = new Button { Content = label }; button.Click += (_, _) => Try(action); Properties.Children.Add(button); }
     private void RequireEditable(SceneObject node) { if (!document.Editable(node)) throw new InvalidOperationException("オブジェクトまたは親がロックされています。"); }
     private void BuildProperties()
@@ -158,7 +173,7 @@ public partial class MainWindow : Window
                 ColorField("塗り色", node.Color, v => node.Color = v); Check("この塗りのマスを文字入力から除外", node.BlockInput, v => node.BlockInput = v); Label("非表示でも入力除外を維持します。編集モードでマスをクリックして塗りを切り替えます。"); break;
             case ObjectKind.GridText:
             case ObjectKind.Text:
-                Choice("フォント", node.Font, Fonts.SystemFontFamilies.Select(f => f.Source).OrderBy(f => f), v => node.Font = v, true);
+                FontField(node);
                 Number("文字サイズ（px）", node.FontSize, v => node.FontSize = v); ColorField("文字色", node.Color, v => node.Color = v);
                 if (node.Kind == ObjectKind.GridText) Choice("配置", node.Alignment, ["中央", "左上"], v => node.Alignment = v); else TextField("文章", node.Text, v => node.Text = v, true);
                 Label("レイヤースタイル ― 縁取り");
