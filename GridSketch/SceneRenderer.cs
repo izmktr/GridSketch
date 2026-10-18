@@ -53,21 +53,32 @@ public sealed class SceneRenderer
                     if (pen is not null) DrawBorders(dc, node, grid, pen);
                     break;
                 case ObjectKind.Fill when grid is not null:
-                    foreach (var cell in node.FilledCells) dc.DrawRectangle(Brush(node.Color), null, new Rect(cell.Column * grid.CellSize, cell.Row * grid.CellSize, grid.CellSize, grid.CellSize));
+                    foreach (var cell in node.FilledCells) dc.DrawRectangle(Brush(node.Color), null, SceneDocument.CellRect(grid, cell, node.UseCellMargin));
+                    break;
+                case ObjectKind.CellFrame when grid is not null:
+                    if (pen is not null) foreach (var cell in SceneDocument.FramedCells(node, grid))
+                    {
+                        var frame = SceneDocument.CellRect(grid, cell, true);
+                        var framePen = pen.Clone(); framePen.Thickness = Math.Min(pen.Thickness, Math.Min(frame.Width, frame.Height));
+                        dc.PushClip(new RectangleGeometry(frame));
+                        frame.Inflate(-framePen.Thickness / 2, -framePen.Thickness / 2);
+                        dc.DrawRectangle(null, framePen, frame); dc.Pop();
+                    }
                     break;
                 case ObjectKind.GridText when grid is not null:
                     foreach (var glyph in node.Glyphs)
                     {
-                        var box = new Rect(glyph.Column * grid.CellSize, glyph.Row * grid.CellSize, grid.CellSize, grid.CellSize);
+                        var box = SceneDocument.CellRect(grid, new(glyph.Column, glyph.Row), node.UseCellMargin);
                         dc.PushClip(new RectangleGeometry(box));
                         var text = StyledText(node, glyph.Text, glyph.Font ?? node.Font, glyph.Size ?? node.FontSize);
                         var bounds = text.Bounds;
                         if (!bounds.IsEmpty)
                         {
-                            double available = grid.CellSize - (node.Alignment == "左上" ? 4 : 2);
-                            double scale = Math.Min(1, Math.Min(available / Math.Max(1, bounds.Width), available / Math.Max(1, bounds.Height)));
-                            var x = node.Alignment == "左上" ? box.X + 2 : box.X + (box.Width - bounds.Width * scale) / 2;
-                            var y = node.Alignment == "左上" ? box.Y + 2 : box.Y + (box.Height - bounds.Height * scale) / 2;
+                            double spacing = node.Alignment == "左上" ? 2 : 1;
+                            double insetX = Math.Min(spacing, box.Width / 4), insetY = Math.Min(spacing, box.Height / 4);
+                            double scale = Math.Min(1, Math.Min((box.Width - insetX * 2) / Math.Max(1, bounds.Width), (box.Height - insetY * 2) / Math.Max(1, bounds.Height)));
+                            var x = node.Alignment == "左上" ? box.X + insetX : box.X + (box.Width - bounds.Width * scale) / 2;
+                            var y = node.Alignment == "左上" ? box.Y + insetY : box.Y + (box.Height - bounds.Height * scale) / 2;
                             dc.PushTransform(new TranslateTransform(x, y)); dc.PushTransform(new ScaleTransform(scale, scale)); dc.PushTransform(new TranslateTransform(-bounds.X, -bounds.Y));
                             dc.DrawDrawing(text); dc.Pop(); dc.Pop(); dc.Pop();
                         }
@@ -79,8 +90,8 @@ public sealed class SceneRenderer
                     var imageBox = new Rect(0, 0, node.Width, node.Height);
                     if (node.SnapToCell && grid is not null)
                     {
-                        var available = grid.CellSize - grid.Margin * 2;
-                        var ratio = Math.Min(1, Math.Min(available / bitmap.PixelWidth, available / bitmap.PixelHeight));
+                        var available = SceneDocument.CellRect(grid, new(node.Column, node.Row), true);
+                        var ratio = Math.Min(1, Math.Min(available.Width / bitmap.PixelWidth, available.Height / bitmap.PixelHeight));
                         imageBox = new Rect(node.Column * grid.CellSize + (grid.CellSize - bitmap.PixelWidth * ratio) / 2, node.Row * grid.CellSize + (grid.CellSize - bitmap.PixelHeight * ratio) / 2, bitmap.PixelWidth * ratio, bitmap.PixelHeight * ratio);
                     }
                     else

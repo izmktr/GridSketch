@@ -114,6 +114,7 @@ internal static class Program
             ColorPickerChecks.Run(window, Path.GetDirectoryName(temp)!);
             PdfChecks.Run(Path.GetDirectoryName(temp)!);
             OutlineChecks.Run(Path.GetDirectoryName(temp)!);
+            CellFrameChecks.Run(Path.GetDirectoryName(temp)!);
             window.Close(); app.Shutdown();
             Console.WriteLine("All checks passed.");
         }

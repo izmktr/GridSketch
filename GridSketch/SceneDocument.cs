@@ -8,7 +8,7 @@ using System.Windows.Media;
 namespace GridSketch;
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
-public enum ObjectKind { Canvas, Group, Grid, Border, GridText, Fill, Image, Text, Line, Shape }
+public enum ObjectKind { Canvas, Group, Grid, Border, GridText, Fill, Image, Text, Line, Shape, CellFrame }
 
 public sealed class Glyph
 {
@@ -54,6 +54,11 @@ public sealed class SceneObject
     public int Rows { get; set; } = 12;
     public double CellSize { get; set; } = 48;
     public double Margin { get; set; } = 5;
+    private double? marginY;
+    public double MarginY { get => marginY ?? Margin; set => marginY = value; }
+    public bool UseCellMargin { get; set; }
+    public bool FrameAllCells { get; set; } = true;
+    public HashSet<CellPosition> FrameCells { get; set; } = [];
     public string Color { get; set; } = "#162A40";
     public double Thickness { get; set; } = 2;
     public string LineStyle { get; set; } = "実線";
@@ -84,12 +89,12 @@ public sealed class SceneObject
     public double ArrowSize { get; set; } = 14;
 
     [JsonIgnore] public bool IsContainer => Kind is ObjectKind.Canvas or ObjectKind.Group or ObjectKind.Grid;
-    [JsonIgnore] public bool IsGridContent => Kind is ObjectKind.Border or ObjectKind.GridText or ObjectKind.Fill || Kind == ObjectKind.Image && SnapToCell;
+    [JsonIgnore] public bool IsGridContent => Kind is ObjectKind.Border or ObjectKind.GridText or ObjectKind.Fill or ObjectKind.CellFrame || Kind == ObjectKind.Image && SnapToCell;
     [JsonIgnore] public string Label => $"{(Visible ? "" : "非表示 · ")}{(Locked ? "🔒 " : "")}{Name}  [{KindName(Kind)}]";
     public static string KindName(ObjectKind kind) => kind switch
     {
         ObjectKind.Canvas => "キャンバス", ObjectKind.Group => "グループ", ObjectKind.Grid => "グリッド",
-        ObjectKind.Border => "罫線", ObjectKind.GridText => "グリッド文字", ObjectKind.Fill => "セル塗り",
+        ObjectKind.Border => "罫線", ObjectKind.CellFrame => "マス枠", ObjectKind.GridText => "グリッド文字", ObjectKind.Fill => "セル塗り",
         ObjectKind.Image => "画像", ObjectKind.Text => "フリーテキスト", ObjectKind.Line => "ライン", _ => "図形"
     };
 }
@@ -135,6 +140,15 @@ public sealed class SceneDocument
     {
         var grid = new SceneObject { Kind = ObjectKind.Grid, Name = preset, Columns = columns, Rows = rows, CellSize = cellSize };
         if (preset == "空のグリッド") return grid;
+        if (preset == "独立マス")
+        {
+            grid.Children = [
+                new() { Kind = ObjectKind.GridText, Name = "グリッド文字", UseCellMargin = true },
+                new() { Kind = ObjectKind.CellFrame, Name = "マス枠", Color = "#000000", Thickness = 1 },
+                new() { Kind = ObjectKind.Fill, Name = "セル塗り", Color = "#FFF2A8", UseCellMargin = true, BlockInput = false }
+            ];
+            return grid;
+        }
         grid.Children = [
             new() { Kind = ObjectKind.Border, Name = "外枠罫線", Pattern = "外枠", Thickness = 2 },
             new() { Kind = ObjectKind.Border, Name = "内枠罫線", Pattern = "内側", Thickness = 1, Color = preset == "基本の方眼紙" ? "#AAB8C5" : "#162A40" },
@@ -162,11 +176,13 @@ public sealed class SceneDocument
         if (!border.Edges.Remove(edge)) border.Edges.Add(edge);
     }
 
-    public void ResizeGrid(SceneObject grid, int columns, int rows, double cellSize, double margin)
+    public void ResizeGrid(SceneObject grid, int columns, int rows, double cellSize, double margin, double? verticalMargin = null)
     {
+        double my = verticalMargin ?? margin;
+        if (!double.IsFinite(my) || my < 0 || my >= cellSize / 2) throw new InvalidOperationException("上下のマス内余白はマス寸法の半分未満にしてください。");
         if (grid.Kind != ObjectKind.Grid) throw new InvalidOperationException("グリッドを選択してください。");
         if (columns is < 1 or > 200 || rows is < 1 or > 200 || !double.IsFinite(cellSize) || cellSize < 12 || cellSize > 256 || !double.IsFinite(margin) || margin < 0 || margin >= cellSize / 2)
-            throw new InvalidOperationException("マス数は1～200、マス寸法は12～256、画像余白はマス寸法の半分未満にしてください。");
+            throw new InvalidOperationException("マス数は1～200、マス寸法は12～256、左右のマス内余白はマス寸法の半分未満にしてください。");
         bool Outside(int c, int r) => c >= columns || r >= rows;
         foreach (var child in grid.Children)
         {
@@ -204,7 +220,8 @@ public sealed class SceneDocument
                     .Where(e => e.IsInside(columns, rows)).ToHashSet();
             }
         }
-        grid.Columns = columns; grid.Rows = rows; grid.CellSize = cellSize; grid.Margin = margin;
+        foreach (var frame in grid.Children.Where(n => n.Kind == ObjectKind.CellFrame)) frame.FrameCells.RemoveWhere(c => c.Column >= columns || c.Row >= rows);
+        grid.Columns = columns; grid.Rows = rows; grid.CellSize = cellSize; grid.Margin = margin; grid.MarginY = verticalMargin ?? margin;
     }
 
     public List<Glyph> PlanText(SceneObject text, int column, int row, string input, bool vertical)
@@ -223,6 +240,18 @@ public sealed class SceneDocument
         return result;
     }
 
+    public static Rect CellRect(SceneObject grid, CellPosition cell, bool inset)
+        => new(cell.Column * grid.CellSize + (inset ? grid.Margin : 0), cell.Row * grid.CellSize + (inset ? grid.MarginY : 0), grid.CellSize - (inset ? grid.Margin * 2 : 0), grid.CellSize - (inset ? grid.MarginY * 2 : 0));
+    public static IEnumerable<CellPosition> FramedCells(SceneObject frame, SceneObject grid)
+        => frame.FrameAllCells ? Enumerable.Range(0, grid.Rows).SelectMany(row => Enumerable.Range(0, grid.Columns).Select(col => new CellPosition(col, row))) : frame.FrameCells;
+    public void SetFrameCells(SceneObject frame, IEnumerable<CellPosition> cells, bool? enabled)
+    {
+        var grid = GridFor(frame) ?? throw new InvalidOperationException("グリッド内のマス枠を選択してください。");
+        if (frame.FrameAllCells) { frame.FrameCells = FramedCells(frame, grid).ToHashSet(); frame.FrameAllCells = false; }
+        foreach (var cell in cells)
+            if (enabled ?? !frame.FrameCells.Contains(cell)) frame.FrameCells.Add(cell); else frame.FrameCells.Remove(cell);
+    }
+
     public void Validate()
     {
         if (PdfExport is null) throw new InvalidDataException("PDF出力設定が不正です。");
@@ -234,6 +263,7 @@ public sealed class SceneDocument
         {
             if (node is null || depth > 24 || ids.Count > 5000 || string.IsNullOrWhiteSpace(node.Id) || !ids.Add(node.Id)) throw new InvalidDataException("階層が深すぎるか、IDが重複しています。");
             if (!Enum.IsDefined(node.Kind) || node.Children is null || node.Name is null || node.Name.Length > 200 || node.Glyphs is null || node.Edges is null || node.FilledCells is null) throw new InvalidDataException("オブジェクトが不正です。");
+            if (node.FrameCells is null || !double.IsFinite(node.MarginY)) throw new InvalidDataException("マス枠またはマス内余白が不正です。");
             if (node.Style is null || !double.IsFinite(node.Style.OutlineWidth) || node.Style.OutlineWidth < 0 || node.Style.OutlineWidth > 64) throw new InvalidDataException("縁取りの太さは0～64pxで指定してください。");
             _ = (Color)ColorConverter.ConvertFromString(node.Style.OutlineColor);
             if (parent is not null && (node.Kind == ObjectKind.Canvas || !parent.IsContainer)) throw new InvalidDataException("不正な親子構造です。");
@@ -244,10 +274,11 @@ public sealed class SceneDocument
             foreach (var color in new[] { node.Color, node.FillColor, node.Background }) _ = (Color)ColorConverter.ConvertFromString(color);
             if (string.IsNullOrWhiteSpace(node.Font) || node.Text is null || node.Text.Length > 10000) throw new InvalidDataException("文字設定が不正です。");
             if (node.LineStyle is not ("実線" or "破線" or "点線") || node.Pattern is not ("個別" or "外枠" or "内側" or "すべて") || node.PathKind is not ("直線" or "折れ線" or "曲線") || node.Shape is not ("四角" or "角丸" or "楕円") || node.Alignment is not ("中央" or "左上") || node.StartArrow is not ("なし" or "三角" or "開いた矢印") || node.EndArrow is not ("なし" or "三角" or "開いた矢印")) throw new InvalidDataException("種類の設定が不正です。");
-            if (node.Kind == ObjectKind.Grid && (node.Columns is < 1 or > 200 || node.Rows is < 1 or > 200 || node.CellSize < 12 || node.CellSize > 256 || node.Margin < 0 || node.Margin >= node.CellSize / 2)) throw new InvalidDataException("マス数は1～200、マス寸法は12～256、画像余白はマス寸法の半分未満にしてください。");
+            if (node.Kind == ObjectKind.Grid && (node.Columns is < 1 or > 200 || node.Rows is < 1 or > 200 || node.CellSize < 12 || node.CellSize > 256 || node.Margin < 0 || node.Margin >= node.CellSize / 2 || node.MarginY < 0 || node.MarginY >= node.CellSize / 2)) throw new InvalidDataException("マス数は1～200、マス寸法は12～256、左右・上下のマス内余白はマス寸法の半分未満にしてください。");
             if (node.IsGridContent && parent is { } grid)
             {
                 bool In(int c, int r) => c >= 0 && r >= 0 && c < grid.Columns && r < grid.Rows;
+                if (node.FrameCells.Any(c => !In(c.Column, c.Row))) throw new InvalidDataException("マス枠の対象がグリッドの範囲外です。");
                 if (node.Edges.Any(e => !e.IsInside(grid.Columns, grid.Rows)) || node.FilledCells.Any(c => !In(c.Column, c.Row)) || node.Glyphs.Any(g => g is null || !In(g.Column, g.Row) || g.Text is null || new StringInfo(g.Text).LengthInTextElements != 1 || g.Text.Any(char.IsControl) || g.Size.HasValue && (!double.IsFinite(g.Size.Value) || g.Size < 1 || g.Size > 512))) throw new InvalidDataException("範囲外のマス・辺または不正な文字があります。縮小する場合は先に範囲外の内容を削除してください。");
                 if (node.Glyphs.Select(g => (g.Column, g.Row)).Distinct().Count() != node.Glyphs.Count) throw new InvalidDataException("文字のマスが重複しています。");
                 if (node.Kind == ObjectKind.Image && !In(node.Column, node.Row)) throw new InvalidDataException("画像の配置マスが範囲外です。");

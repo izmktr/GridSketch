@@ -165,15 +165,18 @@ public partial class MainWindow : Window
         switch (node.Kind)
         {
             case ObjectKind.Grid:
-                Integer("列数", node.Columns, v => node.Columns = v); Integer("行数", node.Rows, v => node.Rows = v); Number("マスの大きさ（px）", node.CellSize, v => node.CellSize = v); Number("画像余白（px）", node.Margin, v => node.Margin = v);
+                Integer("列数", node.Columns, v => node.Columns = v); Integer("行数", node.Rows, v => node.Rows = v); Number("マスの大きさ（px）", node.CellSize, v => node.CellSize = v);
+                Number("マス内余白・左右（px）", node.Margin, v => node.Margin = v); Number("マス内余白・上下（px）", node.MarginY, v => node.MarginY = v);
                 Label("外枠・内枠はマス数に追従します。縮小時は個別罫線も範囲内に収めます。文字・画像・塗りは削除しません。"); break;
             case ObjectKind.Border:
                 ColorField("色", node.Color, v => node.Color = v); Number("太さ（0～64px）", node.Thickness, v => node.Thickness = v); Choice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v); Label($"対象：{node.Pattern}。辺のクリックで個別編集になります。"); break;
             case ObjectKind.Fill:
+                Choice("塗る範囲", node.UseCellMargin ? "余白の内側" : "マス全体", ["マス全体", "余白の内側"], v => node.UseCellMargin = v == "余白の内側");
                 ColorField("塗り色", node.Color, v => node.Color = v); Check("この塗りのマスを文字入力から除外", node.BlockInput, v => node.BlockInput = v); Label("非表示でも入力除外を維持します。編集モードでマスをクリックして塗りを切り替えます。"); break;
             case ObjectKind.GridText:
             case ObjectKind.Text:
                 FontField(node);
+                if (node.Kind == ObjectKind.GridText) Choice("配置領域", node.UseCellMargin ? "余白の内側" : "マス全体", ["マス全体", "余白の内側"], v => node.UseCellMargin = v == "余白の内側");
                 Number("文字サイズ（px）", node.FontSize, v => node.FontSize = v); ColorField("文字色", node.Color, v => node.Color = v);
                 if (node.Kind == ObjectKind.GridText) Choice("配置", node.Alignment, ["中央", "左上"], v => node.Alignment = v); else TextField("文章", node.Text, v => node.Text = v, true);
                 Label("レイヤースタイル ― 縁取り");
@@ -182,6 +185,15 @@ public partial class MainWindow : Window
                 Number("縁の太さ（外側 / 0～64px）", node.Style.OutlineWidth, v => node.Style.OutlineWidth = v);
                 if (node.Kind == ObjectKind.GridText) Label("すべての文字に適用します。縁も含めてマスに収まるように縮小します。");
                 break;
+            case ObjectKind.CellFrame:
+                ColorField("枠の色", node.Color, v => node.Color = v); Number("枠の太さ（0～64px）", node.Thickness, v => node.Thickness = v);
+                Choice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v);
+                Choice("対象", node.FrameAllCells ? "全マス" : "指定マス", ["全マス", "指定マス"], v =>
+                {
+                    if (v == "指定マス" && node.FrameAllCells) document.SetFrameCells(node, [], true);
+                    else if (v == "全マス") { node.FrameAllCells = true; node.FrameCells.Clear(); }
+                });
+                Label("マスをクリックして枠を切り替えます。余白は親グリッドで設定し、線の太さも余白の内側に収めます。"); break;
             case ObjectKind.Image:
                 if (document.Parent(node)?.Kind == ObjectKind.Grid) Check("マス中央に配置", node.SnapToCell, v => { node.SnapToCell = v; if (v) node.X = node.Y = node.Angle = 0; });
                 if (node.SnapToCell) { Integer("列（1から）", node.Column + 1, v => node.Column = v - 1); Integer("行（1から）", node.Row + 1, v => node.Row = v - 1); }
@@ -200,19 +212,24 @@ public partial class MainWindow : Window
         Button("プロパティを適用", () => Change(() =>
         {
             if (document.Parent(node) is { } parent) RequireEditable(parent);
-            var oldGrid = (node.Columns, node.Rows, node.CellSize, node.Margin);
+            var oldGrid = (node.Columns, node.Rows, node.CellSize, node.Margin, node.MarginY);
             bool editable = document.Editable(node); foreach (var set in apply.Take(metadataCount)) set();
             if (editable) foreach (var set in apply.Skip(metadataCount)) set();
             if (editable && node.Kind == ObjectKind.Grid)
             {
-                var requested = (node.Columns, node.Rows, node.CellSize, node.Margin);
-                (node.Columns, node.Rows, node.CellSize, node.Margin) = oldGrid;
-                document.ResizeGrid(node, requested.Columns, requested.Rows, requested.CellSize, requested.Margin);
+                var requested = (node.Columns, node.Rows, node.CellSize, node.Margin, node.MarginY);
+                (node.Columns, node.Rows, node.CellSize, node.Margin, node.MarginY) = oldGrid;
+                document.ResizeGrid(node, requested.Columns, requested.Rows, requested.CellSize, requested.Margin, requested.MarginY);
             }
         }));
         if (node.Kind == ObjectKind.Border) BorderTools(node);
         if (node.Kind == ObjectKind.GridText) TextTools(node);
         if (node.Kind == ObjectKind.Fill) Button("選択範囲の塗りを削除", () => Change(() => { RequireEditable(node); foreach (var cell in CellRange(node)) node.FilledCells.Remove(cell); }));
+        if (node.Kind == ObjectKind.CellFrame)
+        {
+            Button("選択範囲に枠を追加", () => Change(() => { RequireEditable(node); document.SetFrameCells(node, CellRange(node), true); }));
+            Button("選択範囲の枠を削除", () => Change(() => { RequireEditable(node); document.SetFrameCells(node, CellRange(node), false); }));
+        }
         if (node.Kind == ObjectKind.Image) Button("画像を読み込み / 置換…", () => ReplaceImage(node));
         if (node.Kind == ObjectKind.Line && document.GridFor(node) is not null) Label("編集モード：クリックで始点、Shift+クリックで終点をマス中央へ配置します。");
         if (node != document.Canvas && !node.IsGridContent)
@@ -296,16 +313,18 @@ public partial class MainWindow : Window
     }
     private void AddClick(object sender, RoutedEventArgs e) => Try(() =>
     {
-        if (sender is not MenuItem { Tag: string tag } || !Enum.TryParse<ObjectKind>(tag, out var kind)) return;
+        if (sender is not MenuItem { Tag: string tag }) return;
+        bool independent = tag == "IndependentGrid";
+        if (!Enum.TryParse<ObjectKind>(independent ? "Grid" : tag, out var kind)) return;
         if (kind == ObjectKind.Grid)
         {
-            var grid = GridDialog(false); if (grid is null) return;
+            var grid = GridDialog(false, independent ? "独立マス" : "基本の方眼紙"); if (grid is null) return;
             Change(() => { var parent = AddParent(false); RequireEditable(parent); parent.Children.Insert(0, grid); selectedId = grid.Id; }); return;
         }
         byte[]? image = kind == ObjectKind.Image ? ReadImage() : null; if (kind == ObjectKind.Image && image is null) return;
         Change(() =>
         {
-            var parent = AddParent(kind is ObjectKind.Border or ObjectKind.GridText or ObjectKind.Fill); RequireEditable(parent);
+            var parent = AddParent(kind is ObjectKind.Border or ObjectKind.GridText or ObjectKind.Fill or ObjectKind.CellFrame); RequireEditable(parent);
             var node = new SceneObject { Kind = kind, Name = SceneObject.KindName(kind), ImageData = image };
             if (kind == ObjectKind.Image && parent.Kind == ObjectKind.Grid) { node.SnapToCell = true; node.Column = Surface.ActiveCell?.Column ?? 0; node.Row = Surface.ActiveCell?.Row ?? 0; }
             if (kind == ObjectKind.Fill) { node.Color = "#000000"; parent.Children.Add(node); } else parent.Children.Insert(0, node); selectedId = node.Id;
@@ -318,7 +337,7 @@ public partial class MainWindow : Window
         var bytes = File.ReadAllBytes(dialog.FileName); _ = Document.DecodeImage(bytes); return bytes;
     }
     private void ReplaceImage(SceneObject node) { RequireEditable(node); var data = ReadImage(); if (data is not null) Change(() => node.ImageData = data); }
-    private SceneObject? GridDialog(bool isNew)
+    private SceneObject? GridDialog(bool isNew, string initialPreset = "基本の方眼紙")
     {
         var dialog = new Window { Owner = this, Title = isNew ? "新規キャンバスとグリッド" : "グリッドを追加", Width = 390, Height = isNew ? 760 : 540, ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterOwner };
         var panel = new StackPanel { Margin = new Thickness(20) }; dialog.Content = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
@@ -326,8 +345,8 @@ public partial class MainWindow : Window
         var canvasDraft = new SceneObject { Kind = ObjectKind.Canvas, Name = "キャンバス", Width = 800, Height = 600 };
         Action? applyCanvas = isNew ? CanvasSettings(panel, canvasDraft, new Rect(0, 0, 800, 600)) : null;
         panel.Children.Add(new TextBlock { Text = "プリセット" });
-        var options = new List<string> { "基本の方眼紙", "クロスワード", "将棋盤", "空のグリッド" }; if (isNew) options.Add("キャンバスのみ");
-        var preset = new ComboBox { ItemsSource = options, SelectedIndex = 0 }; panel.Children.Add(preset);
+        var options = new List<string> { "基本の方眼紙", "クロスワード", "将棋盤", "空のグリッド", "独立マス" }; if (isNew) options.Add("キャンバスのみ");
+        var preset = new ComboBox { ItemsSource = options, SelectedItem = initialPreset }; panel.Children.Add(preset);
         var cols = Field("列数", "16"); var rows = Field("行数", "12"); var size = Field("マスの大きさ（px）", "48");
         preset.SelectionChanged += (_, _) => { if (preset.SelectedIndex == 2) cols.Text = rows.Text = "9"; };
         var button = new Button { Content = "作成" }; panel.Children.Add(button); SceneObject? result = null;
@@ -381,6 +400,7 @@ public partial class MainWindow : Window
             if (node.Kind == ObjectKind.GridText) { SelectTextCell(c); e.Handled = true; return; }
             Surface.ActiveCell = c; Surface.RangeEnd = null; Surface.Preview = [];
             if (node.Kind == ObjectKind.Fill) Change(() => { if (!node.FilledCells.Remove(c)) node.FilledCells.Add(c); });
+            else if (node.Kind == ObjectKind.CellFrame) Change(() => document.SetFrameCells(node, [c], null));
             else if (node.Kind == ObjectKind.Image && node.SnapToCell) Change(() => { node.Column = c.Column; node.Row = c.Row; });
             else if (node.Kind == ObjectKind.Line) Change(() =>
             {

@@ -18,10 +18,12 @@
     <MenuItem Header="やり直し(_R)" Command="ApplicationCommands.Redo"/>
    </MenuItem>
    <MenuItem Header="追加(_A)">
-    <MenuItem Header="グリッド（プリセット）…" Tag="Grid" Click="AddClick"/>
+    <MenuItem Header="グリッド（方眼紙）…" Tag="Grid" Click="AddClick"/>
+    <MenuItem Header="グリッド（独立マス）…" Tag="IndependentGrid" Click="AddClick"/>
     <MenuItem Header="グループ" Tag="Group" Click="AddClick"/>
     <Separator/>
     <MenuItem Header="罫線" Tag="Border" Click="AddClick"/>
+    <MenuItem Header="マス枠" Tag="CellFrame" Click="AddClick"/>
     <MenuItem Header="グリッド文字" Tag="GridText" Click="AddClick"/>
     <MenuItem Header="セル塗り" Tag="Fill" Click="AddClick"/>
     <Separator/>
