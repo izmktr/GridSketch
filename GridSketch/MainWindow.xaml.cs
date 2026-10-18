@@ -1,4 +1,4 @@
-using Microsoft.Win32;
+﻿using Microsoft.Win32;
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
@@ -104,7 +104,11 @@ public partial class MainWindow : Window
         Label(key); var box = new TextBox { Text = value, AcceptsReturn = multiline, MinHeight = multiline ? 70 : 0, TextWrapping = multiline ? TextWrapping.Wrap : TextWrapping.NoWrap };
         Properties.Children.Add(box); setters.Add(() => setter(box.Text));
     }
-    private void Number(string key, double value, Action<double> setter) => TextField(key, value.ToString(CultureInfo.CurrentCulture), s => setter(double.Parse(s, CultureInfo.CurrentCulture)));
+    private void Number(string key, double value, Action<double> setter, double? minimum = null, double maximum = 1000)
+    {
+        Properties.Children.Add(NumericEditor(key, value, out var box, minimum, maximum));
+        setters.Add(() => setter(double.Parse(box.Text, CultureInfo.CurrentCulture)));
+    }
     private void ColorField(string key, string value, Action<string> setter)
     {
         Label(key); Properties.Children.Add(ColorEditor(value, out var box)); setters.Add(() => setter(box.Text));
@@ -161,15 +165,15 @@ public partial class MainWindow : Window
         {
             setters.Add(CanvasSettings(Properties, node, Surface.Renderer!.OutputBounds));
         }
-        else if (!node.IsGridContent) { Number("位置 X", node.X, v => node.X = v); Number("位置 Y", node.Y, v => node.Y = v); Number("回転（度 / 左上中心）", node.Angle, v => node.Angle = v); }
+        else if (!node.IsGridContent) { Pair("位置 X", node.X, v => node.X = v, "位置 Y", node.Y, v => node.Y = v); Number("回転（度 / 左上中心）", node.Angle, v => node.Angle = v); }
         switch (node.Kind)
         {
             case ObjectKind.Grid:
-                Integer("列数", node.Columns, v => node.Columns = v); Integer("行数", node.Rows, v => node.Rows = v); Number("マスの大きさ（px）", node.CellSize, v => node.CellSize = v);
-                Number("マス内余白・左右（px）", node.Margin, v => node.Margin = v); Number("マス内余白・上下（px）", node.MarginY, v => node.MarginY = v);
+                Pair("列数", node.Columns, v => node.Columns = (int)v, "行数", node.Rows, v => node.Rows = (int)v, integer: true); Number("マスの大きさ（px）", node.CellSize, v => node.CellSize = v, 12, 256);
+                Pair("マス内余白・左右（px）", node.Margin, v => node.Margin = v, "マス内余白・上下（px）", node.MarginY, v => node.MarginY = v);
                 Label("外枠・内枠はマス数に追従します。縮小時は個別罫線も範囲内に収めます。文字・画像・塗りは削除しません。"); break;
             case ObjectKind.Border:
-                ColorField("色", node.Color, v => node.Color = v); Number("太さ（0～64px）", node.Thickness, v => node.Thickness = v); Choice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v); Label($"対象：{node.Pattern}。辺のクリックで個別編集になります。"); break;
+                ColorField("色", node.Color, v => node.Color = v); Number("太さ（0～64px）", node.Thickness, v => node.Thickness = v, 0, 64); Choice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v); Label($"対象：{node.Pattern}。辺のクリックで個別編集になります。"); break;
             case ObjectKind.Fill:
                 Choice("塗る範囲", node.UseCellMargin ? "余白の内側" : "マス全体", ["マス全体", "余白の内側"], v => node.UseCellMargin = v == "余白の内側");
                 ColorField("塗り色", node.Color, v => node.Color = v); Check("この塗りのマスを文字入力から除外", node.BlockInput, v => node.BlockInput = v); Label("非表示でも入力除外を維持します。編集モードでマスをクリックして塗りを切り替えます。"); break;
@@ -177,16 +181,16 @@ public partial class MainWindow : Window
             case ObjectKind.Text:
                 FontField(node);
                 if (node.Kind == ObjectKind.GridText) Choice("配置領域", node.UseCellMargin ? "余白の内側" : "マス全体", ["マス全体", "余白の内側"], v => node.UseCellMargin = v == "余白の内側");
-                Number("文字サイズ（px）", node.FontSize, v => node.FontSize = v); ColorField("文字色", node.Color, v => node.Color = v);
+                Number("文字サイズ（px）", node.FontSize, v => node.FontSize = v, 1, 512); ColorField("文字色", node.Color, v => node.Color = v);
                 if (node.Kind == ObjectKind.GridText) Choice("配置", node.Alignment, ["中央", "左上"], v => node.Alignment = v); else TextField("文章", node.Text, v => node.Text = v, true);
                 Label("レイヤースタイル ― 縁取り");
                 Check("縁取りを有効にする", node.Style.OutlineEnabled, v => node.Style.OutlineEnabled = v);
                 ColorField("縁の色・不透明度", node.Style.OutlineColor, v => node.Style.OutlineColor = v);
-                Number("縁の太さ（外側 / 0～64px）", node.Style.OutlineWidth, v => node.Style.OutlineWidth = v);
+                Number("縁の太さ（外側 / 0～64px）", node.Style.OutlineWidth, v => node.Style.OutlineWidth = v, 0, 64);
                 if (node.Kind == ObjectKind.GridText) Label("すべての文字に適用します。縁も含めてマスに収まるように縮小します。");
                 break;
             case ObjectKind.CellFrame:
-                ColorField("枠の色", node.Color, v => node.Color = v); Number("枠の太さ（0～64px）", node.Thickness, v => node.Thickness = v);
+                ColorField("枠の色", node.Color, v => node.Color = v); Number("枠の太さ（0～64px）", node.Thickness, v => node.Thickness = v, 0, 64);
                 Choice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v);
                 Choice("対象", node.FrameAllCells ? "全マス" : "指定マス", ["全マス", "指定マス"], v =>
                 {
@@ -196,17 +200,17 @@ public partial class MainWindow : Window
                 Label("マスをクリックして枠を切り替えます。余白は親グリッドで設定し、線の太さも余白の内側に収めます。"); break;
             case ObjectKind.Image:
                 if (document.Parent(node)?.Kind == ObjectKind.Grid) Check("マス中央に配置", node.SnapToCell, v => { node.SnapToCell = v; if (v) node.X = node.Y = node.Angle = 0; });
-                if (node.SnapToCell) { Integer("列（1から）", node.Column + 1, v => node.Column = v - 1); Integer("行（1から）", node.Row + 1, v => node.Row = v - 1); }
-                else { Number("幅（px）", node.Width, v => node.Width = v); Number("高さ（px）", node.Height, v => node.Height = v); } break;
+                if (node.SnapToCell) { Pair("列（1から）", node.Column + 1, v => node.Column = (int)v - 1, "行（1から）", node.Row + 1, v => node.Row = (int)v - 1, integer: true); }
+                else { Pair("幅（px）", node.Width, v => node.Width = v, "高さ（px）", node.Height, v => node.Height = v, 1, 1000); } break;
             case ObjectKind.Shape:
-                Choice("形", node.Shape, ["四角", "角丸", "楕円"], v => node.Shape = v); Number("幅（px）", node.Width, v => node.Width = v); Number("高さ（px）", node.Height, v => node.Height = v);
-                ColorField("塗り色", node.FillColor, v => node.FillColor = v); ColorField("線の色", node.Color, v => node.Color = v); Number("線の太さ", node.Thickness, v => node.Thickness = v); break;
+                Choice("形", node.Shape, ["四角", "角丸", "楕円"], v => node.Shape = v); Pair("幅（px）", node.Width, v => node.Width = v, "高さ（px）", node.Height, v => node.Height = v, 1, 1000);
+                ColorField("塗り色", node.FillColor, v => node.FillColor = v); ColorField("線の色", node.Color, v => node.Color = v); Number("線の太さ", node.Thickness, v => node.Thickness = v, 0, 64); break;
             case ObjectKind.Line:
                 Choice("経路", node.PathKind, ["直線", "折れ線", "曲線"], v => node.PathKind = v);
-                Number("終点 X（始点から）", node.EndX, v => node.EndX = v); Number("終点 Y（始点から）", node.EndY, v => node.EndY = v);
-                Number("制御点 X（始点から）", node.ControlX, v => node.ControlX = v); Number("制御点 Y（始点から）", node.ControlY, v => node.ControlY = v);
+                Pair("終点 X（始点から）", node.EndX, v => node.EndX = v, "終点 Y（始点から）", node.EndY, v => node.EndY = v);
+                Pair("制御点 X（始点から）", node.ControlX, v => node.ControlX = v, "制御点 Y（始点から）", node.ControlY, v => node.ControlY = v);
                 Choice("始点の矢印", node.StartArrow, ["なし", "三角", "開いた矢印"], v => node.StartArrow = v); Choice("終点の矢印", node.EndArrow, ["なし", "三角", "開いた矢印"], v => node.EndArrow = v);
-                Number("矢印の大きさ", node.ArrowSize, v => node.ArrowSize = v); ColorField("線の色", node.Color, v => node.Color = v); Number("線の太さ", node.Thickness, v => node.Thickness = v); Choice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v); break;
+                Number("矢印の大きさ", node.ArrowSize, v => node.ArrowSize = v, 1, 200); ColorField("線の色", node.Color, v => node.Color = v); Number("線の太さ", node.Thickness, v => node.Thickness = v, 0, 64); Choice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v); break;
         }
         var apply = setters.ToArray();
         Button("プロパティを適用", () => Change(() =>

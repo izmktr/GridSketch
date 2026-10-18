@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -111,6 +111,7 @@ internal static class Program
             Check(window.IsVisible && window.ActualWidth > 0, "WPF window initialization and layout");
             WindowChecks.Run(window, Path.GetDirectoryName(temp)!);
             CanvasChecks.Run(window, Path.GetDirectoryName(temp)!);
+            PropertyChecks.Run(window, Path.GetDirectoryName(temp)!);
             ColorPickerChecks.Run(window, Path.GetDirectoryName(temp)!);
             PdfChecks.Run(Path.GetDirectoryName(temp)!);
             OutlineChecks.Run(Path.GetDirectoryName(temp)!);

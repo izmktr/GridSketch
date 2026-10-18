@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
@@ -43,14 +43,8 @@ internal static class WindowChecks
         var legacy = SceneDocument.Migrate(new Document()); var legacyGrid = legacy.Canvas.Children[0];
         Set("document", legacy); Set("savedState", legacy.Snapshot()); Set("selectedId", legacyGrid.Id); Call("RefreshAll");
         var resizePanel = (StackPanel)window.FindName("Properties");
-        for (int i = 0; i < resizePanel.Children.Count - 1; i++)
-        {
-            if (resizePanel.Children[i] is TextBlock label && resizePanel.Children[i + 1] is TextBox box)
-            {
-                if (label.Text == "列数") box.Text = "4";
-                if (label.Text == "行数") box.Text = "3";
-            }
-        }
+        PropertyChecks.Find<TextBox>(resizePanel, "列数").Text = "4";
+        PropertyChecks.Find<TextBox>(resizePanel, "行数").Text = "3";
         resizePanel.Children.OfType<Button>().Single(b => Equals(b.Content, "プロパティを適用")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         if (legacyGrid.Columns != 4 || legacyGrid.Rows != 3) throw new Exception("Grid resize property action failed");
         Call("Undo");

@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -24,15 +24,13 @@ public partial class MainWindow
         var unit = new ComboBox { ItemsSource = new[] { "px", "mm" }, SelectedItem = canvas.CanvasUnit }; fixedPanel.Children.Add(unit);
         fixedPanel.Children.Add(new TextBlock { Text = "用紙プリセット" });
         var preset = new ComboBox { ItemsSource = new[] { "カスタム", "A3", "A4", "A5", "A6", "B5（JIS）", "レター" }, SelectedIndex = 0 }; fixedPanel.Children.Add(preset);
-        TextBox FixedField(string label, double value) { fixedPanel.Children.Add(new TextBlock { Text = label }); var box = new TextBox { Text = value.ToString("0.########", CultureInfo.CurrentCulture) }; fixedPanel.Children.Add(box); return box; }
         double factor = canvas.CanvasUnit == "mm" ? 25.4 / canvas.Dpi : 1;
-        var width = FixedField("幅", canvas.AutoSize ? currentBounds.Width * factor : canvas.Width);
-        var height = FixedField("高さ", canvas.AutoSize ? currentBounds.Height * factor : canvas.Height);
+        NumericPair(fixedPanel, "幅", canvas.AutoSize ? currentBounds.Width * factor : canvas.Width,
+            "高さ", canvas.AutoSize ? currentBounds.Height * factor : canvas.Height, out var width, out var height, 1, 4000);
         var swap = new Button { Content = "縦・横を入れ替える" }; fixedPanel.Children.Add(swap);
         swap.Click += (_, _) => (width.Text, height.Text) = (height.Text, width.Text);
         fixedPanel.Children.Add(new TextBlock { Text = "出力範囲の左上（編集座標 / px）" });
-        var x = FixedField("X", canvas.AutoSize ? currentBounds.X : canvas.X);
-        var y = FixedField("Y", canvas.AutoSize ? currentBounds.Y : canvas.Y);
+        NumericPair(fixedPanel, "X", canvas.AutoSize ? currentBounds.X : canvas.X, "Y", canvas.AutoSize ? currentBounds.Y : canvas.Y, out var x, out var y);
         var dpi = Field("解像度（dpi）", canvas.Dpi);
         LabelHere("px指定・自動サイズではdpiは用紙サイズの換算に使います。mm指定ではdpiに応じてPNGの画素数が変わります。オブジェクトは移動・拡大縮小しません。");
         LabelHere("背景色"); panel.Children.Add(ColorEditor(canvas.Background, out var background));
