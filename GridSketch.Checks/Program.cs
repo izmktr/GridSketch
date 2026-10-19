@@ -116,6 +116,9 @@ internal static class Program
             PdfChecks.Run(Path.GetDirectoryName(temp)!);
             OutlineChecks.Run(Path.GetDirectoryName(temp)!);
             CellFrameChecks.Run(Path.GetDirectoryName(temp)!);
+            DragPaintChecks.Run(window);
+            CellSelectionChecks.Run(window, Path.GetDirectoryName(temp)!);
+            PropertyToggleChecks.Run(window);
             window.Close(); app.Shutdown();
             Console.WriteLine("All checks passed.");
         }

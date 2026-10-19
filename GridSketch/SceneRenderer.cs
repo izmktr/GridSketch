@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -38,17 +38,34 @@ public sealed class SceneRenderer
     {
         var m = Matrix.Identity; m.Rotate(node.Angle); m.Translate(node.X, node.Y); return new MatrixTransform(m);
     }
-    private void DrawNode(DrawingContext parent, SceneObject node, SceneObject? grid)
+    private void DrawNode(DrawingContext parent, SceneObject node, SceneObject? grid, bool recordBounds = true)
     {
         if (!node.Visible) return;
         var drawing = new DrawingGroup();
         using (var dc = drawing.Open())
         {
             if (node.Kind == ObjectKind.Grid) grid = node;
-            foreach (var child in node.Children.AsEnumerable().Reverse()) DrawNode(dc, child, grid);
+            if (node.Kind != ObjectKind.CellSelection)
+                foreach (var child in node.Children.AsEnumerable().Reverse()) DrawNode(dc, child, grid, recordBounds);
             var pen = node.Thickness > 0 ? Pen(node) : null;
             switch (node.Kind)
             {
+                case ObjectKind.CellSelection when grid is not null:
+                    var templates = node.Children.Where(c => c.Visible).ToDictionary(c => c.Id, Template);
+                    var states = node.States.ToDictionary(s => s.Id);
+                    foreach (var cell in node.StateCells)
+                    {
+                        if (!states.TryGetValue(cell.StateId, out var state) || state.ObjectId is null || !templates.TryGetValue(state.ObjectId, out var template)) continue;
+                        var bounds = template.Bounds;
+                        if (bounds.IsEmpty || bounds.Width <= 0 || bounds.Height <= 0) continue;
+                        var box = SceneDocument.CellRect(grid, new(cell.Column, cell.Row), true);
+                        double scale = Math.Min(1, Math.Min(box.Width / bounds.Width, box.Height / bounds.Height));
+                        dc.PushClip(new RectangleGeometry(box));
+                        dc.PushTransform(new TranslateTransform(box.X + (box.Width - bounds.Width * scale) / 2, box.Y + (box.Height - bounds.Height * scale) / 2));
+                        dc.PushTransform(new ScaleTransform(scale, scale)); dc.PushTransform(new TranslateTransform(-bounds.X, -bounds.Y));
+                        dc.DrawDrawing(template); dc.Pop(); dc.Pop(); dc.Pop(); dc.Pop();
+                    }
+                    break;
                 case ObjectKind.Border when grid is not null:
                     if (pen is not null) DrawBorders(dc, node, grid, pen);
                     break;
@@ -131,13 +148,19 @@ public sealed class SceneRenderer
             var overhang = node.Children.Where(c => c.Visible && c.Kind == ObjectKind.Border).Select(c => c.Thickness / 2).DefaultIfEmpty(0).Max();
             reservation.Inflate(overhang, overhang); localBounds.Union(reservation);
         }
-        if (!localBounds.IsEmpty)
+        if (recordBounds && !localBounds.IsEmpty)
         {
             var world = new MatrixTransform(Document.World(node)).TransformBounds(localBounds);
             Bounds[node.Id] = world;
             var content = ContentBounds; content.Union(world); ContentBounds = content;
         }
         drawing.Transform = LocalTransform(node); parent.DrawDrawing(drawing);
+    }
+    public DrawingGroup Template(SceneObject node)
+    {
+        var drawing = new DrawingGroup();
+        using (var dc = drawing.Open()) DrawNode(dc, node, null, false);
+        return drawing;
     }
     private static BitmapSource DocumentImage(byte[] bytes) => GridSketch.Document.DecodeImage(bytes);
     private static void DrawBorders(DrawingContext dc, SceneObject node, SceneObject grid, Pen pen)
