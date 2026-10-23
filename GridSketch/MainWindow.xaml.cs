@@ -168,7 +168,7 @@ public partial class MainWindow : Window
         {
             setters.Add(CanvasSettings(Properties, node, Surface.Renderer!.OutputBounds));
         }
-        else if (!node.IsGridContent) { Pair("位置 X", node.X, v => node.X = v, "位置 Y", node.Y, v => node.Y = v); Number("回転（度 / 左上中心）", node.Angle, v => node.Angle = v); }
+        else if (!node.IsGridContent) { Pair("位置 X", node.X, v => node.X = v, "位置 Y", node.Y, v => node.Y = v); Number(node.Kind == ObjectKind.Image ? "回転（度 / 画像中央）" : "回転（度 / 左上中心）", node.Angle, v => node.Angle = v); }
         switch (node.Kind)
         {
             case ObjectKind.CellSelection:

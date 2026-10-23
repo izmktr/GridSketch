@@ -33,6 +33,12 @@
     <MenuItem Header="ライン・矢印" Tag="Line" Click="AddClick"/>
     <MenuItem Header="図形" Tag="Shape" Click="AddClick"/>
    </MenuItem>
+   <MenuItem Header="部品(_P)">
+    <MenuItem Header="ライブラリ…" Click="PartLibraryClick"/>
+    <MenuItem Header="選択グループを登録…" Click="RegisterPartClick"/>
+    <Separator/>
+    <MenuItem Header="インポート…" Click="ImportPartClick"/>
+   </MenuItem>
   </Menu>
   <Border DockPanel.Dock="Top" Background="White" Padding="8">
    <WrapPanel VerticalAlignment="Center">

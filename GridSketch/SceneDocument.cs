@@ -120,10 +120,18 @@ public sealed partial class SceneDocument
     public SceneObject? GridFor(SceneObject node) => node.Kind == ObjectKind.Grid ? node : Parent(node) is { Kind: ObjectKind.Grid } grid ? grid : null;
     public bool Editable(SceneObject node) => !node.Locked && (Parent(node) is not { } p || Editable(p));
     public bool Shown(SceneObject node) => node.Visible && (Parent(node) is not { } p || Shown(p));
-    public Matrix World(SceneObject node)
+    public static Matrix LocalMatrix(SceneObject node)
     {
         var matrix = Matrix.Identity;
-        if (node.Kind != ObjectKind.Canvas) { matrix.Rotate(node.Angle); matrix.Translate(node.X, node.Y); }
+        if (node.Kind == ObjectKind.Canvas) return matrix;
+        if (node.Kind == ObjectKind.Image) matrix.RotateAt(node.Angle, node.Width / 2, node.Height / 2);
+        else matrix.Rotate(node.Angle);
+        matrix.Translate(node.X, node.Y);
+        return matrix;
+    }
+    public Matrix World(SceneObject node)
+    {
+        var matrix = LocalMatrix(node);
         if (Parent(node) is { } p) matrix.Append(World(p));
         return matrix;
     }
@@ -136,7 +144,10 @@ public sealed partial class SceneDocument
         var world = World(node); var inverse = World(target); inverse.Invert(); world.Append(inverse);
         Parent(node)!.Children.Remove(node); target.Children.Insert(0, node);
         if (target.Kind == ObjectKind.CellSelection) AssignNewState(target, node);
-        node.X = world.OffsetX; node.Y = world.OffsetY; node.Angle = Math.Atan2(world.M12, world.M11) * 180 / Math.PI;
+        node.Angle = Math.Atan2(world.M12, world.M11) * 180 / Math.PI;
+        node.X = node.Y = 0;
+        var rotation = LocalMatrix(node);
+        node.X = world.OffsetX - rotation.OffsetX; node.Y = world.OffsetY - rotation.OffsetY;
     }
 
     public static SceneObject CreateGrid(string preset, int columns = 16, int rows = 12, double cellSize = 48)
@@ -259,6 +270,9 @@ public sealed partial class SceneDocument
 
     public void Validate()
     {
+        if (Parts is null || Parts.Count > 128 || Parts.Any(p => p is null) || Parts.Select(p => p.Id).Distinct().Count() != Parts.Count)
+            throw new InvalidDataException("部品ライブラリは128件以内で、IDが重複しないようにしてください。");
+        foreach (var part in Parts) part.Validate();
         if (PdfExport is null) throw new InvalidDataException("PDF出力設定が不正です。");
         PdfExport.Validate();
         if (Canvas is not null && Canvas.CanvasUnit is not ("px" or "mm")) throw new InvalidDataException("キャンバスの単位はpxまたはmmです。");

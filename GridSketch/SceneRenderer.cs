@@ -36,7 +36,7 @@ public sealed class SceneRenderer
     };
     public static Transform LocalTransform(SceneObject node)
     {
-        var m = Matrix.Identity; m.Rotate(node.Angle); m.Translate(node.X, node.Y); return new MatrixTransform(m);
+        return new MatrixTransform(SceneDocument.LocalMatrix(node));
     }
     private void DrawNode(DrawingContext parent, SceneObject node, SceneObject? grid, bool recordBounds = true)
     {

@@ -119,6 +119,8 @@ internal static class Program
             DragPaintChecks.Run(window);
             CellSelectionChecks.Run(window, Path.GetDirectoryName(temp)!);
             PropertyToggleChecks.Run(window);
+            ImageRotationChecks.Run();
+            PartLibraryChecks.Run(window, Path.GetDirectoryName(temp)!);
             window.Close(); app.Shutdown();
             Console.WriteLine("All checks passed.");
         }
