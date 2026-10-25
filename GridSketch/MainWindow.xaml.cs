@@ -92,6 +92,7 @@ public partial class MainWindow : Window
     {
         double oldX = Surface.OriginX, oldY = Surface.OriginY;
         double scrollX = Viewport.HorizontalOffset, scrollY = Viewport.VerticalOffset;
+        Surface.ShowSelectionBounds = ModeBox.SelectedIndex == 0;
         Surface.Refresh(document);
         if (oldX != Surface.OriginX || oldY != Surface.OriginY)
         {
@@ -410,7 +411,7 @@ public partial class MainWindow : Window
         var children = node.Children.ToList(); int index = parent.Children.IndexOf(node);
         foreach (var child in children) document.Reparent(child, parent); foreach (var child in children) parent.Children.Remove(child); parent.Children.Remove(node); parent.Children.InsertRange(index, children); selectedId = parent.Id;
     });
-    private void ModeChanged(object sender, SelectionChangedEventArgs e) { if (Surface is null) return; Surface.HoveredEdge = null; Surface.Preview = []; Surface.InvalidateVisual(); }
+    private void ModeChanged(object sender, SelectionChangedEventArgs e) { if (Surface is null) return; Surface.ShowSelectionBounds = ModeBox.SelectedIndex == 0; Surface.HoveredEdge = null; Surface.Preview = []; Surface.InvalidateVisual(); }
     private void SurfaceDown(object sender, MouseButtonEventArgs e) => Try(() =>
     {
         var p = e.GetPosition(Surface); var node = Selected;

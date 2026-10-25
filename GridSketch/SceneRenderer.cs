@@ -244,6 +244,7 @@ public sealed class SceneRenderer
 
 public sealed class SceneSurface : FrameworkElement
 {
+    public bool ShowSelectionBounds { get; set; }
     public const double Origin = 1024;
     public double OriginX { get; private set; } = Origin;
     public double OriginY { get; private set; } = Origin;
@@ -307,7 +308,7 @@ public sealed class SceneSurface : FrameworkElement
         dc.DrawDrawing(Renderer.Drawing); dc.DrawRectangle(null, new Pen(Brushes.DimGray, 1), bounds);
         if (Selected is { } selected)
         {
-            if (selected.Kind != ObjectKind.GridText && Renderer.Bounds.TryGetValue(selected.Id, out var selectedBounds)) dc.DrawRectangle(null, new Pen(Brushes.DodgerBlue, 1) { DashStyle = DashStyles.Dash }, selectedBounds);
+            if (ShowSelectionBounds && Renderer.Bounds.TryGetValue(selected.Id, out var selectedBounds)) dc.DrawRectangle(null, new Pen(Brushes.DodgerBlue, 1) { DashStyle = DashStyles.Dash }, selectedBounds);
             var grid = Renderer.Document.GridFor(selected);
             if (grid is not null)
             {
