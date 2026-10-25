@@ -30,9 +30,15 @@ public sealed class SceneRenderer
     public static Brush Brush(string color) => new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
     private static Pen Pen(SceneObject node) => new(Brush(node.Color), node.Thickness)
     {
-        StartLineCap = node.Kind == ObjectKind.Border && !node.SquareCaps ? PenLineCap.Flat : PenLineCap.Square,
-        EndLineCap = node.Kind == ObjectKind.Border && !node.SquareCaps ? PenLineCap.Flat : PenLineCap.Square,
+        StartLineCap = BorderCap(node),
+        EndLineCap = BorderCap(node),
         DashStyle = node.LineStyle switch { "破線" => DashStyles.Dash, "点線" => DashStyles.Dot, _ => DashStyles.Solid }
+    };
+    private static PenLineCap BorderCap(SceneObject node) => node.Kind != ObjectKind.Border ? PenLineCap.Square : node.EffectiveBorderEndCap switch
+    {
+        "中央まで" => PenLineCap.Flat,
+        "丸" => PenLineCap.Round,
+        _ => PenLineCap.Square
     };
     public static Transform LocalTransform(SceneObject node)
     {

@@ -64,7 +64,9 @@ public sealed class SceneObject
     public string Color { get; set; } = "#162A40";
     public double Thickness { get; set; } = 2;
     public string LineStyle { get; set; } = "実線";
-    public bool SquareCaps { get; set; }
+    public bool SquareCaps { get; set; } = true;
+    public string? BorderEndCap { get; set; }
+    [JsonIgnore] public string EffectiveBorderEndCap => BorderEndCap ?? (SquareCaps ? "四角" : "中央まで");
     public bool JoinSegments { get; set; } = true;
     public string Pattern { get; set; } = "個別";
     public HashSet<GridEdge> Edges { get; set; } = [];
@@ -283,6 +285,7 @@ public sealed partial class SceneDocument
             if (node is null || depth > 24 || ids.Count > 5000 || string.IsNullOrWhiteSpace(node.Id) || !ids.Add(node.Id)) throw new InvalidDataException("階層が深すぎるか、IDが重複しています。");
             if (!Enum.IsDefined(node.Kind) || node.Children is null || node.Name is null || node.Name.Length > 200 || node.Glyphs is null || node.Edges is null || node.FilledCells is null) throw new InvalidDataException("オブジェクトが不正です。");
             if (node.FrameCells is null || !double.IsFinite(node.MarginY)) throw new InvalidDataException("マス枠またはマス内余白が不正です。");
+            if (node.BorderEndCap is not (null or "中央まで" or "四角" or "丸")) throw new InvalidDataException("罫線の端の形が不正です。");
             if (node.Style is null || !double.IsFinite(node.Style.OutlineWidth) || node.Style.OutlineWidth < 0 || node.Style.OutlineWidth > 64) throw new InvalidDataException("縁取りの太さは0～64pxで指定してください。");
             _ = (Color)ColorConverter.ConvertFromString(node.Style.OutlineColor);
             if (parent is not null && (node.Kind == ObjectKind.Canvas || !parent.IsContainer)) throw new InvalidDataException("不正な親子構造です。");
@@ -334,7 +337,7 @@ public sealed partial class SceneDocument
         scene.Canvas.AutoSize = false; scene.Canvas.X = scene.Canvas.Y = 0;
         scene.Canvas.Width = grid.Columns * grid.CellSize + padding * 2; scene.Canvas.Height = grid.Rows * grid.CellSize + padding * 2;
         scene.Canvas.Children.Add(grid);
-        SceneObject Border(string name, Stroke stroke, IEnumerable<GridEdge> edges) => new() { Kind = ObjectKind.Border, Name = name, Color = stroke.Color, Thickness = stroke.Width, LineStyle = stroke.Kind, Edges = edges.ToHashSet() };
+        SceneObject Border(string name, Stroke stroke, IEnumerable<GridEdge> edges) => new() { Kind = ObjectKind.Border, Name = name, SquareCaps = false, Color = stroke.Color, Thickness = stroke.Width, LineStyle = stroke.Kind, Edges = edges.ToHashSet() };
         grid.Children.Add(Border("個別罫線", old.WallStroke, old.Walls));
         grid.Children[0].SquareCaps = true; grid.Children[0].JoinSegments = false;
         var all = BorderEdges(new SceneObject { Pattern = "すべて" }, grid).ToList();
