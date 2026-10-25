@@ -171,6 +171,8 @@ public sealed class SceneRenderer
     private static BitmapSource DocumentImage(byte[] bytes) => GridSketch.Document.DecodeImage(bytes);
     private static void DrawBorders(DrawingContext dc, SceneObject node, SceneObject grid, Pen pen)
     {
+        double offset = node.ConnectCellCenters ? grid.CellSize / 2 : 0;
+        dc.PushTransform(new TranslateTransform(offset, offset));
         void Run(bool vertical, int axis, int start, int end)
         {
             double s = grid.CellSize;
@@ -188,6 +190,7 @@ public sealed class SceneRenderer
             }
             Run(group.Key.Vertical, group.Key.Axis, start, end);
         }
+        dc.Pop();
     }
     private static Geometry TextGeometry(string text, string font, double size) => new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, new Typeface(font), size, Brushes.Black, 1).BuildGeometry(new Point());
     private static DrawingGroup StyledText(SceneObject node, string value, string font, double size)
@@ -273,13 +276,19 @@ public sealed class SceneSurface : FrameworkElement
     }
     public GridEdge? EdgeAt(SceneObject grid, Point surfacePoint, double zoom)
     {
+        var border = Selected is { Kind: ObjectKind.Border } selected ? selected : new SceneObject();
+        var (columns, rows) = SceneDocument.BorderDimensions(border, grid);
         var p = ToLocal(grid, surfacePoint); double size = grid.CellSize, tolerance = Math.Min(size * 0.22, 7 / zoom);
-        if (p.X < -tolerance || p.Y < -tolerance || p.X > grid.Columns * size + tolerance || p.Y > grid.Rows * size + tolerance) return null;
+        double offset = border.ConnectCellCenters ? size / 2 : 0;
+        p.Offset(-offset, -offset);
+        if (p.X < -tolerance || p.Y < -tolerance || p.X > columns * size + tolerance || p.Y > rows * size + tolerance) return null;
         int c = (int)Math.Round(p.X / size), r = (int)Math.Round(p.Y / size);
         double dx = Math.Abs(p.X - c * size), dy = Math.Abs(p.Y - r * size);
-        if (Math.Min(dx, dy) > tolerance) return null;
-        var edge = dx <= dy ? new GridEdge(c, Math.Clamp((int)Math.Floor(p.Y / size), 0, grid.Rows - 1), true) : new GridEdge(Math.Clamp((int)Math.Floor(p.X / size), 0, grid.Columns - 1), r, false);
-        return edge.IsInside(grid.Columns, grid.Rows) ? edge : null;
+        var vertical = new GridEdge(c, Math.Clamp((int)Math.Floor(p.Y / size), 0, Math.Max(0, rows - 1)), true);
+        var horizontal = new GridEdge(Math.Clamp((int)Math.Floor(p.X / size), 0, Math.Max(0, columns - 1)), r, false);
+        bool v = vertical.IsInside(columns, rows) && dx <= tolerance, h = horizontal.IsInside(columns, rows) && dy <= tolerance;
+        if (v && (!h || dx <= dy)) return vertical;
+        return h ? horizontal : null;
     }
     protected override void OnRender(DrawingContext dc)
     {
@@ -320,7 +329,8 @@ public sealed class SceneSurface : FrameworkElement
                 }
                 if (HoveredEdge is { } edge)
                 {
-                    var p = new Point(edge.Column * grid.CellSize, edge.Row * grid.CellSize);
+                    double offset = selected.ConnectCellCenters ? 0.5 : 0;
+                    var p = new Point((edge.Column + offset) * grid.CellSize, (edge.Row + offset) * grid.CellSize);
                     dc.DrawLine(new Pen(Brushes.DodgerBlue, 3), p, new Point(p.X + (edge.Vertical ? 0 : grid.CellSize), p.Y + (edge.Vertical ? grid.CellSize : 0)));
                 }
                 foreach (var glyph in Preview)

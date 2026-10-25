@@ -33,7 +33,7 @@ public sealed class GridPaintStroke
         }
         previous = Normalize(start);
     }
-    private Point Normalize(Point p) => new(p.X / grid.CellSize, p.Y / grid.CellSize);
+    private Point Normalize(Point p) => new(p.X / grid.CellSize - (node.ConnectCellCenters ? 0.5 : 0), p.Y / grid.CellSize - (node.ConnectCellCenters ? 0.5 : 0));
     private static CellPosition Cell(Point p) => new((int)Math.Floor(p.X), (int)Math.Floor(p.Y));
     private void PaintCell(CellPosition cell)
     {
@@ -67,7 +67,7 @@ public sealed class GridPaintStroke
         {
             var other = vertex + direction;
             var candidate = new GridEdge((int)Math.Min(vertex.X, other.X), (int)Math.Min(vertex.Y, other.Y), direction.X == 0);
-            if (candidate == current || !candidate.IsInside(grid.Columns, grid.Rows)) continue;
+            if (candidate == current || !SceneDocument.BorderEdgeInside(node, grid, candidate)) continue;
             var delta = p - vertex;
             double progress = Vector.Multiply(delta, direction);
             // Require deliberate movement away from the shared vertex before changing edges.

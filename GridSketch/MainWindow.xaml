@@ -23,6 +23,7 @@
     <MenuItem Header="グループ" Tag="Group" Click="AddClick"/>
     <Separator/>
     <MenuItem Header="罫線" Tag="Border" Click="AddClick"/>
+    <MenuItem Header="中心罫線（マスの中心をつなぐ）" Tag="CenterBorder" Click="AddClick"/>
     <MenuItem Header="マス枠" Tag="CellFrame" Click="AddClick"/>
     <MenuItem Header="グリッド文字" Tag="GridText" Click="AddClick"/>
     <MenuItem Header="マス選択" Tag="CellSelection" Click="AddClick"/>

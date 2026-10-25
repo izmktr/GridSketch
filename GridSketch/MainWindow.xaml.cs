@@ -160,7 +160,7 @@ public partial class MainWindow : Window
     private void RequireEditable(SceneObject node) { if (!document.Editable(node)) throw new InvalidOperationException("オブジェクトまたは親がロックされています。"); }
     private void BuildProperties()
     {
-        Properties.Children.Clear(); setters.Clear(); var node = Selected; Label(SceneObject.KindName(node.Kind)); TextField("名前", node.Name, v => node.Name = v);
+        Properties.Children.Clear(); setters.Clear(); var node = Selected; Label(node.Kind == ObjectKind.Border && node.ConnectCellCenters ? "中心罫線" : SceneObject.KindName(node.Kind)); TextField("名前", node.Name, v => node.Name = v);
         UpdatePropertyToggles();
         int metadataCount = setters.Count;
         TemplateProperties(node);
@@ -178,6 +178,7 @@ public partial class MainWindow : Window
                 Pair("マス内余白・左右（px）", node.Margin, v => node.Margin = v, "マス内余白・上下（px）", node.MarginY, v => node.MarginY = v);
                 Label("外枠・内枠はマス数に追従します。縮小時は個別罫線も範囲内に収めます。文字・画像・塗りは削除しません。"); break;
             case ObjectKind.Border:
+                if (node.ConnectCellCenters) Label("隣り合うマスの中心を縦・横につなぎます。中心間の線をクリック・ドラッグして編集します。");
                 ColorField("色", node.Color, v => node.Color = v); Number("太さ（0～64px）", node.Thickness, v => node.Thickness = v, 0, 64); Choice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v); Choice("端・角の形", node.EffectiveBorderEndCap, ["中央まで", "四角", "丸"], v => node.BorderEndCap = v); Label("四角：端を線幅の半分延長して接続します。丸：線幅を直径とする丸い端にします。"); Label($"対象：{node.Pattern}。辺のクリックで個別編集になります。"); break;
             case ObjectKind.Fill:
                 Choice("塗る範囲", node.UseCellMargin ? "余白の内側" : "マス全体", ["マス全体", "余白の内側"], v => node.UseCellMargin = v == "余白の内側");
@@ -281,6 +282,7 @@ public partial class MainWindow : Window
         {
             RequireEditable(node); var grid = document.GridFor(node)!; var cells = CellRange(node).ToList();
             int left = cells.Min(c => c.Column), right = cells.Max(c => c.Column) + 1, top = cells.Min(c => c.Row), bottom = cells.Max(c => c.Row) + 1; var edges = new HashSet<GridEdge>();
+            if (node.ConnectCellCenters) { right--; bottom--; }
             for (int c = left; c < right; c++)
             {
                 if (toggles[0].IsChecked == true) edges.Add(new(c, top, false)); if (toggles[5].IsChecked == true) edges.Add(new(c, bottom, false));
@@ -291,6 +293,7 @@ public partial class MainWindow : Window
                 if (toggles[1].IsChecked == true) edges.Add(new(left, r, true)); if (toggles[3].IsChecked == true) edges.Add(new(right, r, true));
                 if (toggles[2].IsChecked == true) for (int c = left + 1; c < right; c++) edges.Add(new(c, r, true));
             }
+            edges.RemoveWhere(e => !SceneDocument.BorderEdgeInside(node, grid, e));
             node.Edges = SceneDocument.BorderEdges(node, grid).ToHashSet(); node.Pattern = "個別"; if (remove) node.Edges.ExceptWith(edges); else node.Edges.UnionWith(edges);
         });
         Button("チェックした辺を追加", () => Apply(false)); Button("チェックした辺を削除", () => Apply(true));
@@ -324,8 +327,8 @@ public partial class MainWindow : Window
     private void AddClick(object sender, RoutedEventArgs e) => Try(() =>
     {
         if (sender is not MenuItem { Tag: string tag }) return;
-        bool independent = tag == "IndependentGrid";
-        if (!Enum.TryParse<ObjectKind>(independent ? "Grid" : tag, out var kind)) return;
+        bool independent = tag == "IndependentGrid", centerBorder = tag == "CenterBorder";
+        if (!Enum.TryParse<ObjectKind>(independent ? "Grid" : centerBorder ? "Border" : tag, out var kind)) return;
         if (kind == ObjectKind.Grid)
         {
             var grid = GridDialog(false, independent ? "独立マス" : "基本の方眼紙"); if (grid is null) return;
@@ -335,7 +338,7 @@ public partial class MainWindow : Window
         Change(() =>
         {
             var parent = AddParent(kind is ObjectKind.Border or ObjectKind.GridText or ObjectKind.Fill or ObjectKind.CellFrame or ObjectKind.CellSelection); RequireEditable(parent);
-            var node = new SceneObject { Kind = kind, Name = SceneObject.KindName(kind), ImageData = image };
+            var node = new SceneObject { Kind = kind, Name = centerBorder ? "中心罫線" : SceneObject.KindName(kind), ConnectCellCenters = centerBorder, ImageData = image };
             if (kind == ObjectKind.Image && parent.Kind == ObjectKind.Grid) { node.SnapToCell = true; node.Column = Surface.ActiveCell?.Column ?? 0; node.Row = Surface.ActiveCell?.Row ?? 0; }
             if (kind == ObjectKind.Fill) { node.Color = "#000000"; parent.Children.Add(node); } else parent.Children.Insert(0, node);
             if (parent.Kind == ObjectKind.CellSelection)

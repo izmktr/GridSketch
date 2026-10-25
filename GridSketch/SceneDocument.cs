@@ -67,6 +67,7 @@ public sealed class SceneObject
     public bool SquareCaps { get; set; } = true;
     public string? BorderEndCap { get; set; }
     [JsonIgnore] public string EffectiveBorderEndCap => BorderEndCap ?? (SquareCaps ? "四角" : "中央まで");
+    public bool ConnectCellCenters { get; set; }
     public bool JoinSegments { get; set; } = true;
     public string Pattern { get; set; } = "個別";
     public HashSet<GridEdge> Edges { get; set; } = [];
@@ -94,7 +95,7 @@ public sealed class SceneObject
 
     [JsonIgnore] public bool IsContainer => Kind is ObjectKind.Canvas or ObjectKind.Group or ObjectKind.Grid or ObjectKind.CellSelection;
     [JsonIgnore] public bool IsGridContent => Kind is ObjectKind.Border or ObjectKind.GridText or ObjectKind.Fill or ObjectKind.CellFrame or ObjectKind.CellSelection || Kind == ObjectKind.Image && SnapToCell;
-    [JsonIgnore] public string Label => $"{(Visible ? "" : "非表示 · ")}{(Locked ? "🔒 " : "")}{Name}  [{KindName(Kind)}]";
+    [JsonIgnore] public string Label => $"{(Visible ? "" : "非表示 · ")}{(Locked ? "🔒 " : "")}{Name}  [{(Kind == ObjectKind.Border && ConnectCellCenters ? "中心罫線" : KindName(Kind))}]";
     public static string KindName(ObjectKind kind) => kind switch
     {
         ObjectKind.Canvas => "キャンバス", ObjectKind.Group => "グループ", ObjectKind.Grid => "グリッド",
@@ -174,14 +175,22 @@ public sealed partial class SceneDocument
         return grid;
     }
 
+    public static (int Columns, int Rows) BorderDimensions(SceneObject border, SceneObject grid)
+        => (grid.Columns - (border.ConnectCellCenters ? 1 : 0), grid.Rows - (border.ConnectCellCenters ? 1 : 0));
+    public static bool BorderEdgeInside(SceneObject border, SceneObject grid, GridEdge edge)
+    {
+        var (columns, rows) = BorderDimensions(border, grid);
+        return edge.IsInside(columns, rows);
+    }
     public static IEnumerable<GridEdge> BorderEdges(SceneObject border, SceneObject grid)
     {
+        var (columns, rows) = BorderDimensions(border, grid);
         if (border.Pattern == "個別") return border.Edges;
         var edges = new List<GridEdge>();
-        for (int c = 0; c <= grid.Columns; c++) for (int r = 0; r < grid.Rows; r++)
-            if (border.Pattern == "すべて" || (c == 0 || c == grid.Columns ? border.Pattern == "外枠" : border.Pattern == "内側")) edges.Add(new(c, r, true));
-        for (int r = 0; r <= grid.Rows; r++) for (int c = 0; c < grid.Columns; c++)
-            if (border.Pattern == "すべて" || (r == 0 || r == grid.Rows ? border.Pattern == "外枠" : border.Pattern == "内側")) edges.Add(new(c, r, false));
+        for (int c = 0; c <= columns; c++) for (int r = 0; r < rows; r++)
+            if (border.Pattern == "すべて" || (c == 0 || c == columns ? border.Pattern == "外枠" : border.Pattern == "内側")) edges.Add(new(c, r, true));
+        for (int r = 0; r <= rows; r++) for (int c = 0; c < columns; c++)
+            if (border.Pattern == "すべて" || (r == 0 || r == rows ? border.Pattern == "外枠" : border.Pattern == "内側")) edges.Add(new(c, r, false));
         return edges;
     }
 
@@ -216,6 +225,11 @@ public sealed partial class SceneDocument
         {
             if (border.Pattern != "個別") { border.Edges.Clear(); continue; }
             if (columns == grid.Columns && rows == grid.Rows) continue;
+            if (border.ConnectCellCenters)
+            {
+                border.Edges.RemoveWhere(e => !BorderEdgeInside(border, resized, e));
+                continue;
+            }
             // Legacy files and one-click border tools store complete frames as explicit edges.
             // Recognize those sets by geometry, not by a user-editable layer name.
             bool rebuilt = false;
@@ -301,7 +315,7 @@ public sealed partial class SceneDocument
             {
                 bool In(int c, int r) => c >= 0 && r >= 0 && c < grid.Columns && r < grid.Rows;
                 if (node.FrameCells.Any(c => !In(c.Column, c.Row))) throw new InvalidDataException("マス枠の対象がグリッドの範囲外です。");
-                if (node.Edges.Any(e => !e.IsInside(grid.Columns, grid.Rows)) || node.FilledCells.Any(c => !In(c.Column, c.Row)) || node.Glyphs.Any(g => g is null || !In(g.Column, g.Row) || g.Text is null || new StringInfo(g.Text).LengthInTextElements != 1 || g.Text.Any(char.IsControl) || g.Size.HasValue && (!double.IsFinite(g.Size.Value) || g.Size < 1 || g.Size > 512))) throw new InvalidDataException("範囲外のマス・辺または不正な文字があります。縮小する場合は先に範囲外の内容を削除してください。");
+                if (node.Edges.Any(e => !BorderEdgeInside(node, grid, e)) || node.FilledCells.Any(c => !In(c.Column, c.Row)) || node.Glyphs.Any(g => g is null || !In(g.Column, g.Row) || g.Text is null || new StringInfo(g.Text).LengthInTextElements != 1 || g.Text.Any(char.IsControl) || g.Size.HasValue && (!double.IsFinite(g.Size.Value) || g.Size < 1 || g.Size > 512))) throw new InvalidDataException("範囲外のマス・辺または不正な文字があります。縮小する場合は先に範囲外の内容を削除してください。");
                 if (node.Glyphs.Select(g => (g.Column, g.Row)).Distinct().Count() != node.Glyphs.Count) throw new InvalidDataException("文字のマスが重複しています。");
                 if (node.Kind == ObjectKind.Image && !In(node.Column, node.Row)) throw new InvalidDataException("画像の配置マスが範囲外です。");
             }

@@ -122,6 +122,7 @@ internal static class Program
             ImageRotationChecks.Run();
             PartLibraryChecks.Run(window, Path.GetDirectoryName(temp)!);
             BorderCapChecks.Run(Path.GetDirectoryName(temp)!);
+            CenterBorderChecks.Run(window, Path.GetDirectoryName(temp)!);
             window.Close(); app.Shutdown();
             Console.WriteLine("All checks passed.");
         }
