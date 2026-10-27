@@ -50,6 +50,9 @@ public sealed partial class SceneDocument
     }
     private void ValidateCellSelection(SceneObject node, SceneObject? parent)
     {
+        if (node.TemplateRegion is not ("マス全体" or "余白の内側") || node.TemplateSizing is not ("固定サイズ" or "収める" or "親いっぱい")
+            || node.TemplateAnchor is not ("中央" or "左上" or "上" or "右上" or "左" or "右" or "左下" or "下" or "右下"))
+            throw new InvalidDataException("マス内の配置設定が不正です。");
         if (node.States is null || node.StateCells is null) throw new InvalidDataException("マス選択の設定が不正です。");
         if (SelectionOwner(node) is not null && node.Kind is not (ObjectKind.Group or ObjectKind.Image or ObjectKind.Text or ObjectKind.Shape or ObjectKind.Line))
             throw new InvalidDataException("マス選択の見本には画像・文字・図形・ライン・グループを配置できます。");

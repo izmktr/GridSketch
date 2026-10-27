@@ -59,6 +59,10 @@ public sealed class SceneObject
     public bool UseCellMargin { get; set; }
     public bool FrameAllCells { get; set; } = true;
     public List<CellState> States { get; set; } = [];
+    public bool UseCellLayout { get; set; }
+    public string TemplateRegion { get; set; } = "余白の内側";
+    public string TemplateSizing { get; set; } = "収める";
+    public string TemplateAnchor { get; set; } = "中央";
     public List<CellStatePlacement> StateCells { get; set; } = [];
     public HashSet<CellPosition> FrameCells { get; set; } = [];
     public string Color { get; set; } = "#162A40";

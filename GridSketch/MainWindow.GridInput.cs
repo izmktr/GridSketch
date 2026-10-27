@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -12,7 +12,7 @@ public partial class MainWindow
     private bool gridInputQueued;
     private bool clearingGridInput;
 
-    private bool CanTypeInGrid => ModeBox.SelectedIndex == 1 && Selected.Kind == ObjectKind.GridText
+    private bool CanTypeInGrid => cellEditMode && Selected.Kind == ObjectKind.GridText
         && Surface.ActiveCell is { } cell && (Surface.RangeEnd is null || Surface.RangeEnd == cell)
         && document.Editable(Selected);
 

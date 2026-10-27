@@ -1,4 +1,4 @@
-﻿using Microsoft.Win32;
+using Microsoft.Win32;
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
@@ -14,6 +14,7 @@ public partial class MainWindow : Window
     private string? path, selectedId;
     private string savedState = "";
     private bool refreshing;
+    private bool cellEditMode = true;
     private readonly RecentFiles recentFiles = new();
     private readonly Stack<string> undo = new(), redo = new();
     private readonly List<Action> setters = [];
@@ -92,7 +93,7 @@ public partial class MainWindow : Window
     {
         double oldX = Surface.OriginX, oldY = Surface.OriginY;
         double scrollX = Viewport.HorizontalOffset, scrollY = Viewport.VerticalOffset;
-        Surface.ShowSelectionBounds = ModeBox.SelectedIndex == 0;
+        Surface.ShowSelectionBounds = !cellEditMode;
         Surface.Refresh(document);
         if (oldX != Surface.OriginX || oldY != Surface.OriginY)
         {
@@ -140,7 +141,7 @@ public partial class MainWindow : Window
     }
     private void Choice(string key, string value, IEnumerable<string> options, Action<string> setter, bool editable = false)
     {
-        Label(key); var combo = new ComboBox { ItemsSource = options.ToList(), IsEditable = editable, Text = value }; combo.SelectedItem = value; Properties.Children.Add(combo); setters.Add(() => setter(combo.Text));
+        Label(key); var combo = new ComboBox { ItemsSource = options.ToList(), IsEditable = editable, Text = value }; combo.SelectedItem = value; System.Windows.Automation.AutomationProperties.SetName(combo, key); Properties.Children.Add(combo); setters.Add(() => setter(combo.Text));
     }
     private void FontField(SceneObject node)
     {
@@ -169,7 +170,7 @@ public partial class MainWindow : Window
         {
             setters.Add(CanvasSettings(Properties, node, Surface.Renderer!.OutputBounds));
         }
-        else if (!node.IsGridContent) { Pair("位置 X", node.X, v => node.X = v, "位置 Y", node.Y, v => node.Y = v); Number(node.Kind == ObjectKind.Image ? "回転（度 / 画像中央）" : "回転（度 / 左上中心）", node.Angle, v => node.Angle = v); }
+        else if (!node.IsGridContent) { Pair(document.SelectionOwner(node)?.UseCellLayout == true ? "位置 X（ずらし量）" : "位置 X", node.X, v => node.X = v, document.SelectionOwner(node)?.UseCellLayout == true ? "位置 Y（ずらし量）" : "位置 Y", node.Y, v => node.Y = v); Number(node.Kind == ObjectKind.Image ? "回転（度 / 画像中央）" : "回転（度 / 左上中心）", node.Angle, v => node.Angle = v); }
         switch (node.Kind)
         {
             case ObjectKind.CellSelection:
@@ -339,7 +340,7 @@ public partial class MainWindow : Window
         Change(() =>
         {
             var parent = AddParent(kind is ObjectKind.Border or ObjectKind.GridText or ObjectKind.Fill or ObjectKind.CellFrame or ObjectKind.CellSelection); RequireEditable(parent);
-            var node = new SceneObject { Kind = kind, Name = centerBorder ? "中心罫線" : SceneObject.KindName(kind), ConnectCellCenters = centerBorder, ImageData = image };
+            var node = new SceneObject { Kind = kind, Name = centerBorder ? "中心罫線" : SceneObject.KindName(kind), ConnectCellCenters = centerBorder, UseCellLayout = kind == ObjectKind.CellSelection, ImageData = image };
             if (kind == ObjectKind.Image && parent.Kind == ObjectKind.Grid) { node.SnapToCell = true; node.Column = Surface.ActiveCell?.Column ?? 0; node.Row = Surface.ActiveCell?.Row ?? 0; }
             if (kind == ObjectKind.Fill) { node.Color = "#000000"; parent.Children.Add(node); } else parent.Children.Insert(0, node);
             if (parent.Kind == ObjectKind.CellSelection)
@@ -411,11 +412,21 @@ public partial class MainWindow : Window
         var children = node.Children.ToList(); int index = parent.Children.IndexOf(node);
         foreach (var child in children) document.Reparent(child, parent); foreach (var child in children) parent.Children.Remove(child); parent.Children.Remove(node); parent.Children.InsertRange(index, children); selectedId = parent.Id;
     });
-    private void ModeChanged(object sender, SelectionChangedEventArgs e) { if (Surface is null) return; Surface.ShowSelectionBounds = ModeBox.SelectedIndex == 0; Surface.HoveredEdge = null; Surface.Preview = []; Surface.InvalidateVisual(); }
+    private void ModeChanged(object sender, RoutedEventArgs e)
+    {
+        FinishDrag(); Surface.ReleaseMouseCapture();
+        cellEditMode = ReferenceEquals(sender, CellModeButton);
+        MoveModeButton.IsChecked = !cellEditMode; CellModeButton.IsChecked = cellEditMode;
+        Surface.ShowSelectionBounds = !cellEditMode;
+        Surface.HoveredEdge = null; Surface.Preview = [];
+        if (!cellEditMode) GridInput.Visibility = Visibility.Collapsed;
+        Surface.InvalidateVisual();
+        Status.Text = cellEditMode ? "マス・辺をクリック・ドラッグして編集します。" : "オブジェクトを選択・ドラッグして移動します。";
+    }
     private void SurfaceDown(object sender, MouseButtonEventArgs e) => Try(() =>
     {
         var p = e.GetPosition(Surface); var node = Selected;
-        if (ModeBox.SelectedIndex == 1)
+        if (cellEditMode)
         {
             RequireEditable(node); var grid = document.GridFor(node); if (grid is null) { Status.Text = "グリッド直下のレイヤーを選択してください。"; return; }
             var cell = Surface.CellAt(grid, p);
@@ -464,7 +475,7 @@ public partial class MainWindow : Window
             var current = Surface.ToWorld(p); var parent = document.Parent(node)!; var inverse = document.World(parent); inverse.Invert(); var delta = inverse.Transform(current) - inverse.Transform(start);
             node.X = dragPosition.X + delta.X; node.Y = dragPosition.Y + delta.Y; RefreshSurface(); return;
         }
-        var grid = document.GridFor(node); var edge = ModeBox.SelectedIndex == 1 && node.Kind == ObjectKind.Border && grid is not null ? Surface.EdgeAt(grid, p, Zoom.Value) : null;
+        var grid = document.GridFor(node); var edge = cellEditMode && node.Kind == ObjectKind.Border && grid is not null ? Surface.EdgeAt(grid, p, Zoom.Value) : null;
         if (edge != Surface.HoveredEdge) { Surface.HoveredEdge = edge; Surface.InvalidateVisual(); }
     }
     private void StartPaint(SceneObject node, SceneObject grid, Point point, GridEdge? edge = null)
@@ -485,7 +496,21 @@ public partial class MainWindow : Window
     private void SurfaceUp(object sender, MouseButtonEventArgs e) { if (paintStroke is not null) paintStroke.Move(Surface.ToLocal(paintGrid!, e.GetPosition(Surface))); FinishDrag(); Surface.ReleaseMouseCapture(); }
     private void SurfaceLostCapture(object sender, MouseEventArgs e) => FinishDrag();
     private void SurfaceLeave(object sender, MouseEventArgs e) { Surface.HoveredEdge = null; Surface.InvalidateVisual(); }
-    private void ZoomChanged(object sender, RoutedPropertyChangedEventArgs<double> e) { if (Surface is not null) Surface.LayoutTransform = new ScaleTransform(e.NewValue, e.NewValue); }
+    private void ZoomChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (Surface is null || Viewport is null) return;
+        Viewport.UpdateLayout();
+        double previous = Surface.LayoutTransform is ScaleTransform transform ? transform.ScaleX : 1;
+        var center = new Point((Viewport.HorizontalOffset + Viewport.ViewportWidth / 2) / previous - Surface.OriginX,
+            (Viewport.VerticalOffset + Viewport.ViewportHeight / 2) / previous - Surface.OriginY);
+        if (Surface.Renderer is not null)
+            Surface.EnsureZoomSpace(center, new Size(Viewport.ViewportWidth / e.NewValue, Viewport.ViewportHeight / e.NewValue));
+        Surface.LayoutTransform = new ScaleTransform(e.NewValue, e.NewValue);
+        Viewport.UpdateLayout();
+        Viewport.ScrollToHorizontalOffset((center.X + Surface.OriginX) * e.NewValue - Viewport.ViewportWidth / 2);
+        Viewport.ScrollToVerticalOffset((center.Y + Surface.OriginY) * e.NewValue - Viewport.ViewportHeight / 2);
+        Viewport.UpdateLayout();
+    }
     private void CenterClick(object sender, RoutedEventArgs e)
     {
         var bounds = Surface.Renderer!.OutputBounds; Viewport.ScrollToHorizontalOffset(Math.Max(0, (Surface.OriginX + bounds.X) * Zoom.Value - 40)); Viewport.ScrollToVerticalOffset(Math.Max(0, (Surface.OriginY + bounds.Y) * Zoom.Value - 40));

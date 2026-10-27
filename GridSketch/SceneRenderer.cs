@@ -57,11 +57,19 @@ public sealed class SceneRenderer
             switch (node.Kind)
             {
                 case ObjectKind.CellSelection when grid is not null:
-                    var templates = node.Children.Where(c => c.Visible).ToDictionary(c => c.Id, Template);
+                    var templates = node.Children.Where(c => c.Visible).ToDictionary(c => c.Id, c => node.UseCellLayout ? CellTemplate(c, grid) : Template(c));
                     var states = node.States.ToDictionary(s => s.Id);
                     foreach (var cell in node.StateCells)
                     {
                         if (!states.TryGetValue(cell.StateId, out var state) || state.ObjectId is null || !templates.TryGetValue(state.ObjectId, out var template)) continue;
+                        if (node.UseCellLayout)
+                        {
+                            var fullCell = SceneDocument.CellRect(grid, new(cell.Column, cell.Row), false);
+                            dc.PushClip(new RectangleGeometry(fullCell));
+                            dc.PushTransform(new TranslateTransform(fullCell.X, fullCell.Y));
+                            dc.DrawDrawing(template); dc.Pop(); dc.Pop();
+                            continue;
+                        }
                         var bounds = template.Bounds;
                         if (bounds.IsEmpty || bounds.Width <= 0 || bounds.Height <= 0) continue;
                         var box = SceneDocument.CellRect(grid, new(cell.Column, cell.Row), true);
@@ -168,6 +176,37 @@ public sealed class SceneRenderer
         using (var dc = drawing.Open()) DrawNode(dc, node, null, false);
         return drawing;
     }
+    public DrawingGroup CellTemplate(SceneObject node, SceneObject grid)
+    {
+        var result = new DrawingGroup();
+        using var dc = result.Open();
+        if (!node.Visible) return result;
+        if (node.Kind == ObjectKind.Group)
+        {
+            // Groups pass both regions through unchanged. Sibling bounds never determine scale.
+            dc.PushTransform(LocalTransform(node));
+            foreach (var child in node.Children.AsEnumerable().Reverse()) dc.DrawDrawing(CellTemplate(child, grid));
+            dc.Pop();
+            return result;
+        }
+        var drawing = Template(node);
+        var bounds = drawing.Bounds;
+        if (bounds.IsEmpty || bounds.Width <= 0 || bounds.Height <= 0) return result;
+        var region = SceneDocument.CellRect(grid, new(0, 0), node.TemplateRegion == "余白の内側");
+        double sx = 1, sy = 1;
+        if (node.TemplateSizing == "収める") sx = sy = Math.Min(region.Width / bounds.Width, region.Height / bounds.Height);
+        else if (node.TemplateSizing == "親いっぱい") { sx = region.Width / bounds.Width; sy = region.Height / bounds.Height; }
+        double ax = node.TemplateAnchor.Contains('左') ? 0 : node.TemplateAnchor.Contains('右') ? 1 : 0.5;
+        double ay = node.TemplateAnchor.Contains('上') ? 0 : node.TemplateAnchor.Contains('下') ? 1 : 0.5;
+        double x = region.X + (region.Width - bounds.Width * sx) * ax + node.X;
+        double y = region.Y + (region.Height - bounds.Height * sy) * ay + node.Y;
+        dc.PushClip(new RectangleGeometry(region));
+        dc.PushTransform(new TranslateTransform(x, y));
+        dc.PushTransform(new ScaleTransform(sx, sy));
+        dc.PushTransform(new TranslateTransform(-bounds.X, -bounds.Y));
+        dc.DrawDrawing(drawing); dc.Pop(); dc.Pop(); dc.Pop(); dc.Pop();
+        return result;
+    }
     private static BitmapSource DocumentImage(byte[] bytes) => GridSketch.Document.DecodeImage(bytes);
     private static void DrawBorders(DrawingContext dc, SceneObject node, SceneObject grid, Pen pen)
     {
@@ -245,6 +284,7 @@ public sealed class SceneRenderer
 public sealed class SceneSurface : FrameworkElement
 {
     public bool ShowSelectionBounds { get; set; }
+    private double minimumWorkspaceWidth = 2400, minimumWorkspaceHeight = 1800;
     public const double Origin = 1024;
     public double OriginX { get; private set; } = Origin;
     public double OriginY { get; private set; } = Origin;
@@ -261,11 +301,22 @@ public sealed class SceneSurface : FrameworkElement
         var extents = Renderer.OutputBounds; extents.Union(Renderer.ContentBounds);
         OriginX = Math.Max(OriginX, Math.Ceiling(-extents.Left) + 128);
         OriginY = Math.Max(OriginY, Math.Ceiling(-extents.Top) + 128);
-        Width = Math.Max(2400, extents.Right + OriginX + 300);
-        Height = Math.Max(1800, extents.Bottom + OriginY + 300);
+        Width = Math.Max(minimumWorkspaceWidth, extents.Right + OriginX + 300);
+        Height = Math.Max(minimumWorkspaceHeight, extents.Bottom + OriginY + 300);
         InvalidateVisual();
     }
     public Point ToWorld(Point p) => new(p.X - OriginX, p.Y - OriginY);
+    public void EnsureZoomSpace(Point center, Size visibleSize)
+    {
+        // Keep enough workspace around the anchor so scroll limits do not shift it at low zoom.
+        double oldX = OriginX, oldY = OriginY;
+        OriginX = Math.Max(OriginX, visibleSize.Width / 2 + 16 - center.X);
+        OriginY = Math.Max(OriginY, visibleSize.Height / 2 + 16 - center.Y);
+        minimumWorkspaceWidth = Math.Max(Width + OriginX - oldX, center.X + OriginX + visibleSize.Width / 2 + 16);
+        minimumWorkspaceHeight = Math.Max(Height + OriginY - oldY, center.Y + OriginY + visibleSize.Height / 2 + 16);
+        Width = minimumWorkspaceWidth; Height = minimumWorkspaceHeight;
+        InvalidateVisual();
+    }
     public Point ToLocal(SceneObject node, Point surfacePoint)
     {
         var inverse = Renderer!.Document.World(node); inverse.Invert(); return inverse.Transform(ToWorld(surfacePoint));

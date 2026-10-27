@@ -1,5 +1,35 @@
 ﻿<Window x:Class="GridSketch.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:GridSketch"
  Title="GridSketch" Width="1380" Height="900" MinWidth="1000" MinHeight="650" Background="#F2F5F8" FontFamily="Yu Gothic UI" Closing="WindowClosing">
+ <Window.Resources>
+  <Style x:Key="IconToggleStyle" TargetType="ToggleButton">
+   <Setter Property="Background" Value="#F3F6FA"/>
+   <Setter Property="Foreground" Value="#243B53"/>
+   <Setter Property="BorderBrush" Value="#A9B8C8"/>
+   <Setter Property="BorderThickness" Value="2"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="ToggleButton">
+      <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4">
+       <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+      </Border>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+   <Style.Triggers>
+    <MultiTrigger>
+     <MultiTrigger.Conditions><Condition Property="IsChecked" Value="False"/><Condition Property="IsMouseOver" Value="True"/></MultiTrigger.Conditions>
+     <Setter Property="Background" Value="#DFEAF5"/>
+    </MultiTrigger>
+    <Trigger Property="IsChecked" Value="True">
+     <Setter Property="Background" Value="#1457A6"/>
+     <Setter Property="Foreground" Value="White"/>
+     <Setter Property="BorderBrush" Value="#0B366B"/>
+    </Trigger>
+    <Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="BorderBrush" Value="#E69A00"/></Trigger>
+    <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
+   </Style.Triggers>
+  </Style>
+ </Window.Resources>
  <DockPanel>
   <Menu DockPanel.Dock="Top">
    <MenuItem Header="ファイル(_F)">
@@ -43,17 +73,24 @@
   </Menu>
   <Border DockPanel.Dock="Top" Background="White" Padding="8">
    <WrapPanel VerticalAlignment="Center">
-    <ComboBox x:Name="ModeBox" Width="170" SelectedIndex="1" SelectionChanged="ModeChanged" Margin="8,0">
-     <ComboBoxItem Content="選択・ドラッグ移動"/><ComboBoxItem Content="マス・辺を編集"/>
-    </ComboBox>
-    <TextBlock Text="表示" VerticalAlignment="Center"/><Slider x:Name="Zoom" Width="110" Minimum="0.25" Maximum="3" Value="1" TickFrequency="0.25" IsSnapToTickEnabled="True" ValueChanged="ZoomChanged" Margin="8,0"/>
+    <ToggleButton x:Name="MoveModeButton" Style="{StaticResource IconToggleStyle}" Width="36" Height="32" Margin="8,0,3,0" Click="ModeChanged" ToolTip="移動：オブジェクトを選択・ドラッグ移動" AutomationProperties.Name="移動モード">
+     <Path Data="M10,1 L10,19 M1,10 L19,10 M6,5 L10,1 14,5 M6,15 L10,19 14,15 M5,6 L1,10 5,14 M15,6 L19,10 15,14" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.6" Width="20" Height="20" Stretch="Uniform"/>
+    </ToggleButton>
+    <ToggleButton x:Name="CellModeButton" Style="{StaticResource IconToggleStyle}" Width="36" Height="32" Margin="3,0,12,0" IsChecked="True" Click="ModeChanged" ToolTip="選択・編集：マスや辺をクリック・ドラッグで編集" AutomationProperties.Name="マス・辺の選択編集モード">
+     <Grid Width="20" Height="20">
+      <Path Data="M1,1 L19,1 19,19 1,19 Z M10,1 L10,19 M1,10 L19,10" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.4" Stretch="Fill"/>
+      <Rectangle Width="7" Height="7" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="2"/>
+     </Grid>
+    </ToggleButton>
+    <TextBlock Text="表示" VerticalAlignment="Center"/><Slider x:Name="Zoom" VerticalAlignment="Center" Width="110" Minimum="0.25" Maximum="3" Value="1" TickFrequency="0.25" IsSnapToTickEnabled="True" ValueChanged="ZoomChanged" Margin="8,0"/>
     <Button Content="キャンバスへ" Click="CenterClick"/>
    </WrapPanel>
   </Border>
   <StatusBar DockPanel.Dock="Bottom"><TextBlock x:Name="Status" Text="レイヤーを選択して編集します。"/></StatusBar>
   <Grid>
    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="5"/><ColumnDefinition Width="370" MinWidth="300"/></Grid.ColumnDefinitions>
-   <ScrollViewer x:Name="Viewport" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="#8191A3">
+   <ScrollViewer x:Name="Viewport" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="#8191A3"
+    PreviewMouseDown="ViewportMouseDown" PreviewMouseMove="ViewportMouseMove" PreviewMouseUp="ViewportMouseUp" LostMouseCapture="ViewportLostCapture" PreviewMouseWheel="ViewportMouseWheel">
     <Grid>
      <local:SceneSurface x:Name="Surface" HorizontalAlignment="Left" VerticalAlignment="Top" MouseLeftButtonDown="SurfaceDown" MouseMove="SurfaceMove" MouseLeftButtonUp="SurfaceUp" MouseLeave="SurfaceLeave" LostMouseCapture="SurfaceLostCapture"/>
      <Canvas x:Name="InputOverlay">
@@ -77,8 +114,8 @@
      <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
       <DockPanel>
        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-        <ToggleButton x:Name="VisibilityToggle" Width="32" Height="30" Margin="3,0" Click="VisibilityToggleClick" AutomationProperties.Name="表示する"/>
-        <ToggleButton x:Name="LockToggle" Width="32" Height="30" Margin="3,0" Click="LockToggleClick" AutomationProperties.Name="ロック"/>
+        <ToggleButton x:Name="VisibilityToggle" Style="{StaticResource IconToggleStyle}" Width="32" Height="30" Margin="3,0" Click="VisibilityToggleClick" AutomationProperties.Name="表示する"/>
+        <ToggleButton x:Name="LockToggle" Style="{StaticResource IconToggleStyle}" Width="32" Height="30" Margin="3,0" Click="LockToggleClick" AutomationProperties.Name="ロック"/>
        </StackPanel>
        <TextBlock Text="プロパティ" FontSize="18" FontWeight="Bold" VerticalAlignment="Center"/>
       </DockPanel>

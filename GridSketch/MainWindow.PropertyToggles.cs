@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -18,7 +18,15 @@ public partial class MainWindow
         VisibilityToggle.IsChecked = node.Visible; LockToggle.IsChecked = node.Locked;
         VisibilityToggle.ToolTip = node.Visible ? "表示中（クリックで非表示）" : "非表示（クリックで表示）";
         LockToggle.ToolTip = parentLocked ? "親オブジェクトがロックされています" : node.Locked ? "ロック中（クリックで解除）" : "ロック解除中（クリックでロック）";
-        FrameworkElement Icon(string data) => new Path { Data = Geometry.Parse(data), Stroke = Brushes.DarkSlateGray, StrokeThickness = 1.6, Width = 20, Height = 20, Stretch = Stretch.Uniform };
+        FrameworkElement Icon(string data)
+        {
+            var icon = new Path { Data = Geometry.Parse(data), StrokeThickness = 1.6, Width = 20, Height = 20, Stretch = Stretch.Uniform };
+            icon.SetBinding(Shape.StrokeProperty, new System.Windows.Data.Binding("Foreground")
+            {
+                RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.FindAncestor, typeof(System.Windows.Controls.Primitives.ToggleButton), 1)
+            });
+            return icon;
+        }
         VisibilityToggle.Content = Icon("M1,10 Q10,-2 19,10 Q10,22 1,10 M13,10 A3,3 0 1 1 7,10 A3,3 0 1 1 13,10" + (node.Visible ? "" : " M1,1 L19,19"));
         LockToggle.Content = Icon("M4,9 L16,9 16,19 4,19 Z M10,13 L10,16 " + (node.Locked ? "M6,9 L6,5 A4,4 0 0 1 14,5 L14,9" : "M6,9 L6,5 A4,4 0 0 1 14,5"));
         PropertyLockNotice.Text = parentLocked ? "親オブジェクトがロックされています。" : node.Locked ? "ロック中です。解除してから内容を編集してください。" : "";
