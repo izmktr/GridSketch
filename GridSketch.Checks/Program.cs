@@ -126,6 +126,8 @@ internal static class Program
             ZoomChecks.Run(window);
             NavigationChecks.Run(window);
             CellLayoutChecks.Run(window, Path.GetDirectoryName(temp)!);
+            LayerInsertionChecks.Run(window);
+            LayerMenuChecks.Run(window);
             window.Close(); app.Shutdown();
             Console.WriteLine("All checks passed.");
         }

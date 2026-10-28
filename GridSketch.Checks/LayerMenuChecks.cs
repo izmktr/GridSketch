@@ -1,0 +1,69 @@
+using System.Reflection;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using GridSketch;
+
+internal static class LayerMenuChecks
+{
+    public static void Run(MainWindow window)
+    {
+        var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        void Set(string name, object value) => typeof(MainWindow).GetField(name, flags)!.SetValue(window, value);
+        object? Call(string name, params object[] args) => typeof(MainWindow).GetMethod(name, flags)!.Invoke(window, args);
+        void Check(bool value, string label) { if (!value) throw new Exception(label); }
+        var scene = new SceneDocument();
+        var group = new SceneObject { Kind = ObjectKind.Group, X = 40, Y = 60, Angle = 30 };
+        var shape = new SceneObject { Kind = ObjectKind.Shape, X = 15, Y = 25, Angle = 20 };
+        group.Children.Add(shape); scene.Canvas.Children.Add(group);
+        Set("document", scene); Set("selectedId", scene.Canvas.Id); Call("RefreshAll");
+        var layers = (TreeView)window.FindName("Layers");
+        var item = (TreeViewItem)((TreeViewItem)((TreeViewItem)layers.Items[0]).Items[0]).Items[0];
+        item.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Right) { RoutedEvent = UIElement.MouseRightButtonDownEvent });
+        Check((string)typeof(MainWindow).GetField("selectedId", flags)!.GetValue(window)! == shape.Id, "Right click selects the clicked layer without selecting its parent");
+        ContextMenu Menu(SceneObject node)
+        {
+            Set("selectedId", node.Id); Call("RefreshAll");
+            var menu = new ContextMenu(); Call("PopulateLayerMenu", menu); return menu;
+        }
+        MenuItem Entry(ContextMenu menu, string title) => menu.Items.OfType<MenuItem>().Single(i => Equals(i.Header, title));
+        void Click(ContextMenu menu, string title) => Entry(menu, title).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        var menu = Menu(shape);
+        Check(Entry(menu, "親の階層へ移動").IsEnabled, "Nested shape can move out of parent");
+        Click(menu, "複製"); var copy = group.Children[1];
+        Check(copy.Id != shape.Id && copy.X == shape.X && copy.Angle == shape.Angle, "Duplicate has independent identity and exact placement");
+        copy.Width += 10; Check(copy.Width != shape.Width, "Duplicate content is independent");
+        var before = scene.World(shape);
+        Click(Menu(shape), "親の階層へ移動");
+        var after = scene.World(shape);
+        Check(scene.Canvas.Children[1] == shape && group.Children.Count == 1, "Move inserts directly below old parent");
+        Check(Math.Abs(before.OffsetX - after.OffsetX) < 1e-8 && Math.Abs(before.OffsetY - after.OffsetY) < 1e-8
+            && Math.Abs(before.M11 - after.M11) < 1e-8, "Move preserves world position and rotation");
+        Click(Menu(shape), "非表示にする"); Check(!shape.Visible, "Menu visibility applies immediately");
+        Click(Menu(shape), "ロック"); menu = Menu(shape);
+        Check(shape.Locked && !Entry(menu, "削除").IsEnabled && Entry(menu, "ロック解除").IsEnabled, "Locked layer menu supports unlock but disables edits");
+        Click(menu, "ロック解除"); Click(Menu(shape), "削除");
+        Check(scene.Find(shape.Id) is null, "Delete menu removes target");
+        Call("Undo"); scene = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;
+        Check(scene.Find(shape.Id) is not null, "Menu deletion is undoable");
+        var grid = SceneDocument.CreateGrid("空のグリッド"); scene.Canvas.Children.Add(grid);
+        var selector = new SceneObject { Kind = ObjectKind.CellSelection, UseCellLayout = true };
+        var template = new SceneObject { Kind = ObjectKind.Group, Children = [new() { Kind = ObjectKind.Shape }] };
+        grid.Children.Add(selector); selector.Children.Add(template); SceneDocument.AssignNewState(selector, template);
+        SceneDocument.SetCellState(selector, new(0, 0), selector.States[0].Id);
+        Click(Menu(grid), "複製");
+        var gridCopy = scene.Canvas.Children[scene.Canvas.Children.IndexOf(grid) + 1];
+        var stateCopy = gridCopy.Children[0];
+        Check(stateCopy.States[0].Id != selector.States[0].Id && stateCopy.States[0].ObjectId == stateCopy.Children[0].Id
+            && stateCopy.StateCells[0].StateId == stateCopy.States[0].Id, "Nested template and state references remap when duplicating grid");
+        Click(Menu(template), "複製");
+        Check(selector.States.Count == 2 && selector.States[1].ObjectId == selector.Children[1].Id, "Duplicating template adds a separate assignment");
+        menu = Menu(template);
+        Check(!Entry(menu, "グループ解除").IsEnabled && !Entry(menu, "親の階層へ移動").IsEnabled && Entry(menu, "部品として登録…").IsEnabled,
+            "Template restrictions and part registration reflected in menu");
+        menu = Menu(scene.Canvas);
+        Check(!Entry(menu, "複製").IsEnabled && !Entry(menu, "削除").IsEnabled && !Entry(menu, "ロック").IsEnabled, "Canvas restrictions reflected in menu");
+        scene.Validate(); Set("savedState", scene.Snapshot());
+        Console.WriteLine("PASS: Layer context menu selection, duplication, state remapping, move, visibility, locks, deletion, restrictions and undo");
+    }
+}

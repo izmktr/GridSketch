@@ -72,6 +72,7 @@ public partial class MainWindow : Window
         {
             var item = new TreeViewItem { Header = node.Label, Tag = node.Id, IsExpanded = node.LayerExpanded };
             item.Expanded += LayerExpansionChanged; item.Collapsed += LayerExpansionChanged;
+            AttachLayerMenu(item);
             foreach (var child in node.Children) item.Items.Add(Item(child)); if (node == Selected) item.IsSelected = true; return item;
         }
         Layers.Items.Add(Item(document.Canvas)); refreshing = false; BuildProperties();
@@ -326,6 +327,22 @@ public partial class MainWindow : Window
         if (gridRequired) return document.GridFor(node) ?? throw new InvalidOperationException("グリッドまたはグリッド直下のレイヤーを選択してください。");
         return node.IsContainer ? node : document.Parent(node) ?? document.Canvas;
     }
+    private (SceneObject Parent, int Index) AddPlacement(bool gridRequired)
+    {
+        var selected = Selected;
+        bool asChild = selected == document.Canvas ||
+            (selected.IsContainer && (selected.LayerExpanded || selected.Children.Count == 0));
+        var parent = asChild ? selected : document.Parent(selected)!;
+        if (gridRequired && parent.Kind != ObjectKind.Grid)
+            throw new InvalidOperationException("このオブジェクトはグリッドの子として追加します。グリッドを開いて選択するか、グリッド直下のレイヤーを選択してください。");
+        return (parent, asChild ? 0 : parent.Children.IndexOf(selected) + 1);
+    }
+    private void InsertAddedObject(SceneObject parent, int index, SceneObject node)
+    {
+        parent.Children.Insert(index, node);
+        parent.LayerExpanded = true;
+        selectedId = node.Id;
+    }
     private void AddClick(object sender, RoutedEventArgs e) => Try(() =>
     {
         if (sender is not MenuItem { Tag: string tag }) return;
@@ -334,15 +351,16 @@ public partial class MainWindow : Window
         if (kind == ObjectKind.Grid)
         {
             var grid = GridDialog(false, independent ? "独立マス" : "基本の方眼紙"); if (grid is null) return;
-            Change(() => { var parent = AddParent(false); RequireEditable(parent); parent.Children.Insert(0, grid); selectedId = grid.Id; }); return;
+            Change(() => { var (parent, index) = AddPlacement(false); RequireEditable(parent); InsertAddedObject(parent, index, grid); }); return;
         }
         byte[]? image = kind == ObjectKind.Image ? ReadImage() : null; if (kind == ObjectKind.Image && image is null) return;
         Change(() =>
         {
-            var parent = AddParent(kind is ObjectKind.Border or ObjectKind.GridText or ObjectKind.Fill or ObjectKind.CellFrame or ObjectKind.CellSelection); RequireEditable(parent);
+            var (parent, index) = AddPlacement(kind is ObjectKind.Border or ObjectKind.GridText or ObjectKind.Fill or ObjectKind.CellFrame or ObjectKind.CellSelection); RequireEditable(parent);
             var node = new SceneObject { Kind = kind, Name = centerBorder ? "中心罫線" : SceneObject.KindName(kind), ConnectCellCenters = centerBorder, UseCellLayout = kind == ObjectKind.CellSelection, ImageData = image };
             if (kind == ObjectKind.Image && parent.Kind == ObjectKind.Grid) { node.SnapToCell = true; node.Column = Surface.ActiveCell?.Column ?? 0; node.Row = Surface.ActiveCell?.Row ?? 0; }
-            if (kind == ObjectKind.Fill) { node.Color = "#000000"; parent.Children.Add(node); } else parent.Children.Insert(0, node);
+            if (kind == ObjectKind.Fill) node.Color = "#000000";
+            InsertAddedObject(parent, index, node);
             if (parent.Kind == ObjectKind.CellSelection)
             {
                 var baseName = node.Name; int suffix = 1;

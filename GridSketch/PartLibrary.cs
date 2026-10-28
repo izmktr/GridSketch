@@ -25,7 +25,7 @@ public sealed class LibraryPart
     {
         Validate(); var copy = Clone(Template); copy.Name = Name; return copy;
     }
-    private static SceneObject Clone(SceneObject source)
+    internal static SceneObject Clone(SceneObject source)
     {
         var clone = JsonSerializer.Deserialize<SceneObject>(JsonSerializer.Serialize(source, SceneDocument.JsonOptions), SceneDocument.JsonOptions)!;
         var nodes = new List<SceneObject>();
