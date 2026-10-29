@@ -182,7 +182,7 @@ public partial class MainWindow : Window
                 Label("外枠・内枠はマス数に追従します。縮小時は個別罫線も範囲内に収めます。文字・画像・塗りは削除しません。"); break;
             case ObjectKind.Border:
                 if (node.ConnectCellCenters) Label("隣り合うマスの中心を縦・横につなぎます。中心間の線をクリック・ドラッグして編集します。");
-                ColorField("色", node.Color, v => node.Color = v); Number("太さ（0～64px）", node.Thickness, v => node.Thickness = v, 0, 64); Choice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v); Choice("端・角の形", node.EffectiveBorderEndCap, ["中央まで", "四角", "丸"], v => node.BorderEndCap = v); Label("四角：端を線幅の半分延長して接続します。丸：線幅を直径とする丸い端にします。"); Label($"対象：{node.Pattern}。辺のクリックで個別編集になります。"); break;
+                ColorField("色", node.Color, v => node.Color = v); Number("太さ（0～64px）", node.Thickness, v => node.Thickness = v, 0, 64); StrokeIconChoice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v); StrokeIconChoice("端・角の形", node.EffectiveBorderEndCap, ["中央まで", "四角", "丸"], v => node.BorderEndCap = v, caps: true); Label("四角：端を線幅の半分延長して接続します。丸：線幅を直径とする丸い端にします。"); Label($"対象：{node.Pattern}。辺のクリックで個別編集になります。"); break;
             case ObjectKind.Fill:
                 Choice("塗る範囲", node.UseCellMargin ? "余白の内側" : "マス全体", ["マス全体", "余白の内側"], v => node.UseCellMargin = v == "余白の内側");
                 ColorField("塗り色", node.Color, v => node.Color = v); Check("この塗りのマスを文字入力から除外", node.BlockInput, v => node.BlockInput = v); Label("非表示でも入力除外を維持します。編集モードでマスをクリックして塗りを切り替えます。"); break;
@@ -200,7 +200,7 @@ public partial class MainWindow : Window
                 break;
             case ObjectKind.CellFrame:
                 ColorField("枠の色", node.Color, v => node.Color = v); Number("枠の太さ（0～64px）", node.Thickness, v => node.Thickness = v, 0, 64);
-                Choice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v);
+                StrokeIconChoice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v);
                 Choice("対象", node.FrameAllCells ? "全マス" : "指定マス", ["全マス", "指定マス"], v =>
                 {
                     if (v == "指定マス" && node.FrameAllCells) document.SetFrameCells(node, [], true);
@@ -219,7 +219,7 @@ public partial class MainWindow : Window
                 Pair("終点 X（始点から）", node.EndX, v => node.EndX = v, "終点 Y（始点から）", node.EndY, v => node.EndY = v);
                 Pair("制御点 X（始点から）", node.ControlX, v => node.ControlX = v, "制御点 Y（始点から）", node.ControlY, v => node.ControlY = v);
                 Choice("始点の矢印", node.StartArrow, ["なし", "三角", "開いた矢印"], v => node.StartArrow = v); Choice("終点の矢印", node.EndArrow, ["なし", "三角", "開いた矢印"], v => node.EndArrow = v);
-                Number("矢印の大きさ", node.ArrowSize, v => node.ArrowSize = v, 1, 200); ColorField("線の色", node.Color, v => node.Color = v); Number("線の太さ", node.Thickness, v => node.Thickness = v, 0, 64); Choice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v); break;
+                Number("矢印の大きさ", node.ArrowSize, v => node.ArrowSize = v, 1, 200); ColorField("線の色", node.Color, v => node.Color = v); Number("線の太さ", node.Thickness, v => node.Thickness = v, 0, 64); StrokeIconChoice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v); break;
         }
         var apply = setters.ToArray();
         Button("プロパティを適用", () => Change(() =>
