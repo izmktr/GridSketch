@@ -9,15 +9,14 @@ public partial class MainWindow
     {
         item.MouseRightButtonDown += (_, e) =>
         {
-            item.IsSelected = true;
-            item.Focus();
+            ChooseLayer(item, false, false, right: true);
             e.Handled = true;
         };
         var menu = new ContextMenu();
         item.ContextMenu = menu;
         menu.Opened += (_, _) =>
         {
-            item.IsSelected = true;
+            ChooseLayer(item, false, false, right: true);
             PopulateLayerMenu(menu);
         };
     }
@@ -38,6 +37,7 @@ public partial class MainWindow
         bool parentEditable = parent is not null && document.Editable(parent);
         void Item(string title, bool enabled, Action action)
         {
+            if (SelectedLayers().Count > 1 && title != "グループ化") enabled = false;
             var entry = new MenuItem { Header = title, IsEnabled = enabled };
             entry.Click += (_, _) => { if (enabled && document.Find(node.Id) is not null) { selectedId = node.Id; Try(action); } };
             menu.Items.Add(entry);
@@ -47,7 +47,7 @@ public partial class MainWindow
         Item("親の階層へ移動", CanMoveLayerToParent(node), MoveLayerToParent);
         menu.Items.Add(new Separator());
         Item("名前の変更…", editable, RenameLayer);
-        Item("グループ化", !root && editable, () => WrapClick(this, new RoutedEventArgs()));
+        Item("グループ化", GroupSelectionError() is null, () => WrapClick(this, new RoutedEventArgs()));
         Item("グループ解除", node.Kind == ObjectKind.Group && editable && parent?.Kind != ObjectKind.CellSelection
             && node.Children.All(c => document.Editable(c)), () => UngroupClick(this, new RoutedEventArgs()));
         menu.Items.Add(new Separator());

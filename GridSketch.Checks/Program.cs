@@ -130,6 +130,7 @@ internal static class Program
             LayerMenuChecks.Run(window);
             StrokeIconChecks.Run(window, Path.GetDirectoryName(temp)!);
             GroupLayoutChecks.Run(window, Path.GetDirectoryName(temp)!);
+            MultiSelectionChecks.Run(window);
             window.Close(); app.Shutdown();
             Console.WriteLine("All checks passed.");
         }

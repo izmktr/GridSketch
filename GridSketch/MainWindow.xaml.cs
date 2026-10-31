@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Layers.PreviewMouseDown += LayerMouseDown;
         TextCompositionManager.AddPreviewTextInputStartHandler(GridInput, (_, _) => gridComposing = true);
         GridInput.AddHandler(TextCompositionManager.PreviewTextInputEvent, new TextCompositionEventHandler(GridInputText), true);
         GridInput.AddHandler(TextCompositionManager.TextInputEvent, new TextCompositionEventHandler(GridInputText), true);
@@ -62,7 +63,7 @@ public partial class MainWindow : Window
     private void Redo() { if (redo.Count == 0) return; undo.Push(document.Snapshot()); document = SceneDocument.Restore(redo.Pop()); RefreshAll(); }
     private void RefreshAll()
     {
-        refreshing = true;
+        refreshing = true; SyncLayerSelection();
         if (Surface.Selected?.Id != Selected.Id) { Surface.ActiveCell = null; Surface.RangeEnd = null; }
         var selectedGrid = document.GridFor(Selected);
         if (selectedGrid is null || Surface.ActiveCell is { } cell && (cell.Column >= selectedGrid.Columns || cell.Row >= selectedGrid.Rows)) { Surface.ActiveCell = null; Surface.RangeEnd = null; }
@@ -75,12 +76,13 @@ public partial class MainWindow : Window
             AttachLayerMenu(item);
             foreach (var child in node.Children) item.Items.Add(Item(child)); if (node == Selected) item.IsSelected = true; return item;
         }
-        Layers.Items.Add(Item(document.Canvas)); refreshing = false; BuildProperties();
+        Layers.Items.Add(Item(document.Canvas)); refreshing = false; PaintLayerSelection(); BuildProperties();
         Title = $"{(Dirty ? "* " : "")}{(path is null ? "無題" : Path.GetFileName(path))} — GridSketch"; CommandManager.InvalidateRequerySuggested();
     }
     private void LayerSelected(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
-        if (refreshing || e.NewValue is not TreeViewItem item) return;
+        if (refreshing || selectingLayers || e.NewValue is not TreeViewItem item) return;
+        layerSelection.Clear(); layerSelection.Add((string)item.Tag); layerAnchor = (string)item.Tag; PaintLayerSelection();
         selectedId = (string)item.Tag; Surface.Selected = Selected; Surface.ActiveCell = null; Surface.RangeEnd = null; Surface.Preview = []; Surface.HoveredEdge = null; Surface.InvalidateVisual(); BuildProperties();
     }
     private void LayerExpansionChanged(object sender, RoutedEventArgs e)
@@ -163,7 +165,16 @@ public partial class MainWindow : Window
     private void RequireEditable(SceneObject node) { if (!document.Editable(node)) throw new InvalidOperationException("オブジェクトまたは親がロックされています。"); }
     private void BuildProperties()
     {
-        Properties.Children.Clear(); setters.Clear(); var node = Selected; Label(node.Kind == ObjectKind.Border && node.ConnectCellCenters ? "中心罫線" : SceneObject.KindName(node.Kind)); TextField("名前", node.Name, v => node.Name = v);
+        Properties.Children.Clear(); setters.Clear();
+        if (SelectedLayers().Count > 1)
+        {
+            VisibilityToggle.Visibility = LockToggle.Visibility = Visibility.Collapsed; PropertyLockNotice.Visibility = Visibility.Collapsed;
+            Label($"{SelectedLayers().Count}個のレイヤーを選択中");
+            Label(GroupSelectionError() ?? "まとめてグループ化できます。");
+            Button("グループ化", () => WrapClick(this, new RoutedEventArgs()));
+            return;
+        }
+        var node = Selected; Label(node.Kind == ObjectKind.Border && node.ConnectCellCenters ? "中心罫線" : SceneObject.KindName(node.Kind)); TextField("名前", node.Name, v => node.Name = v);
         UpdatePropertyToggles();
         int metadataCount = setters.Count;
         TemplateProperties(node);
@@ -408,25 +419,32 @@ public partial class MainWindow : Window
     private void LayerDown(object sender, RoutedEventArgs e) => MoveLayer(1);
     private void MoveLayer(int offset) => Change(() =>
     {
-        var node = Selected; RequireEditable(node); var parent = document.Parent(node); if (parent is null) return;
+        RequireSingleLayer(); var node = Selected; RequireEditable(node); var parent = document.Parent(node); if (parent is null) return;
         int index = parent.Children.IndexOf(node), next = index + offset; if (next < 0 || next >= parent.Children.Count) return; parent.Children.RemoveAt(index); parent.Children.Insert(next, node);
     });
     private void DeleteClick(object sender, RoutedEventArgs e) => Try(() =>
     {
-        var node = Selected; if (node == document.Canvas) return; RequireEditable(node);
+        RequireSingleLayer(); var node = Selected; if (node == document.Canvas) return; RequireEditable(node);
         if (node.Children.Count > 0 && MessageBox.Show(this, "子オブジェクトも削除しますか？", "削除", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
         Change(() => { var parent = document.Parent(node)!; parent.Children.Remove(node); selectedId = parent.Id; Surface.ActiveCell = null; Surface.RangeEnd = null; });
     });
     private void WrapClick(object sender, RoutedEventArgs e) => Change(() =>
     {
-        var node = Selected; RequireEditable(node); if (node == document.Canvas) throw new InvalidOperationException("キャンバスはグループ化できません。");
-        var parent = document.Parent(node)!; int index = parent.Children.IndexOf(node); var group = new SceneObject { Kind = ObjectKind.Group, Name = "グループ" }; parent.Children.Insert(index, group); document.Reparent(node, group);
-        if (parent.Kind == ObjectKind.CellSelection) foreach (var state in parent.States.Where(s => s.ObjectId == node.Id)) state.ObjectId = group.Id;
-        selectedId = group.Id;
+        if (GroupSelectionError() is { } error) throw new InvalidOperationException(error);
+        var nodes = SelectedLayers(); var parent = document.Parent(nodes[0])!;
+        nodes = parent.Children.Where(n => nodes.Contains(n)).ToList();
+        int index = parent.Children.IndexOf(nodes[0]);
+        var group = new SceneObject { Kind = ObjectKind.Group, Name = "グループ" };
+        parent.Children.Insert(index, group);
+        foreach (var node in nodes) document.Reparent(node, group);
+        group.Children = nodes;
+        if (parent.Kind == ObjectKind.CellSelection)
+            foreach (var state in parent.States.Where(s => s.ObjectId == nodes[0].Id)) state.ObjectId = group.Id;
+        layerSelection.Clear(); layerSelection.Add(group.Id); selectedId = group.Id;
     });
     private void UngroupClick(object sender, RoutedEventArgs e) => Change(() =>
     {
-        var node = Selected; RequireEditable(node); if (node.Kind != ObjectKind.Group) throw new InvalidOperationException("通常のグループを選択してください。");
+        RequireSingleLayer(); var node = Selected; RequireEditable(node); if (node.Kind != ObjectKind.Group) throw new InvalidOperationException("通常のグループを選択してください。");
         var parent = document.Parent(node)!;
         if (parent.Kind == ObjectKind.CellSelection) throw new InvalidOperationException("見本グループは解除せず、子を個別に移動して割り当て直してください。");
         var children = node.Children.ToList(); int index = parent.Children.IndexOf(node);
