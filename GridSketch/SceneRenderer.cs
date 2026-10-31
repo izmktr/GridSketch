@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -159,7 +159,7 @@ public sealed class SceneRenderer
         {
             // Reserve the full grid and configured stroke overhang even when individual edges are empty.
             var reservation = new Rect(0, 0, node.Columns * node.CellSize, node.Rows * node.CellSize);
-            var overhang = node.Children.Where(c => c.Visible && c.Kind == ObjectKind.Border).Select(c => c.Thickness / 2).DefaultIfEmpty(0).Max();
+            var overhang = SceneDocument.GridMembers(node).Where(c => Document.Shown(c) && c.Kind == ObjectKind.Border).Select(c => c.Thickness / 2).DefaultIfEmpty(0).Max();
             reservation.Inflate(overhang, overhang); localBounds.Union(reservation);
         }
         if (recordBounds && !localBounds.IsEmpty)

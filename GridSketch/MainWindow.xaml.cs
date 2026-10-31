@@ -53,7 +53,7 @@ public partial class MainWindow : Window
     private void Change(Action action) => Try(() =>
     {
         var before = document.Snapshot();
-        try { action(); document.ClearMissingStateObjects(); document.Validate(); }
+        try { action(); document.PrepareGroupLayouts(); document.ClearMissingStateObjects(); document.Validate(); }
         catch { document = SceneDocument.Restore(before); RefreshAll(); throw; }
         if (document.Snapshot() != before) RememberUndo(before);
         Surface.Preview = []; Surface.HoveredEdge = null; RefreshAll(); Status.Text = "変更しました。Ctrl+Sで保存できます。";
@@ -171,9 +171,11 @@ public partial class MainWindow : Window
         {
             setters.Add(CanvasSettings(Properties, node, Surface.Renderer!.OutputBounds));
         }
-        else if (!node.IsGridContent) { Pair(document.SelectionOwner(node)?.UseCellLayout == true ? "位置 X（ずらし量）" : "位置 X", node.X, v => node.X = v, document.SelectionOwner(node)?.UseCellLayout == true ? "位置 Y（ずらし量）" : "位置 Y", node.Y, v => node.Y = v); Number(node.Kind == ObjectKind.Image ? "回転（度 / 画像中央）" : "回転（度 / 左上中心）", node.Angle, v => node.Angle = v); }
+        else if (!node.IsGridContent && !(node.Kind == ObjectKind.Group && node.OrganizeOnly)) { Pair(document.SelectionOwner(node)?.UseCellLayout == true ? "位置 X（ずらし量）" : "位置 X", node.X, v => node.X = v, document.SelectionOwner(node)?.UseCellLayout == true ? "位置 Y（ずらし量）" : "位置 Y", node.Y, v => node.Y = v); Number(node.Kind == ObjectKind.Image ? "回転（度 / 画像中央）" : "回転（度 / 左上中心）", node.Angle, v => node.Angle = v); }
         switch (node.Kind)
         {
+            case ObjectKind.Group:
+                GroupProperties(node); break;
             case ObjectKind.CellSelection:
                 CellSelectionProperties(node); break;
             case ObjectKind.Grid:
@@ -246,7 +248,7 @@ public partial class MainWindow : Window
         if (node.Kind == ObjectKind.CellSelection) Button("選択範囲を空にする", () => Change(() => { RequireEditable(node); var cells = CellRange(node).ToHashSet(); node.StateCells.RemoveAll(c => cells.Contains(new(c.Column, c.Row))); }));
         if (node.Kind == ObjectKind.Image) Button("画像を読み込み / 置換…", () => ReplaceImage(node));
         if (node.Kind == ObjectKind.Line && document.GridFor(node) is not null) Label("編集モード：クリックで始点、Shift+クリックで終点をマス中央へ配置します。");
-        if (node != document.Canvas && !node.IsGridContent)
+        if (node != document.Canvas)
         {
             Label("親の変更（見た目の位置・回転を維持）");
             var candidates = document.All().Where(n => n.IsContainer && n != node && !Descendants(node).Contains(n)).ToList();
@@ -333,7 +335,7 @@ public partial class MainWindow : Window
         bool asChild = selected == document.Canvas ||
             (selected.IsContainer && (selected.LayerExpanded || selected.Children.Count == 0));
         var parent = asChild ? selected : document.Parent(selected)!;
-        if (gridRequired && parent.Kind != ObjectKind.Grid)
+        if (gridRequired && document.GridContainer(parent) is null)
             throw new InvalidOperationException("このオブジェクトはグリッドの子として追加します。グリッドを開いて選択するか、グリッド直下のレイヤーを選択してください。");
         return (parent, asChild ? 0 : parent.Children.IndexOf(selected) + 1);
     }
@@ -417,7 +419,7 @@ public partial class MainWindow : Window
     });
     private void WrapClick(object sender, RoutedEventArgs e) => Change(() =>
     {
-        var node = Selected; RequireEditable(node); if (node == document.Canvas || node.IsGridContent) throw new InvalidOperationException("グリッド依存の内容はグリッドごとグループ化してください。");
+        var node = Selected; RequireEditable(node); if (node == document.Canvas) throw new InvalidOperationException("キャンバスはグループ化できません。");
         var parent = document.Parent(node)!; int index = parent.Children.IndexOf(node); var group = new SceneObject { Kind = ObjectKind.Group, Name = "グループ" }; parent.Children.Insert(index, group); document.Reparent(node, group);
         if (parent.Kind == ObjectKind.CellSelection) foreach (var state in parent.States.Where(s => s.ObjectId == node.Id)) state.ObjectId = group.Id;
         selectedId = group.Id;
@@ -477,7 +479,7 @@ public partial class MainWindow : Window
             }
             var hit = Hit(document.Canvas); if (hit is null) return; selectedId = hit.Id; RefreshAll(); node = Selected;
         }
-        if (node == document.Canvas || node.IsGridContent || !document.Editable(node)) return;
+        if (node == document.Canvas || node.IsGridContent || node.Kind == ObjectKind.Group && node.OrganizeOnly || !document.Editable(node)) return;
         dragSnapshot = document.Snapshot(); dragStart = world; dragPosition = new Point(node.X, node.Y); Surface.CaptureMouse();
     });
     private void SurfaceMove(object sender, MouseEventArgs e)

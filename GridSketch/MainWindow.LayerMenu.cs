@@ -22,11 +22,12 @@ public partial class MainWindow
         };
     }
 
-    private bool CanMoveLayerToParent(SceneObject node) => node != document.Canvas && !node.IsGridContent
+    private bool CanMoveLayerToParent(SceneObject node) => node != document.Canvas
         && document.Editable(node) && document.Parent(node) is { } parent
         && document.Parent(parent) is { } target && document.Editable(target)
         // Template layout uses cell-relative coordinates, not ordinary world coordinates.
-        && document.SelectionOwner(node) is null;
+        && document.SelectionOwner(node) is null
+        && (!SceneDocument.RequiresGrid(node) || document.GridFor(node) == document.GridContainer(target));
 
     private void PopulateLayerMenu(ContextMenu menu)
     {
@@ -46,9 +47,9 @@ public partial class MainWindow
         Item("親の階層へ移動", CanMoveLayerToParent(node), MoveLayerToParent);
         menu.Items.Add(new Separator());
         Item("名前の変更…", editable, RenameLayer);
-        Item("グループ化", !root && editable && !node.IsGridContent, () => WrapClick(this, new RoutedEventArgs()));
+        Item("グループ化", !root && editable, () => WrapClick(this, new RoutedEventArgs()));
         Item("グループ解除", node.Kind == ObjectKind.Group && editable && parent?.Kind != ObjectKind.CellSelection
-            && node.Children.All(c => !c.IsGridContent && document.Editable(c)), () => UngroupClick(this, new RoutedEventArgs()));
+            && node.Children.All(c => document.Editable(c)), () => UngroupClick(this, new RoutedEventArgs()));
         menu.Items.Add(new Separator());
         Item(node.Visible ? "非表示にする" : "表示する", !root && parentEditable, () => ToggleProperty(false));
         Item(node.Locked ? "ロック解除" : "ロック", !root && parentEditable, () => ToggleProperty(true));

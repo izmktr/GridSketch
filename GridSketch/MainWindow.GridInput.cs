@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -41,7 +41,7 @@ public partial class MainWindow
 
     private bool OpenTextCell(SceneObject grid, CellPosition cell) => cell.Column >= 0 && cell.Row >= 0
         && cell.Column < grid.Columns && cell.Row < grid.Rows
-        && !grid.Children.Any(n => n.Kind == ObjectKind.Fill && n.BlockInput && n.FilledCells.Contains(cell));
+        && !SceneDocument.GridMembers(grid).Any(n => n.Kind == ObjectKind.Fill && n.BlockInput && n.FilledCells.Contains(cell));
 
     // Validate the whole IME commit before making a single undoable change.
     private void CommitGridInput(string input)

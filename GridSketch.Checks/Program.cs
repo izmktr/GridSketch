@@ -129,6 +129,7 @@ internal static class Program
             LayerInsertionChecks.Run(window);
             LayerMenuChecks.Run(window);
             StrokeIconChecks.Run(window, Path.GetDirectoryName(temp)!);
+            GroupLayoutChecks.Run(window, Path.GetDirectoryName(temp)!);
             window.Close(); app.Shutdown();
             Console.WriteLine("All checks passed.");
         }
