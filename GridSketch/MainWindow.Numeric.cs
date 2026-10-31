@@ -37,9 +37,10 @@ public partial class MainWindow
         double Position(double number) => Math.Log2(Math.Clamp(number, min, maximum) + offset);
         var ticks = choices.Select(Position).ToArray();
         var slider = new Slider { Minimum = ticks[0], Maximum = ticks[^1], Value = Position(value), SmallChange = 0.001, LargeChange = 1,
-            Ticks = new DoubleCollection(ticks), IsSnapToTickEnabled = true,
+            Ticks = new DoubleCollection(ticks), IsSnapToTickEnabled = true, IsTabStop = false,
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 3, 0, 8), MinWidth = 35 };
         AutomationProperties.SetName(slider, label + " スライダー");
+        System.Windows.Input.KeyboardNavigation.SetTabNavigation(slider, System.Windows.Input.KeyboardNavigationMode.None);
         Grid.SetColumn(slider, 1); row.Children.Add(slider);
         bool synchronizing = false;
         input.TextChanged += (_, _) =>
