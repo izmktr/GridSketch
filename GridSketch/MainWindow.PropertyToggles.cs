@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -53,7 +53,7 @@ public partial class MainWindow
                 UpdateItems(item);
             }
         }
-        UpdateItems(Layers);
+        UpdateItems(Layers); UpdateTabHeaders();
         Title = $"{(Dirty ? "* " : "")}{(path is null ? "無題" : System.IO.Path.GetFileName(path))} — GridSketch";
         Status.Text = locking ? (node.Locked ? "ロックしました。" : "ロックを解除しました。") : (node.Visible ? "表示しました。" : "非表示にしました。");
         CommandManager.InvalidateRequerySuggested();

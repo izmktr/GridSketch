@@ -131,6 +131,7 @@ internal static class Program
             StrokeIconChecks.Run(window, Path.GetDirectoryName(temp)!);
             GroupLayoutChecks.Run(window, Path.GetDirectoryName(temp)!);
             MultiSelectionChecks.Run(window);
+            TabChecks.Run(window, Path.GetDirectoryName(temp)!);
             window.Close(); app.Shutdown();
             Console.WriteLine("All checks passed.");
         }

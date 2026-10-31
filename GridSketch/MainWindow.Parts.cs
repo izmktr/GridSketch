@@ -79,6 +79,11 @@ public partial class MainWindow
                 var copy = document.InsertPart(part, parent); selectedId = copy.Id;
             });
         });
+        AddButton("別タブで編集", () =>
+        {
+            if (SelectedPart() is not { } part) return;
+            dialog.Close(); EditPartTab(part);
+        });
         AddButton("インポート…", () => { var id = ImportPart(dialog); Reload(id); });
         var export = AddButton("エクスポート…", () =>
         {

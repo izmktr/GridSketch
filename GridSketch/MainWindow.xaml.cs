@@ -34,6 +34,7 @@ public partial class MainWindow : Window
         GridInput.AddHandler(TextCompositionManager.TextInputEvent, new TextCompositionEventHandler(GridInputText), true);
         document.Canvas.Children.Add(SceneDocument.CreateGrid("基本の方眼紙"));
         selectedId = document.Canvas.Id; savedState = document.Snapshot();
+        activeTab = new EditorTab(); editorTabs.Add(activeTab); CaptureTab();
         CommandBindings.Add(new CommandBinding(ApplicationCommands.Save, (_, _) => Save(false)));
         CommandBindings.Add(new CommandBinding(ApplicationCommands.Open, (_, _) => OpenClick(this, new RoutedEventArgs())));
         CommandBindings.Add(new CommandBinding(ApplicationCommands.New, (_, _) => NewClick(this, new RoutedEventArgs())));
@@ -76,7 +77,7 @@ public partial class MainWindow : Window
             AttachLayerMenu(item);
             foreach (var child in node.Children) item.Items.Add(Item(child)); if (node == Selected) item.IsSelected = true; return item;
         }
-        Layers.Items.Add(Item(document.Canvas)); refreshing = false; PaintLayerSelection(); BuildProperties();
+        Layers.Items.Add(Item(document.Canvas)); refreshing = false; PaintLayerSelection(); BuildProperties(); UpdateTabHeaders();
         Title = $"{(Dirty ? "* " : "")}{(path is null ? "無題" : Path.GetFileName(path))} — GridSketch"; CommandManager.InvalidateRequerySuggested();
     }
     private void LayerSelected(object sender, RoutedPropertyChangedEventArgs<object> e)
@@ -89,7 +90,7 @@ public partial class MainWindow : Window
     {
         if (refreshing || !ReferenceEquals(sender, e.OriginalSource) || sender is not TreeViewItem item
             || item.Tag is not string id || document.Find(id) is not { } node) return;
-        node.LayerExpanded = item.IsExpanded;
+        node.LayerExpanded = item.IsExpanded; UpdateTabHeaders();
         Title = $"{(Dirty ? "* " : "")}{(path is null ? "無題" : Path.GetFileName(path))} — GridSketch";
     }
     private void RefreshSurface()
@@ -556,26 +557,28 @@ public partial class MainWindow : Window
     private bool CanDiscard()
     {
         FinishDrag(); Surface.ReleaseMouseCapture();
-        if (!Dirty) return true; var answer = MessageBox.Show(this, "変更を保存しますか？", "GridSketch", MessageBoxButton.YesNoCancel, MessageBoxImage.Question); return answer == MessageBoxResult.No || answer == MessageBoxResult.Yes && Save(false);
+        if (!Dirty) return true; var answer = MessageBox.Show(this, activeTab?.Owner is not null ? "部品の変更をライブラリへ反映しますか？" : $"「{System.IO.Path.GetFileName(path ?? "無題") }」の変更を保存しますか？", "GridSketch", MessageBoxButton.YesNoCancel, MessageBoxImage.Question); return answer == MessageBoxResult.No || answer == MessageBoxResult.Yes && Save(false);
     }
     private bool Save(bool saveAs)
     {
         FinishDrag(); Surface.ReleaseMouseCapture();
+        if (!saveAs && activeTab?.Owner is not null) return ApplyPartEdit();
         string? destination = path;
         if (saveAs || destination is null)
         {
             var dialog = new SaveFileDialog { Filter = "GridSketchプロジェクト|*.gridsketch", DefaultExt = ".gridsketch", FileName = Path.GetFileName(path ?? "無題.gridsketch") };
             if (dialog.ShowDialog(this) != true) return false; destination = dialog.FileName;
         }
-        bool saved = false; Try(() => { document.Save(destination); path = destination; savedState = document.Snapshot(); saved = true; RefreshAll(); Status.Text = "プロジェクトを保存しました。"; RememberFile(destination); }); return saved;
+        if (editorTabs.Any(t => t != activeTab && t.Path is not null && string.Equals(System.IO.Path.GetFullPath(t.Path), System.IO.Path.GetFullPath(destination), StringComparison.OrdinalIgnoreCase))) { MessageBox.Show(this, "この保存先は別のタブで開いています。別の名前を指定してください。"); return false; }
+        bool saved = false; Try(() => { document.Save(destination); if (activeTab?.Owner is null) { path = destination; savedState = document.Snapshot(); } saved = true; RefreshAll(); Status.Text = "プロジェクトを保存しました。"; RememberFile(destination); }); return saved;
     }
     private void SaveClick(object sender, RoutedEventArgs e) => Save(false);
     private void SaveAsClick(object sender, RoutedEventArgs e) => Save(true);
     private void ExitClick(object sender, RoutedEventArgs e) => Close();
     private void NewClick(object sender, RoutedEventArgs e) => Try(() =>
     {
-        if (!CanDiscard()) return; var grid = GridDialog(true); if (grid is null) return;
-        document = new SceneDocument { Canvas = grid }; path = null; selectedId = document.Canvas.Id; savedState = document.Snapshot(); undo.Clear(); redo.Clear(); Surface.ActiveCell = null; Surface.RangeEnd = null; RefreshAll(); CenterClick(this, new RoutedEventArgs());
+        var grid = GridDialog(true); if (grid is null) return;
+        AddProjectTab(new SceneDocument { Canvas = grid });
     });
     private void OpenClick(object sender, RoutedEventArgs e) => Try(() =>
     {
@@ -583,8 +586,12 @@ public partial class MainWindow : Window
     });
     private void OpenProject(string filePath)
     {
-        if (!CanDiscard()) return; var loaded = SceneDocument.Load(filePath); document = loaded; path = filePath; selectedId = document.Canvas.Id; savedState = document.Snapshot(); undo.Clear(); redo.Clear(); Surface.ActiveCell = null; Surface.RangeEnd = null;
-        RefreshAll(); CenterClick(this, new RoutedEventArgs()); Status.Text = "プロジェクトを開きました。保存するとオブジェクト形式（v3）になります。"; RememberFile(filePath);
+        CaptureTab();
+        var fullPath = System.IO.Path.GetFullPath(filePath);
+        var existing = editorTabs.FirstOrDefault(t => t.Owner is null && t.Path is not null && string.Equals(System.IO.Path.GetFullPath(t.Path), fullPath, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null) { SwitchTab(existing); return; }
+        var loaded = SceneDocument.Load(fullPath); AddProjectTab(loaded, fullPath);
+        Status.Text = "プロジェクトを新しいタブで開きました。"; RememberFile(fullPath);
     }
     private void RememberFile(string filePath) { if (!recentFiles.Remember(filePath)) Status.Text += " 履歴を保存できませんでした。"; RefreshRecentFilesMenu(); }
     private void RefreshRecentFilesMenu()
@@ -606,7 +613,7 @@ public partial class MainWindow : Window
         var dialog = new SaveFileDialog { Filter = "PNG画像|*.png", DefaultExt = ".png", FileName = Path.GetFileNameWithoutExtension(path ?? "無題") + ".png" }; if (dialog.ShowDialog(this) != true) return;
         var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(new SceneRenderer(document).Export(1))); using var stream = new MemoryStream(); encoder.Save(stream); File.WriteAllBytes(dialog.FileName, stream.ToArray()); Status.Text = "PNGを書き出しました。";
     });
-    private void WindowClosing(object? sender, CancelEventArgs e) => e.Cancel = !CanDiscard();
+    private void WindowClosing(object? sender, CancelEventArgs e) => e.Cancel = !CanCloseAllTabs();
 }
 
 

@@ -7,15 +7,18 @@ public partial class MainWindow
 {
     private void AttachLayerMenu(TreeViewItem item)
     {
+        var menu = new ContextMenu();
+        item.ContextMenu = menu;
         item.MouseRightButtonDown += (_, e) =>
         {
             ChooseLayer(item, false, false, right: true);
+            PopulateLayerMenu(menu);
             e.Handled = true;
         };
-        var menu = new ContextMenu();
-        item.ContextMenu = menu;
-        menu.Opened += (_, _) =>
+        // Prepare before the popup takes focus. Refocusing the tree in Opened closes the menu.
+        item.ContextMenuOpening += (_, _) =>
         {
+            if (!item.IsSelected) return; // Ignore events bubbling through ancestor items.
             ChooseLayer(item, false, false, right: true);
             PopulateLayerMenu(menu);
         };

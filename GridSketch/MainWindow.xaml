@@ -33,6 +33,7 @@
  <DockPanel>
   <Menu DockPanel.Dock="Top">
    <MenuItem Header="ファイル(_F)">
+    <MenuItem Header="タブを閉じる" Click="CloseTabClick"/>
     <MenuItem Header="新規(_N)…" InputGestureText="Ctrl+N" Click="NewClick"/>
     <MenuItem Header="開く(_O)…" InputGestureText="Ctrl+O" Click="OpenClick"/>
     <MenuItem x:Name="RecentFilesMenu" Header="最近使ったファイル(_R)"/>
@@ -71,6 +72,16 @@
     <MenuItem Header="インポート…" Click="ImportPartClick"/>
    </MenuItem>
   </Menu>
+  <ScrollViewer DockPanel.Dock="Top" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+   <TabControl x:Name="DocumentTabs" SelectionChanged="DocumentTabChanged" MinHeight="36">
+    <TabControl.Template>
+     <ControlTemplate TargetType="TabControl">
+      <TabPanel IsItemsHost="True" Background="#E5EBF1" Margin="2,2,2,0"/>
+     </ControlTemplate>
+    </TabControl.Template>
+   </TabControl>
+  </ScrollViewer>
+  <Button x:Name="ApplyPartButton" DockPanel.Dock="Top" Content="ライブラリへ反映" Visibility="Collapsed" HorizontalAlignment="Left" Click="ApplyPartClick"/>
   <Border DockPanel.Dock="Top" Background="White" Padding="8">
    <WrapPanel VerticalAlignment="Center">
     <ToggleButton x:Name="MoveModeButton" Style="{StaticResource IconToggleStyle}" Width="36" Height="32" Margin="8,0,3,0" Click="ModeChanged" ToolTip="移動：オブジェクトを選択・ドラッグ移動" AutomationProperties.Name="移動モード">

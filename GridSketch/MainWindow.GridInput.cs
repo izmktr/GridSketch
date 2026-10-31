@@ -109,6 +109,7 @@ public partial class MainWindow
         catch { document = SceneDocument.Restore(before); Surface.Selected = Selected; RefreshSurface(); throw; }
         if (before != document.Snapshot()) RememberUndo(before);
         Surface.Preview = []; RefreshSurface();
+        UpdateTabHeaders();
         Title = $"{(Dirty ? "* " : "")}{(path is null ? "無題" : System.IO.Path.GetFileName(path))} — GridSketch";
         CommandManager.InvalidateRequerySuggested();
     }

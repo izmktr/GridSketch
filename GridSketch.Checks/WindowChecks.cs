@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
@@ -25,9 +25,9 @@ internal static class WindowChecks
         Set("path", layerFile); Call("Save", false);
         GridItem().IsExpanded = true;
         Set("savedState", layerScene.Snapshot()); // Avoid a discard prompt for this deliberate test-only UI change.
-        Call("OpenProject", layerFile);
+        Call("CloseTabClick", window, new RoutedEventArgs()); Call("OpenProject", layerFile);
         if (!Root().IsExpanded || GridItem().IsExpanded) throw new Exception("Saved collapsed grid not restored");
-        Root().IsExpanded = false; Call("Save", false); Call("OpenProject", layerFile);
+        Root().IsExpanded = false; Call("Save", false); Call("CloseTabClick", window, new RoutedEventArgs()); Call("OpenProject", layerFile);
         if (Root().IsExpanded || GridItem().IsExpanded) throw new Exception("Fully collapsed tree not restored");
         var oldJson = System.Text.Json.Nodes.JsonNode.Parse(layerScene.Snapshot())!;
         void RemoveExpansion(System.Text.Json.Nodes.JsonNode node)
@@ -36,7 +36,7 @@ internal static class WindowChecks
             foreach (var child in node["Children"]!.AsArray()) RemoveExpansion(child!);
         }
         RemoveExpansion(oldJson["Canvas"]!);
-        File.WriteAllText(layerFile, oldJson.ToJsonString()); Call("OpenProject", layerFile);
+        File.WriteAllText(layerFile, oldJson.ToJsonString()); Call("CloseTabClick", window, new RoutedEventArgs()); Call("OpenProject", layerFile);
         if (!Root().IsExpanded || !GridItem().IsExpanded) throw new Exception("Old project did not default to expanded layers");
         Console.WriteLine("PASS: Layer expansion saved and restored, including collapsed root and old-file defaults");
         Set("path", null!);

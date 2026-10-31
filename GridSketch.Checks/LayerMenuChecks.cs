@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 using GridSketch;
 
 internal static class LayerMenuChecks
@@ -21,6 +22,14 @@ internal static class LayerMenuChecks
         var item = (TreeViewItem)((TreeViewItem)((TreeViewItem)layers.Items[0]).Items[0]).Items[0];
         item.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Right) { RoutedEvent = UIElement.MouseRightButtonDownEvent });
         Check((string)typeof(MainWindow).GetField("selectedId", flags)!.GetValue(window)! == shape.Id, "Right click selects the clicked layer without selecting its parent");
+        var popup = item.ContextMenu;
+        Check(popup.Items.Count > 0, "Context menu is populated before opening");
+        popup.PlacementTarget = item; popup.IsOpen = true;
+        var frame = new DispatcherFrame();
+        window.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() => frame.Continue = false));
+        Dispatcher.PushFrame(frame);
+        Check(popup.IsOpen && popup.IsKeyboardFocusWithin, "Opened layer menu stays open and retains keyboard focus");
+        popup.IsOpen = false;
         ContextMenu Menu(SceneObject node)
         {
             Set("selectedId", node.Id); Call("RefreshAll");
