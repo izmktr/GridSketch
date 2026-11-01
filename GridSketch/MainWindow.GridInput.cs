@@ -19,10 +19,13 @@ public partial class MainWindow
     private void SelectTextCell(CellPosition cell)
     {
         gridInputStopped = false;
-        Surface.TextVertical = Surface.ActiveCell == cell && Surface.RangeEnd is null ? !Surface.TextVertical : false;
+        bool same = Surface.ActiveCell == cell && Surface.RangeEnd is null;
+        bool wasVertical = Surface.TextVertical;
+        Surface.TextVertical = same && !Surface.TextVertical && !Surface.TextInCell;
+        Surface.TextInCell = same && wasVertical;
         Surface.ActiveCell = cell; Surface.RangeEnd = null; Surface.Preview = [];
         Surface.InvalidateVisual();
-        Status.Text = $"{cell.Column + 1}列・{cell.Row + 1}行：{(Surface.TextVertical ? "下" : "右")}へ入力。同じマスをクリックすると方向を切り替えます。";
+        Status.Text = $"{cell.Column + 1}列・{cell.Row + 1}行：{(Surface.TextInCell ? "□ 同じマスへ追記" : Surface.TextVertical ? "下へ入力" : "右へ入力")}。同じマスをクリックすると右 → 下 → □に切り替えます。";
         FocusGridInput();
     }
 
@@ -49,6 +52,19 @@ public partial class MainWindow
         if (!CanTypeInGrid || string.IsNullOrEmpty(input)) return;
         if (gridInputStopped) throw new InvalidOperationException("端または黒マスの手前で停止しています。次の入力先を選択してください。");
         var node = Selected; var cell = Surface.ActiveCell!.Value;
+        if (Surface.TextInCell)
+        {
+            if (input.Any(char.IsControl)) throw new InvalidOperationException("改行や制御文字は入力できません。");
+            if (!OpenTextCell(document.GridFor(node)!, cell)) throw new InvalidOperationException("このマスには入力できません。");
+            ChangeGridContent(() =>
+            {
+                RequireEditable(node);
+                var glyph = node.Glyphs.SingleOrDefault(g => g.Column == cell.Column && g.Row == cell.Row);
+                if (glyph is null) { glyph = new Glyph { Column = cell.Column, Row = cell.Row }; node.Glyphs.Add(glyph); }
+                glyph.Text += input; glyph.InCellText = true;
+            });
+            return;
+        }
         var plan = document.PlanText(node, cell.Column, cell.Row, input, Surface.TextVertical);
         ChangeGridContent(() =>
         {
@@ -118,6 +134,19 @@ public partial class MainWindow
     {
         if (!CanTypeInGrid) return;
         var node = Selected; var grid = document.GridFor(node)!; var cell = Surface.ActiveCell!.Value;
+        if (Surface.TextInCell && key == Key.Back)
+        {
+            ChangeGridContent(() =>
+            {
+                RequireEditable(node);
+                var glyph = node.Glyphs.SingleOrDefault(g => g.Column == cell.Column && g.Row == cell.Row);
+                if (glyph is null) return;
+                var starts = System.Globalization.StringInfo.ParseCombiningCharacters(glyph.Text);
+                if (starts.Length <= 1) node.Glyphs.Remove(glyph);
+                else glyph.Text = glyph.Text[..starts[^1]];
+            });
+            gridInputStopped = false; return;
+        }
         var next = key switch
         {
             Key.Left => new CellPosition(cell.Column - 1, cell.Row),

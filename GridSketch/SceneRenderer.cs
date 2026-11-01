@@ -100,7 +100,7 @@ public sealed class SceneRenderer
                     foreach (var glyph in node.Glyphs)
                     {
                         var box = SceneDocument.CellRect(grid, new(glyph.Column, glyph.Row), node.UseCellMargin);
-                        dc.PushClip(new RectangleGeometry(box));
+                        if (!glyph.InCellText) dc.PushClip(new RectangleGeometry(box));
                         var text = StyledText(node, glyph.Text, glyph.Font ?? node.Font, glyph.Size ?? node.FontSize);
                         var bounds = text.Bounds;
                         if (!bounds.IsEmpty)
@@ -108,12 +108,13 @@ public sealed class SceneRenderer
                             double spacing = node.Alignment == "左上" ? 2 : 1;
                             double insetX = Math.Min(spacing, box.Width / 4), insetY = Math.Min(spacing, box.Height / 4);
                             double scale = Math.Min(1, Math.Min((box.Width - insetX * 2) / Math.Max(1, bounds.Width), (box.Height - insetY * 2) / Math.Max(1, bounds.Height)));
-                            var x = node.Alignment == "左上" ? box.X + insetX : box.X + (box.Width - bounds.Width * scale) / 2;
-                            var y = node.Alignment == "左上" ? box.Y + insetY : box.Y + (box.Height - bounds.Height * scale) / 2;
+                            if (glyph.InCellText) scale = 1;
+                            var x = !glyph.InCellText && node.Alignment == "左上" ? box.X + insetX : box.X + (box.Width - bounds.Width * scale) / 2;
+                            var y = !glyph.InCellText && node.Alignment == "左上" ? box.Y + insetY : box.Y + (box.Height - bounds.Height * scale) / 2;
                             dc.PushTransform(new TranslateTransform(x, y)); dc.PushTransform(new ScaleTransform(scale, scale)); dc.PushTransform(new TranslateTransform(-bounds.X, -bounds.Y));
                             dc.DrawDrawing(text); dc.Pop(); dc.Pop(); dc.Pop();
                         }
-                        dc.Pop();
+                        if (!glyph.InCellText) dc.Pop();
                     }
                     break;
                 case ObjectKind.Image when node.ImageData is not null:
@@ -299,6 +300,7 @@ public sealed class SceneSurface : FrameworkElement
     public SceneObject? Selected { get; set; }
     public CellPosition? ActiveCell { get; set; }
     public bool TextVertical { get; set; }
+    public bool TextInCell { get; set; }
     public CellPosition? RangeEnd { get; set; }
     public GridEdge? HoveredEdge { get; set; }
     public List<Glyph> Preview { get; set; } = [];
@@ -397,9 +399,13 @@ public sealed class SceneSurface : FrameworkElement
                         var d = TextVertical ? new Vector(0, grid.CellSize * 0.17) : new Vector(grid.CellSize * 0.17, 0);
                         var side = new Vector(-d.Y, d.X) * 0.4;
                         var pen = new Pen(Brushes.DodgerBlue, 2);
+                        if (TextInCell) dc.DrawRectangle(null, pen, new Rect(p.X - grid.CellSize * 0.09, p.Y - grid.CellSize * 0.09, grid.CellSize * 0.18, grid.CellSize * 0.18));
+                        else
+                        {
                         dc.DrawLine(pen, p - d, p + d);
                         dc.DrawLine(pen, p + d, p + d * 0.3 + side);
                         dc.DrawLine(pen, p + d, p + d * 0.3 - side);
+                        }
                     }
                 }
                 if (HoveredEdge is { } edge)

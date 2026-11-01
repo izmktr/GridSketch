@@ -12,6 +12,7 @@ public enum ObjectKind { Canvas, Group, Grid, Border, GridText, Fill, Image, Tex
 
 public sealed class Glyph
 {
+    public bool InCellText { get; set; }
     public int Column { get; set; }
     public int Row { get; set; }
     public string Text { get; set; } = "";
@@ -346,7 +347,7 @@ public sealed partial class SceneDocument
             {
                 bool In(int c, int r) => c >= 0 && r >= 0 && c < grid.Columns && r < grid.Rows;
                 if (node.FrameCells.Any(c => !In(c.Column, c.Row))) throw new InvalidDataException("マス枠の対象がグリッドの範囲外です。");
-                if (node.Edges.Any(e => !BorderEdgeInside(node, grid, e)) || node.FilledCells.Any(c => !In(c.Column, c.Row)) || node.Glyphs.Any(g => g is null || !In(g.Column, g.Row) || g.Text is null || new StringInfo(g.Text).LengthInTextElements != 1 || g.Text.Any(char.IsControl) || g.Size.HasValue && (!double.IsFinite(g.Size.Value) || g.Size < 1 || g.Size > 512))) throw new InvalidDataException("範囲外のマス・辺または不正な文字があります。縮小する場合は先に範囲外の内容を削除してください。");
+                if (node.Edges.Any(e => !BorderEdgeInside(node, grid, e)) || node.FilledCells.Any(c => !In(c.Column, c.Row)) || node.Glyphs.Any(g => g is null || !In(g.Column, g.Row) || g.Text is null || (g.Text.Length == 0 || !g.InCellText && new StringInfo(g.Text).LengthInTextElements != 1) || g.Text.Any(char.IsControl) || g.Size.HasValue && (!double.IsFinite(g.Size.Value) || g.Size < 1 || g.Size > 512))) throw new InvalidDataException("範囲外のマス・辺または不正な文字があります。縮小する場合は先に範囲外の内容を削除してください。");
                 if (node.Glyphs.Select(g => (g.Column, g.Row)).Distinct().Count() != node.Glyphs.Count) throw new InvalidDataException("文字のマスが重複しています。");
                 if (node.Kind == ObjectKind.Image && !In(node.Column, node.Row)) throw new InvalidDataException("画像の配置マスが範囲外です。");
             }

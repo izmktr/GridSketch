@@ -16,7 +16,7 @@ public partial class MainWindow
         public List<string> Undo = [], Redo = [], Selection = [];
         public double Zoom = 1;
         public Point Center;
-        public bool HasView, CellMode = true, TextVertical, InputStopped;
+        public bool HasView, CellMode = true, TextVertical, TextInCell, InputStopped;
         public string? Anchor;
         public CellPosition? Cell, Range;
         public EditorTab? Owner;
@@ -33,7 +33,7 @@ public partial class MainWindow
         activeTab.Document = document; activeTab.Path = path; activeTab.SelectedId = selectedId; activeTab.Saved = savedState;
         activeTab.Undo = undo.Reverse().ToList(); activeTab.Redo = redo.Reverse().ToList();
         activeTab.Selection = layerSelection.ToList(); activeTab.CellMode = cellEditMode;
-        activeTab.Anchor = layerAnchor; activeTab.TextVertical = Surface.TextVertical; activeTab.InputStopped = gridInputStopped;
+        activeTab.Anchor = layerAnchor; activeTab.TextVertical = Surface.TextVertical; activeTab.TextInCell = Surface.TextInCell; activeTab.InputStopped = gridInputStopped;
         activeTab.Cell = Surface.ActiveCell; activeTab.Range = Surface.RangeEnd; activeTab.Zoom = Zoom.Value;
         activeTab.Center = new Point((Viewport.HorizontalOffset + Viewport.ViewportWidth / 2) / Zoom.Value - Surface.OriginX,
             (Viewport.VerticalOffset + Viewport.ViewportHeight / 2) / Zoom.Value - Surface.OriginY);
@@ -60,7 +60,7 @@ public partial class MainWindow
         undo.Clear(); foreach (var state in tab.Undo) undo.Push(state);
         redo.Clear(); foreach (var state in tab.Redo) redo.Push(state);
         layerSelection.Clear(); foreach (var id in tab.Selection) layerSelection.Add(id); layerAnchor = tab.Anchor;
-        Surface.TextVertical = tab.TextVertical; gridInputStopped = tab.InputStopped;
+        Surface.TextVertical = tab.TextVertical; Surface.TextInCell = tab.TextInCell; gridInputStopped = tab.InputStopped;
         cellEditMode = tab.CellMode; CellModeButton.IsChecked = cellEditMode; MoveModeButton.IsChecked = !cellEditMode;
         Surface.Selected = null; Surface.ActiveCell = null; Surface.RangeEnd = null; Surface.HoveredEdge = null;
         RefreshAll(); Surface.ActiveCell = tab.Cell; Surface.RangeEnd = tab.Range;
