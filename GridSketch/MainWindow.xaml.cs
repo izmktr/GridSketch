@@ -178,6 +178,7 @@ public partial class MainWindow : Window
         var node = Selected; Label(node.Kind == ObjectKind.Border && node.ConnectCellCenters ? "中心罫線" : SceneObject.KindName(node.Kind)); TextField("名前", node.Name, v => node.Name = v);
         UpdatePropertyToggles();
         int metadataCount = setters.Count;
+        ObjectLayoutProperties(node);
         TemplateProperties(node);
         if (node.Kind == ObjectKind.Canvas)
         {
@@ -371,7 +372,8 @@ public partial class MainWindow : Window
         Change(() =>
         {
             var (parent, index) = AddPlacement(kind is ObjectKind.Border or ObjectKind.GridText or ObjectKind.Fill or ObjectKind.CellFrame or ObjectKind.CellSelection); RequireEditable(parent);
-            var node = new SceneObject { Kind = kind, Name = centerBorder ? "中心罫線" : SceneObject.KindName(kind), ConnectCellCenters = centerBorder, UseCellLayout = kind == ObjectKind.CellSelection, ImageData = image };
+            var node = new SceneObject { Kind = kind, Name = centerBorder ? "中心罫線" : SceneObject.KindName(kind), ConnectCellCenters = centerBorder, UseCellLayout = kind == ObjectKind.CellSelection, UseObjectLayout = kind == ObjectKind.CellSelection, ImageData = image };
+            InitializeObjectLayout(node, parent);
             if (kind == ObjectKind.Image && parent.Kind == ObjectKind.Grid) { node.SnapToCell = true; node.Column = Surface.ActiveCell?.Column ?? 0; node.Row = Surface.ActiveCell?.Row ?? 0; }
             if (kind == ObjectKind.Fill) node.Color = "#000000";
             InsertAddedObject(parent, index, node);
@@ -436,6 +438,7 @@ public partial class MainWindow : Window
         nodes = parent.Children.Where(n => nodes.Contains(n)).ToList();
         int index = parent.Children.IndexOf(nodes[0]);
         var group = new SceneObject { Kind = ObjectKind.Group, Name = "グループ" };
+        InitializeWrappingFrame(group, nodes.FirstOrDefault(n => n.UseParentLayout) ?? nodes[0]);
         parent.Children.Insert(index, group);
         foreach (var node in nodes) document.Reparent(node, group);
         group.Children = nodes;
@@ -479,7 +482,7 @@ public partial class MainWindow : Window
             else if (node.Kind == ObjectKind.Line) Change(() =>
             {
                 var center = new Point((c.Column + 0.5) * grid.CellSize, (c.Row + 0.5) * grid.CellSize);
-                if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) { var inverse = SceneRenderer.LocalTransform(node).Value; inverse.Invert(); var end = inverse.Transform(center); node.EndX = end.X; node.EndY = end.Y; }
+                if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) { var inverse = document.EffectiveLocalMatrix(node); inverse.Invert(); var end = inverse.Transform(center); node.EndX = end.X; node.EndY = end.Y; }
                 else { node.X = center.X; node.Y = center.Y; }
             });
             Surface.InvalidateVisual(); Status.Text = $"{c.Column + 1}列・{c.Row + 1}行を選択。Shift+クリックで範囲選択。"; return;

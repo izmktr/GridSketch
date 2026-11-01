@@ -37,6 +37,15 @@ public sealed class SceneObject
     public bool Locked { get; set; }
     public bool LayerExpanded { get; set; } = true;
     public bool OrganizeOnly { get; set; }
+    public bool HasLayoutFrame { get; set; }
+    public bool LayoutHasInner { get; set; }
+    public double LayoutInsetX { get; set; }
+    public double LayoutInsetY { get; set; }
+    public bool UseParentLayout { get; set; }
+    public string LayoutRegion { get; set; } = "親の外側";
+    public string LayoutSizing { get; set; } = "固定";
+    public string LayoutAnchor { get; set; } = "左上";
+    public PreservedTransform? PreservedTransform { get; set; }
     public LayerStyle Style { get; set; } = new();
     public double X { get; set; }
     public double Y { get; set; }
@@ -61,6 +70,7 @@ public sealed class SceneObject
     public bool FrameAllCells { get; set; } = true;
     public List<CellState> States { get; set; } = [];
     public bool UseCellLayout { get; set; }
+    public bool UseObjectLayout { get; set; }
     public string TemplateRegion { get; set; } = "余白の内側";
     public string TemplateSizing { get; set; } = "収める";
     public string TemplateAnchor { get; set; } = "中央";
@@ -132,6 +142,7 @@ public sealed partial class SceneDocument
     {
         var matrix = Matrix.Identity;
         if (node.Kind == ObjectKind.Canvas || node.Kind == ObjectKind.Group && node.OrganizeOnly) return matrix;
+        if (node.PreservedTransform is { } preserved) matrix = preserved.Matrix;
         if (node.Kind == ObjectKind.Image) matrix.RotateAt(node.Angle, node.Width / 2, node.Height / 2);
         else matrix.Rotate(node.Angle);
         matrix.Translate(node.X, node.Y);
@@ -139,7 +150,7 @@ public sealed partial class SceneDocument
     }
     public Matrix World(SceneObject node)
     {
-        var matrix = LocalMatrix(node);
+        var matrix = EffectiveLocalMatrix(node);
         if (Parent(node) is { } p) matrix.Append(World(p));
         return matrix;
     }
@@ -158,6 +169,15 @@ public sealed partial class SceneDocument
         var world = World(node); var inverse = World(target); inverse.Invert(); world.Append(inverse);
         Parent(node)!.Children.Remove(node); target.Children.Insert(0, node);
         if (target.Kind == ObjectKind.CellSelection) AssignNewState(target, node);
+        node.UseParentLayout = false;
+        node.PreservedTransform = null;
+        double sx = Math.Sqrt(world.M11 * world.M11 + world.M12 * world.M12);
+        double sy = Math.Sqrt(world.M21 * world.M21 + world.M22 * world.M22);
+        if (Math.Abs(sx - 1) > 1e-8 || Math.Abs(sy - 1) > 1e-8 || Math.Abs(world.M11 * world.M21 + world.M12 * world.M22) > 1e-8)
+        {
+            node.PreservedTransform = new() { M11 = world.M11, M12 = world.M12, M21 = world.M21, M22 = world.M22 };
+            node.Angle = 0; node.X = world.OffsetX; node.Y = world.OffsetY; return;
+        }
         node.Angle = Math.Atan2(world.M12, world.M11) * 180 / Math.PI;
         node.X = node.Y = 0;
         var rotation = LocalMatrix(node);
@@ -332,6 +352,7 @@ public sealed partial class SceneDocument
             }
             if (node.Kind == ObjectKind.Group && node.OrganizeOnly && (node.X != 0 || node.Y != 0 || node.Angle != 0)) throw new InvalidDataException("整理用グループは移動・回転できません。");
             if (node.Kind == ObjectKind.Group && RequiresGrid(node) && !node.OrganizeOnly) throw new InvalidDataException("グリッド依存の内容を含むグループは整理用にしてください。");
+            ValidateObjectLayout(node);
             ValidateCellSelection(node, node.Kind == ObjectKind.CellSelection ? GridFor(node) : parent);
             if (node.ImageData is not null) _ = Document.DecodeImage(node.ImageData);
             foreach (var child in node.Children) Check(child, node, depth + 1);

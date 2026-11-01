@@ -24,6 +24,7 @@ internal static class LayerMenuChecks
         Check((string)typeof(MainWindow).GetField("selectedId", flags)!.GetValue(window)! == shape.Id, "Right click selects the clicked layer without selecting its parent");
         var popup = item.ContextMenu;
         Check(popup.Items.Count > 0, "Context menu is populated before opening");
+        window.Activate(); item.Focus();
         popup.PlacementTarget = item; popup.IsOpen = true;
         var frame = new DispatcherFrame();
         window.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() => frame.Continue = false));

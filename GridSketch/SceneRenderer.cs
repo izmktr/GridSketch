@@ -44,7 +44,7 @@ public sealed class SceneRenderer
     {
         return new MatrixTransform(SceneDocument.LocalMatrix(node));
     }
-    private void DrawNode(DrawingContext parent, SceneObject node, SceneObject? grid, bool recordBounds = true)
+    private void DrawNode(DrawingContext parent, SceneObject node, SceneObject? grid, bool recordBounds = true, bool applyLayout = true)
     {
         if (!node.Visible) return;
         var drawing = new DrawingGroup();
@@ -52,17 +52,17 @@ public sealed class SceneRenderer
         {
             if (node.Kind == ObjectKind.Grid) grid = node;
             if (node.Kind != ObjectKind.CellSelection)
-                foreach (var child in node.Children.AsEnumerable().Reverse()) DrawNode(dc, child, grid, recordBounds);
+                foreach (var child in node.Children.AsEnumerable().Reverse()) DrawNode(dc, child, grid, recordBounds, applyLayout);
             var pen = node.Thickness > 0 ? Pen(node) : null;
             switch (node.Kind)
             {
                 case ObjectKind.CellSelection when grid is not null:
-                    var templates = node.Children.Where(c => c.Visible).ToDictionary(c => c.Id, c => node.UseCellLayout ? CellTemplate(c, grid) : Template(c));
+                    var templates = node.Children.Where(c => c.Visible).ToDictionary(c => c.Id, c => node.UseObjectLayout ? ObjectTemplate(c) : node.UseCellLayout ? CellTemplate(c, grid) : Template(c));
                     var states = node.States.ToDictionary(s => s.Id);
                     foreach (var cell in node.StateCells)
                     {
                         if (!states.TryGetValue(cell.StateId, out var state) || state.ObjectId is null || !templates.TryGetValue(state.ObjectId, out var template)) continue;
-                        if (node.UseCellLayout)
+                        if (node.UseCellLayout || node.UseObjectLayout)
                         {
                             var fullCell = SceneDocument.CellRect(grid, new(cell.Column, cell.Row), false);
                             dc.PushClip(new RectangleGeometry(fullCell));
@@ -155,6 +155,7 @@ public sealed class SceneRenderer
             }
         }
         var localBounds = drawing.Bounds;
+        if (applyLayout && node.Kind == ObjectKind.Group && node.HasLayoutFrame && !node.OrganizeOnly) localBounds.Union(SceneDocument.OwnLayoutRect(node));
         if (node.Kind == ObjectKind.Grid)
         {
             // Reserve the full grid and configured stroke overhang even when individual edges are empty.
@@ -168,12 +169,18 @@ public sealed class SceneRenderer
             Bounds[node.Id] = world;
             var content = ContentBounds; content.Union(world); ContentBounds = content;
         }
-        drawing.Transform = LocalTransform(node); parent.DrawDrawing(drawing);
+        drawing.Transform = applyLayout ? new MatrixTransform(Document.EffectiveLocalMatrix(node)) : LocalTransform(node); parent.DrawDrawing(drawing);
+    }
+    public DrawingGroup ObjectTemplate(SceneObject node)
+    {
+        var drawing = new DrawingGroup();
+        using (var dc = drawing.Open()) DrawNode(dc, node, null, false);
+        return drawing;
     }
     public DrawingGroup Template(SceneObject node)
     {
         var drawing = new DrawingGroup();
-        using (var dc = drawing.Open()) DrawNode(dc, node, null, false);
+        using (var dc = drawing.Open()) DrawNode(dc, node, null, false, false);
         return drawing;
     }
     public DrawingGroup CellTemplate(SceneObject node, SceneObject grid)
@@ -232,7 +239,7 @@ public sealed class SceneRenderer
         dc.Pop();
     }
     private static Geometry TextGeometry(string text, string font, double size) => new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, new Typeface(font), size, Brushes.Black, 1).BuildGeometry(new Point());
-    private static DrawingGroup StyledText(SceneObject node, string value, string font, double size)
+    internal static DrawingGroup StyledText(SceneObject node, string value, string font, double size)
     {
         var geometry = TextGeometry(value, font, size);
         var drawing = new DrawingGroup();
@@ -359,7 +366,23 @@ public sealed class SceneSurface : FrameworkElement
         dc.DrawDrawing(Renderer.Drawing); dc.DrawRectangle(null, new Pen(Brushes.DimGray, 1), bounds);
         if (Selected is { } selected)
         {
-            if (ShowSelectionBounds && Renderer.Bounds.TryGetValue(selected.Id, out var selectedBounds)) dc.DrawRectangle(null, new Pen(Brushes.DodgerBlue, 1) { DashStyle = DashStyles.Dash }, selectedBounds);
+            if (ShowSelectionBounds && Renderer.Bounds.TryGetValue(selected.Id, out var selectedBounds))
+            {
+                if (selected.Kind == ObjectKind.Group && selected.HasLayoutFrame && !selected.OrganizeOnly)
+                {
+                    dc.PushTransform(new MatrixTransform(Renderer.Document.World(selected)));
+                    dc.DrawRectangle(null, new Pen(Brushes.DodgerBlue, 1) { DashStyle = DashStyles.Dash }, SceneDocument.OwnLayoutRect(selected)); dc.Pop();
+                }
+                else dc.DrawRectangle(null, new Pen(Brushes.DodgerBlue, 1) { DashStyle = DashStyles.Dash }, selectedBounds);
+                if (!selected.IsGridContent && Renderer.Document.SelectionOwner(selected) is null && Renderer.Document.Parent(selected) is { } parent)
+                {
+                    var regions = Renderer.Document.ParentRegions(selected);
+                    dc.PushTransform(new MatrixTransform(Renderer.Document.World(parent)));
+                    if (regions.Outer is { } outer) dc.DrawRectangle(null, new Pen(Brushes.Gray, 1) { DashStyle = DashStyles.Dot }, outer);
+                    if (regions.Inner is { } inner) dc.DrawRectangle(null, new Pen(Brushes.SeaGreen, 1) { DashStyle = DashStyles.Dot }, inner);
+                    dc.Pop();
+                }
+            }
             var grid = Renderer.Document.GridFor(selected);
             if (grid is not null)
             {

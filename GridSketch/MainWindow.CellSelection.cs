@@ -9,7 +9,18 @@ public partial class MainWindow
     private sealed record StateTarget(string? Id, string Name);
     private void CellSelectionProperties(SceneObject node)
     {
-        Choice("見本の配置方式", node.UseCellLayout ? "子ごとにマスへ配置" : "全体を収める（従来）", ["子ごとにマスへ配置", "全体を収める（従来）"], v => node.UseCellLayout = v == "子ごとにマスへ配置");
+        Choice("見本の配置方式", node.UseObjectLayout ? "親の配置範囲を使う" : node.UseCellLayout ? "子ごとにマスへ配置" : "全体を収める（従来）",
+            ["親の配置範囲を使う", "子ごとにマスへ配置", "全体を収める（従来）"], v =>
+            {
+                bool activate = v == "親の配置範囲を使う" && !node.UseObjectLayout;
+                node.UseObjectLayout = v == "親の配置範囲を使う";
+                node.UseCellLayout = v == "子ごとにマスへ配置";
+                if (activate) foreach (var child in node.Children)
+                {
+                    child.UseParentLayout = true; child.LayoutRegion = "親の内側"; child.LayoutSizing = "収める"; child.LayoutAnchor = "中央";
+                    if (child.Kind == ObjectKind.Group && !child.OrganizeOnly) child.HasLayoutFrame = true;
+                }
+            });
         Label("空 → 1 → 2 → … → 空。クリックで切り替え、ドラッグで同じ状態を配置します。番号は切り替え順です。");
         Label("表示する見本は直下の子から指定します。画像・グループなどを追加すると新しい状態へ自動で割り当てます。");
         var targets = new List<StateTarget> { new(null, "未割り当て") };
@@ -40,11 +51,12 @@ public partial class MainWindow
     private void TemplateProperties(SceneObject node)
     {
         if (document.SelectionOwner(node) is not { } owner) return;
-        Label(owner.UseCellLayout
+        if (owner.UseObjectLayout) Label("固定の配置範囲を基準にマスへ配置します。グループ内の他の画像の大きさには影響されません。");
+        else Label(owner.UseCellLayout
             ? "マス全体と余白の内側は親グリッドから引き継ぎます。位置X/Yは配置基準からのずらし量です。"
             : "従来の配置方式です。見本全体を縮小・中央配置します。子ごとの配置設定を使うには、マス選択の配置方式を変更してください。");
-        if (node.Kind == ObjectKind.Group) Label("グループは2つの配置領域を子へ引き継ぎます。位置・回転は子全体へ適用し、内容の大きさによる自動縮小はしません（子ごとの配置方式）。");
-        else
+        if (node.Kind == ObjectKind.Group && !owner.UseObjectLayout) Label("グループは2つの配置領域を子へ引き継ぎます。位置・回転は子全体へ適用し、内容の大きさによる自動縮小はしません（子ごとの配置方式）。");
+        else if (node.Kind != ObjectKind.Group && !owner.UseObjectLayout)
         {
             Choice("配置領域", node.TemplateRegion, ["マス全体", "余白の内側"], v => node.TemplateRegion = v);
             Choice("領域への収め方", node.TemplateSizing, ["固定サイズ", "収める", "親いっぱい"], v => node.TemplateSizing = v);
@@ -52,8 +64,11 @@ public partial class MainWindow
             Label("固定サイズは指定寸法を維持。収めるは縦横比を保って拡大縮小。親いっぱいは縦横を領域に合わせます。領域の外は切り取ります。");
         }
         var grid = document.GridFor(owner)!;
-        var drawing = owner.UseCellLayout ? Surface.Renderer!.CellTemplate(node, grid) : Surface.Renderer!.Template(node);
-        if (owner.UseCellLayout)
+        var previewRoot = node;
+        if (owner.UseObjectLayout)
+            while (document.Parent(previewRoot) is { } parent && parent != owner) previewRoot = parent;
+        var drawing = owner.UseObjectLayout ? Surface.Renderer!.ObjectTemplate(previewRoot) : owner.UseCellLayout ? Surface.Renderer!.CellTemplate(node, grid) : Surface.Renderer!.Template(node);
+        if (owner.UseCellLayout || owner.UseObjectLayout)
         {
             // Give the preview a fixed cell-sized frame so changing a sibling does not resize it.
             var framed = new DrawingGroup();

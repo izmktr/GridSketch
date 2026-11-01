@@ -127,6 +127,7 @@ internal static class Program
             NavigationChecks.Run(window);
             CellLayoutChecks.Run(window, Path.GetDirectoryName(temp)!);
             LayerInsertionChecks.Run(window);
+            ObjectLayoutChecks.Run(window, Path.GetDirectoryName(temp)!);
             LayerMenuChecks.Run(window);
             StrokeIconChecks.Run(window, Path.GetDirectoryName(temp)!);
             GroupLayoutChecks.Run(window, Path.GetDirectoryName(temp)!);
