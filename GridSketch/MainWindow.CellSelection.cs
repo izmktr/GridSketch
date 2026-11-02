@@ -27,20 +27,20 @@ public partial class MainWindow
         {
             var state = node.States[i];
             var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
             row.ColumnDefinitions.Add(new ColumnDefinition());
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
             var frame = new Border { Child = row, Background = Brushes.Transparent, BorderBrush = Brushes.DodgerBlue, BorderThickness = new Thickness(0), AllowDrop = true };
             Properties.Children.Add(frame);
-            var grip = new Button { Content = "≡", ToolTip = "ドラッグで並べ替え（Alt＋↑／↓でも移動）", Padding = new Thickness(2), Cursor = System.Windows.Input.Cursors.SizeAll };
+            var grip = new Button { Content = "≡", Width = 32, Height = 32, Margin = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, ToolTip = "ドラッグで並べ替え（Alt＋↑／↓でも移動）", Padding = new Thickness(2), Cursor = System.Windows.Input.Cursors.SizeAll };
             row.Children.Add(grip);
             var number = new TextBlock { Text = $"{i + 1}：", VerticalAlignment = VerticalAlignment.Center }; Grid.SetColumn(number, 1); row.Children.Add(number);
-            var target = new ComboBox { ItemsSource = targets, DisplayMemberPath = "Name", SelectedItem = targets.FirstOrDefault(t => t.Id == state.ObjectId) ?? targets[0], MinWidth = 60 };
+            var target = new ComboBox { ItemsSource = targets, DisplayMemberPath = "Name", SelectedItem = targets.FirstOrDefault(t => t.Id == state.ObjectId) ?? targets[0], MinWidth = 60, Height = 32, Margin = new Thickness(0), VerticalContentAlignment = VerticalAlignment.Center };
             System.Windows.Automation.AutomationProperties.SetName(target, $"状態{i + 1}の表示オブジェクト");
             Grid.SetColumn(target, 2); row.Children.Add(target);
             LiveChoice(target, () => node.States.Single(s => s.Id == state.Id).ObjectId = (target.SelectedItem as StateTarget)?.Id);
-            var trash = new Button { Content = new System.Windows.Shapes.Path { Data = Geometry.Parse("M3,5 L17,5 M6,5 L7,19 13,19 14,5 M8,5 L8,2 12,2 12,5 M9,8 L9,16 M11,8 L11,16"), Stroke = Brushes.DimGray, StrokeThickness = 1.5, Width = 18, Height = 20, Stretch = Stretch.Uniform }, ToolTip = "状態を削除", Padding = new Thickness(5) };
+            var trash = new Button { Content = new System.Windows.Shapes.Path { Data = Geometry.Parse("M3,5 L17,5 M6,5 L7,19 13,19 14,5 M8,5 L8,2 12,2 12,5 M9,8 L9,16 M11,8 L11,16"), Stroke = Brushes.DimGray, StrokeThickness = 1.5, Width = 18, Height = 20, Stretch = Stretch.Uniform }, ToolTip = "状態を削除", Width = 32, Height = 32, Margin = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center, Padding = new Thickness(5) };
             System.Windows.Automation.AutomationProperties.SetName(trash, $"状態{i + 1}を削除");
             Grid.SetColumn(trash, 3); row.Children.Add(trash);
             row.IsEnabled = document.Editable(node);
