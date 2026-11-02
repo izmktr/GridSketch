@@ -127,6 +127,7 @@
        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
         <ToggleButton x:Name="VisibilityToggle" Style="{StaticResource IconToggleStyle}" Width="32" Height="30" Margin="3,0" Click="VisibilityToggleClick" AutomationProperties.Name="表示する"/>
         <ToggleButton x:Name="LockToggle" Style="{StaticResource IconToggleStyle}" Width="32" Height="30" Margin="3,0" Click="LockToggleClick" AutomationProperties.Name="ロック"/>
+        <ToggleButton x:Name="PropertyHelpToggle" Content="?" Style="{StaticResource IconToggleStyle}" FontSize="18" FontWeight="SemiBold" Width="32" Height="30" Margin="12,0,0,0" Visibility="Collapsed" ToolTip="マス選択のヘルプ" AutomationProperties.Name="マス選択のヘルプ" Click="PropertyHelpClick"/>
        </StackPanel>
        <TextBlock Text="プロパティ" FontSize="18" FontWeight="Bold" VerticalAlignment="Center"/>
       </DockPanel>

@@ -68,6 +68,26 @@ internal static class CellSelectionChecks
         var compactPreview = new RenderTargetBitmap((int)window.ActualWidth, (int)window.ActualHeight, 96, 96, PixelFormats.Pbgra32); compactPreview.Render(window);
         var previewEncoder = new PngBitmapEncoder(); previewEncoder.Frames.Add(BitmapFrame.Create(compactPreview));
         using (var compactOutput = File.Create(Path.Combine(directory, "compact-states.png"))) previewEncoder.Save(compactOutput);
+        var helpToggle = (System.Windows.Controls.Primitives.ToggleButton)window.FindName("PropertyHelpToggle");
+        var viewport = (ScrollViewer)window.FindName("Viewport"); double viewportWidth = viewport.ActualWidth;
+        var helpBefore = scene.Snapshot();
+        var editorBefore = PropertyChecks.Find<ComboBox>(panel, "状態1の表示オブジェクト");
+        if (helpToggle.Visibility != Visibility.Visible) throw new Exception("Cell selection help availability failed");
+        helpToggle.IsChecked = true; helpToggle.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+        var helpWindow = (Window)typeof(MainWindow).GetField("propertyHelpWindow", flags)!.GetValue(window)!;
+        window.UpdateLayout();
+        if (!helpWindow.IsVisible || helpWindow.Owner != window || viewport.ActualWidth != viewportWidth || !window.IsEnabled || scene.Snapshot() != helpBefore || !ReferenceEquals(editorBefore, PropertyChecks.Find<ComboBox>(panel, "状態1の表示オブジェクト")))
+            throw new Exception("Opening help changes the document or recreates its editors");
+        helpWindow.UpdateLayout();
+        var helpImage = new RenderTargetBitmap((int)helpWindow.ActualWidth, (int)helpWindow.ActualHeight, 96, 96, PixelFormats.Pbgra32); helpImage.Render(helpWindow);
+        var helpEncoder = new PngBitmapEncoder(); helpEncoder.Frames.Add(BitmapFrame.Create(helpImage));
+        using (var helpOutput = File.Create(Path.Combine(directory, "cell-selection-help.png"))) helpEncoder.Save(helpOutput);
+        Set("selectedId", grid.Id); Call("RefreshAll");
+        if (helpWindow.IsVisible || helpToggle.Visibility != Visibility.Collapsed) throw new Exception("Unrelated selection keeps cell selection help visible");
+        Set("selectedId", selector.Id); Call("RefreshAll");
+        if (!helpWindow.IsVisible) throw new Exception("Returning to cell selection does not restore open help");
+        Call("ClosePropertyHelpClick", window, new RoutedEventArgs());
+        if (helpWindow.IsVisible || helpToggle.IsChecked != false || scene.Snapshot() != helpBefore) throw new Exception("Closing help changes the document");
         var combo = PropertyChecks.Find<ComboBox>(panel, "状態1の表示オブジェクト"); combo.SelectedIndex = 0;
         LivePropertyChecks.Commit(window);
         if (selector.States[0].ObjectId is not null) throw new Exception("Assignment property failed");

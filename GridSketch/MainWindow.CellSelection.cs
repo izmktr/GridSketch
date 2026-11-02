@@ -9,8 +9,8 @@ public partial class MainWindow
     private sealed record StateTarget(string? Id, string Name);
     private void CellSelectionProperties(SceneObject node)
     {
-        Choice("見本の配置方式", node.UseObjectLayout ? "親の配置範囲を使う" : node.UseCellLayout ? "子ごとにマスへ配置" : "全体を収める（従来）",
-            ["親の配置範囲を使う", "子ごとにマスへ配置", "全体を収める（従来）"], v =>
+        Choice("見本の配置方式", node.UseObjectLayout ? "親の配置範囲を使う" : node.UseCellLayout ? "子ごとにマスへ配置" : "全体を収める",
+            ["親の配置範囲を使う", "子ごとにマスへ配置", "全体を収める"], v =>
             {
                 bool activate = v == "親の配置範囲を使う" && !node.UseObjectLayout;
                 node.UseObjectLayout = v == "親の配置範囲を使う";

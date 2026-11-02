@@ -173,6 +173,7 @@ public partial class MainWindow : Window
     private void RequireEditable(SceneObject node) { if (!document.Editable(node)) throw new InvalidOperationException("オブジェクトまたは親がロックされています。"); }
     private void BuildProperties()
     {
+        UpdatePropertyHelp();
         CommitPropertyEdit(); Properties.Children.Clear();
         if (SelectedLayers().Count > 1)
         {
