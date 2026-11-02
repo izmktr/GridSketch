@@ -50,6 +50,7 @@ public partial class MainWindow
     }
     private void SwitchTab(EditorTab tab)
     {
+        CommitPropertyEdit();
         if (tab == activeTab) { UpdateTabHeaders(); return; }
         FinishDrag(); Surface.ReleaseMouseCapture(); EndPan();
         if (!gridComposing && GridInput.Text.Length > 0 && CanTypeInGrid) CommitGridInput(GridInput.Text);

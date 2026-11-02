@@ -41,7 +41,7 @@ internal static class PropertyChecks
         width.Text = "-";
         if (width.Text != "-") throw new Exception("Intermediate numeric input lost");
         slider.Value = Math.Log2(95);
-        if (double.Parse(width.Text) != 96 || shape.Width != 1250.25) throw new Exception("Log slider snapping or deferred apply failed");
+        if (double.Parse(width.Text) != 96 || shape.Width != 96) throw new Exception("Log slider snapping or deferred apply failed");
         foreach (double number in new[] { 12d, 16, 20, 24, 32, 40, 48, 64, 80, 96, 128 })
         {
             slider.Value = Math.Log2(number);
@@ -62,11 +62,11 @@ internal static class PropertyChecks
         stroke.Text = "1.2";
         if (double.Parse(stroke.Text) != 1.2 || Math.Abs(strokeSlider.Value - Math.Log2(1.45)) > 1e-10) throw new Exception("Exact stroke width was rounded");
         width.Text = "1500.5";
-        panel.Children.OfType<Button>().Single(b => Equals(b.Content, "プロパティを適用")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        LivePropertyChecks.Commit(window);
         if (shape.Width != 1500.5 || shape.Height != 80 || shape.X != -12.5) throw new Exception("Paired property apply failed");
         typeof(MainWindow).GetMethod("Undo", flags)!.Invoke(window, null);
         var restored = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;
-        if (restored.Canvas.Children[0].Width != 1250.25) throw new Exception("Size edit undo failed");
+        if (restored.Canvas.Children[0].Width != 20) throw new Exception("Size edit undo failed");
         // This temporary document needs no save prompt when the test window closes.
         typeof(MainWindow).GetField("savedState", flags)!.SetValue(window, restored.Snapshot());
         window.UpdateLayout();

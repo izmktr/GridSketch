@@ -82,6 +82,6 @@ public partial class MainWindow
     {
         NumericPair(Properties, firstLabel, first, secondLabel, second, out var a, out var b, minimum, maximum);
         double Parse(string text) => integer ? int.Parse(text, CultureInfo.CurrentCulture) : double.Parse(text, CultureInfo.CurrentCulture);
-        setters.Add(() => setFirst(Parse(a.Text))); setters.Add(() => setSecond(Parse(b.Text)));
+        LiveText(a, () => setFirst(Parse(a.Text))); LiveText(b, () => setSecond(Parse(b.Text)));
     }
 }

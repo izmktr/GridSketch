@@ -120,6 +120,7 @@ public partial class MainWindow
 
     private void ChangeGridContent(Action action)
     {
+        CommitPropertyEdit();
         var before = document.Snapshot();
         try { action(); document.Validate(); }
         catch { document = SceneDocument.Restore(before); Surface.Selected = Selected; RefreshSurface(); throw; }

@@ -110,6 +110,7 @@ internal static class Program
             var app = new App(); var window = new MainWindow(); window.Show(); window.UpdateLayout();
             Check(window.IsVisible && window.ActualWidth > 0, "WPF window initialization and layout");
             WindowChecks.Run(window, Path.GetDirectoryName(temp)!);
+            LivePropertyChecks.Run(window);
             CanvasChecks.Run(window, Path.GetDirectoryName(temp)!);
             PropertyChecks.Run(window, Path.GetDirectoryName(temp)!);
             ColorPickerChecks.Run(window, Path.GetDirectoryName(temp)!);

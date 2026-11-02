@@ -64,20 +64,24 @@ internal static class CellSelectionChecks
         void Call(string name, params object[] args) => typeof(MainWindow).GetMethod(name, flags)!.Invoke(window, args);
         Set("document", scene); Set("selectedId", selector.Id); Call("RefreshAll");
         var panel = (StackPanel)window.FindName("Properties");
+        window.UpdateLayout();
+        var compactPreview = new RenderTargetBitmap((int)window.ActualWidth, (int)window.ActualHeight, 96, 96, PixelFormats.Pbgra32); compactPreview.Render(window);
+        var previewEncoder = new PngBitmapEncoder(); previewEncoder.Frames.Add(BitmapFrame.Create(compactPreview));
+        using (var compactOutput = File.Create(Path.Combine(directory, "compact-states.png"))) previewEncoder.Save(compactOutput);
         var combo = PropertyChecks.Find<ComboBox>(panel, "状態1の表示オブジェクト"); combo.SelectedIndex = 0;
-        panel.Children.OfType<Button>().Single(b => Equals(b.Content, "プロパティを適用")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        LivePropertyChecks.Commit(window);
         if (selector.States[0].ObjectId is not null) throw new Exception("Assignment property failed");
         Call("Undo");
         loaded = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;
         if (loaded.Find(selector.Id)!.States[0].ObjectId != blue.Id) throw new Exception("Assignment undo failed");
         // Reordering and deletion are immediate operations; both must retain stable state identities.
         panel = (StackPanel)window.FindName("Properties");
-        var row = panel.Children.OfType<WrapPanel>().First();
-        row.Children.OfType<Button>().Single(b => Equals(b.Content, "↓")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        var currentSelector = loaded.Find(selector.Id)!;
+        Call("MoveState", currentSelector, currentSelector.States[0].Id, currentSelector.States[1].Id, true);
         if (loaded.Find(selector.Id)!.States[1].ObjectId != blue.Id || loaded.Find(selector.Id)!.StateCells[2].StateId != before[2]) throw new Exception("State reorder UI changed placements");
         panel = (StackPanel)window.FindName("Properties");
-        row = panel.Children.OfType<WrapPanel>().Skip(1).First();
-        row.Children.OfType<Button>().Single(b => Equals(b.Content, "状態を削除")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        PropertyChecks.Find<Button>(panel, "状態2を削除").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         if (loaded.Find(selector.Id)!.StateCells.Count != 2 || loaded.Find(selector.Id)!.Children.Count != 3) throw new Exception("State delete did not clear just its placements");
         Call("Undo"); Call("Undo");
         loaded = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;

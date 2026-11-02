@@ -22,9 +22,9 @@ internal static class PropertyToggleChecks
         locked.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
         if (!shape.Locked || locked.IsChecked != true || width.Text != "234.5") throw new Exception("Immediate lock failed");
         locked.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-        panel.Children.OfType<Button>().Single(b => Equals(b.Content, "プロパティを適用")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        LivePropertyChecks.Commit(window);
         if (shape.Width != 234.5 || shape.Visible || shape.Locked) throw new Exception("Apply reset toggle flags or lost pending size");
-        Call("Undo"); Call("Undo");
+        Call("Undo");
         scene = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;
         if (!scene.Find(shape.Id)!.Locked || scene.Find(shape.Id)!.Visible) throw new Exception("Toggle undo failed");
         Call("Redo");

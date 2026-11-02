@@ -21,33 +21,69 @@ public partial class MainWindow
                     if (child.Kind == ObjectKind.Group && !child.OrganizeOnly) child.HasLayoutFrame = true;
                 }
             });
-        Label("空 → 1 → 2 → … → 空。クリックで切り替え、ドラッグで同じ状態を配置します。番号は切り替え順です。");
-        Label("表示する見本は直下の子から指定します。画像・グループなどを追加すると新しい状態へ自動で割り当てます。");
         var targets = new List<StateTarget> { new(null, "未割り当て") };
         targets.AddRange(node.Children.Select(c => new StateTarget(c.Id, c.Name + " [" + SceneObject.KindName(c.Kind) + "]")));
         for (int i = 0; i < node.States.Count; i++)
         {
-            var state = node.States[i]; int index = i;
-            Label($"{i + 1}：状態名");
-            var name = new TextBox { Text = state.Name }; Properties.Children.Add(name);
-            var target = new ComboBox { ItemsSource = targets, DisplayMemberPath = "Name", SelectedItem = targets.FirstOrDefault(t => t.Id == state.ObjectId) ?? targets[0] };
+            var state = node.States[i];
+            var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
+            row.ColumnDefinitions.Add(new ColumnDefinition());
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
+            var frame = new Border { Child = row, BorderBrush = Brushes.DodgerBlue, BorderThickness = new Thickness(0), AllowDrop = true };
+            Properties.Children.Add(frame);
+            var grip = new Button { Content = "≡", ToolTip = "ドラッグで並べ替え（Alt＋↑／↓でも移動）", Padding = new Thickness(2), Cursor = System.Windows.Input.Cursors.SizeAll };
+            row.Children.Add(grip);
+            var number = new TextBlock { Text = $"{i + 1}：", VerticalAlignment = VerticalAlignment.Center }; Grid.SetColumn(number, 1); row.Children.Add(number);
+            var target = new ComboBox { ItemsSource = targets, DisplayMemberPath = "Name", SelectedItem = targets.FirstOrDefault(t => t.Id == state.ObjectId) ?? targets[0], MinWidth = 60 };
             System.Windows.Automation.AutomationProperties.SetName(target, $"状態{i + 1}の表示オブジェクト");
-            Properties.Children.Add(target);
-            setters.Add(() => { state.Name = name.Text; state.ObjectId = (target.SelectedItem as StateTarget)?.Id; });
-            var controls = new WrapPanel(); Properties.Children.Add(controls);
-            void ActionButton(string title, Action action, bool enabled = true)
+            Grid.SetColumn(target, 2); row.Children.Add(target);
+            LiveChoice(target, () => node.States.Single(s => s.Id == state.Id).ObjectId = (target.SelectedItem as StateTarget)?.Id);
+            var trash = new Button { Content = new System.Windows.Shapes.Path { Data = Geometry.Parse("M3,5 L17,5 M6,5 L7,19 13,19 14,5 M8,5 L8,2 12,2 12,5 M9,8 L9,16 M11,8 L11,16"), Stroke = Brushes.DimGray, StrokeThickness = 1.5, Width = 18, Height = 20, Stretch = Stretch.Uniform }, ToolTip = "状態を削除", Padding = new Thickness(5) };
+            System.Windows.Automation.AutomationProperties.SetName(trash, $"状態{i + 1}を削除");
+            Grid.SetColumn(trash, 3); row.Children.Add(trash);
+            row.IsEnabled = document.Editable(node);
+            trash.Click += (_, _) => Change(() => { RequireEditable(node); node.States.RemoveAll(s => s.Id == state.Id); node.StateCells.RemoveAll(c => c.StateId == state.Id); });
+            Point? start = null;
+            grip.PreviewMouseLeftButtonDown += (_, e) => start = e.GetPosition(grip);
+            grip.MouseMove += (_, e) =>
             {
-                var button = new Button { Content = title, IsEnabled = enabled && document.Editable(node), Padding = new Thickness(8, 4, 8, 4) };
-                button.Click += (_, _) => Change(() => { RequireEditable(node); action(); }); controls.Children.Add(button);
-            }
-            ActionButton("↑", () => { node.States.Remove(state); node.States.Insert(index - 1, state); }, i > 0);
-            ActionButton("↓", () => { node.States.Remove(state); node.States.Insert(index + 1, state); }, i + 1 < node.States.Count);
-            ActionButton("状態を削除", () => { node.States.Remove(state); node.StateCells.RemoveAll(c => c.StateId == state.Id); });
+                if (start is not { } origin || e.LeftButton != System.Windows.Input.MouseButtonState.Pressed) return;
+                var d = e.GetPosition(grip) - origin;
+                if (Math.Abs(d.X) < SystemParameters.MinimumHorizontalDragDistance && Math.Abs(d.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+                start = null; CommitPropertyEdit(); DragDrop.DoDragDrop(grip, new DataObject("GridSketch.State", state.Id), DragDropEffects.Move);
+            };
+            frame.DragOver += (_, e) =>
+            {
+                bool valid = e.Data.GetData("GridSketch.State") is string id && node.States.Any(s => s.Id == id);
+                e.Effects = valid ? DragDropEffects.Move : DragDropEffects.None;
+                frame.BorderThickness = valid ? e.GetPosition(frame).Y < frame.ActualHeight / 2 ? new Thickness(0, 2, 0, 0) : new Thickness(0, 0, 0, 2) : new Thickness(0);
+                e.Handled = true;
+            };
+            frame.DragLeave += (_, _) => frame.BorderThickness = new Thickness(0);
+            frame.Drop += (_, e) =>
+            {
+                frame.BorderThickness = new Thickness(0);
+                if (e.Data.GetData("GridSketch.State") is string id) MoveState(node, id, state.Id, e.GetPosition(frame).Y >= frame.ActualHeight / 2);
+                e.Handled = true;
+            };
+            grip.PreviewKeyDown += (_, e) =>
+            {
+                if (System.Windows.Input.Keyboard.Modifiers != System.Windows.Input.ModifierKeys.Alt || e.SystemKey is not (System.Windows.Input.Key.Up or System.Windows.Input.Key.Down)) return;
+                int index = node.States.FindIndex(s => s.Id == state.Id); int next = index + (e.SystemKey == System.Windows.Input.Key.Up ? -1 : 1);
+                if (next >= 0 && next < node.States.Count) MoveState(node, state.Id, node.States[next].Id, next > index);
+                e.Handled = true;
+            };
         }
-        Button("状態を追加", () => Change(() => { RequireEditable(node); node.States.Add(new CellState { Name = $"状態 {node.States.Count + 1}" }); }));
-        Label("名前・割り当ては「プロパティを適用」で反映します。状態を削除すると、その状態のマスは空になります。見本の子を削除した場合は未割り当てになります。");
+        Button("＋ 状態を追加", () => Change(() => { RequireEditable(node); node.States.Add(new CellState { Name = $"状態 {node.States.Count + 1}" }); }));
+        ((Button)Properties.Children[Properties.Children.Count - 1]).IsEnabled = node.States.Count < 128 && document.Editable(node);
     }
-
+    private void MoveState(SceneObject node, string id, string targetId, bool after)
+    {
+        if (id == targetId || !node.States.Any(s => s.Id == id) || !node.States.Any(s => s.Id == targetId)) return;
+        Change(() => { RequireEditable(node); var state = node.States.Single(s => s.Id == id); node.States.Remove(state); int index = node.States.FindIndex(s => s.Id == targetId); node.States.Insert(index + (after ? 1 : 0), state); });
+    }
     private void TemplateProperties(SceneObject node)
     {
         if (document.SelectionOwner(node) is not { } owner) return;

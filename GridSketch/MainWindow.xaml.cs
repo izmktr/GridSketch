@@ -17,7 +17,7 @@ public partial class MainWindow : Window
     private bool cellEditMode = true;
     private readonly RecentFiles recentFiles = new();
     private readonly Stack<string> undo = new(), redo = new();
-    private readonly List<Action> setters = [];
+
     private GridPaintStroke? paintStroke;
     private SceneObject? paintGrid;
     private Point? dragStart;
@@ -54,17 +54,18 @@ public partial class MainWindow : Window
     }
     private void Change(Action action) => Try(() =>
     {
+        CommitPropertyEdit();
         var before = document.Snapshot();
         try { action(); document.PrepareGroupLayouts(); document.ClearMissingStateObjects(); document.Validate(); }
         catch { document = SceneDocument.Restore(before); RefreshAll(); throw; }
         if (document.Snapshot() != before) RememberUndo(before);
         Surface.Preview = []; Surface.HoveredEdge = null; RefreshAll(); Status.Text = "変更しました。Ctrl+Sで保存できます。";
     });
-    private void Undo() { if (undo.Count == 0) return; redo.Push(document.Snapshot()); document = SceneDocument.Restore(undo.Pop()); RefreshAll(); }
-    private void Redo() { if (redo.Count == 0) return; undo.Push(document.Snapshot()); document = SceneDocument.Restore(redo.Pop()); RefreshAll(); }
+    private void Undo() { CommitPropertyEdit(); if (undo.Count == 0) return; redo.Push(document.Snapshot()); document = SceneDocument.Restore(undo.Pop()); RefreshAll(); }
+    private void Redo() { CommitPropertyEdit(); if (redo.Count == 0) return; undo.Push(document.Snapshot()); document = SceneDocument.Restore(redo.Pop()); RefreshAll(); }
     private void RefreshAll()
     {
-        refreshing = true; SyncLayerSelection();
+        CommitPropertyEdit(); refreshing = true; SyncLayerSelection();
         if (Surface.Selected?.Id != Selected.Id) { Surface.ActiveCell = null; Surface.RangeEnd = null; }
         var selectedGrid = document.GridFor(Selected);
         if (selectedGrid is null || Surface.ActiveCell is { } cell && (cell.Column >= selectedGrid.Columns || cell.Row >= selectedGrid.Rows)) { Surface.ActiveCell = null; Surface.RangeEnd = null; }
@@ -110,16 +111,16 @@ public partial class MainWindow : Window
     private void TextField(string key, string value, Action<string> setter, bool multiline = false)
     {
         Label(key); var box = new TextBox { Text = value, AcceptsReturn = multiline, MinHeight = multiline ? 70 : 0, TextWrapping = multiline ? TextWrapping.Wrap : TextWrapping.NoWrap };
-        Properties.Children.Add(box); setters.Add(() => setter(box.Text));
+        Properties.Children.Add(box); LiveText(box, () => setter(box.Text));
     }
     private void Number(string key, double value, Action<double> setter, double? minimum = null, double maximum = 1000)
     {
         Properties.Children.Add(NumericEditor(key, value, out var box, minimum, maximum));
-        setters.Add(() => setter(double.Parse(box.Text, CultureInfo.CurrentCulture)));
+        LiveText(box, () => setter(double.Parse(box.Text, CultureInfo.CurrentCulture)));
     }
     private void ColorField(string key, string value, Action<string> setter)
     {
-        Label(key); Properties.Children.Add(ColorEditor(value, out var box)); setters.Add(() => setter(box.Text));
+        Label(key); Properties.Children.Add(ColorEditor(value, out var box)); LiveText(box, () => setter(box.Text));
     }
     private FrameworkElement ColorEditor(string value, out TextBox textBox)
     {
@@ -141,11 +142,17 @@ public partial class MainWindow : Window
     private void Integer(string key, int value, Action<int> setter) => TextField(key, value.ToString(), s => setter(int.Parse(s, CultureInfo.CurrentCulture)));
     private void Check(string key, bool value, Action<bool> setter)
     {
-        var box = new CheckBox { Content = key, IsChecked = value, Margin = new Thickness(0, 6, 0, 6) }; Properties.Children.Add(box); setters.Add(() => setter(box.IsChecked == true));
+        var box = new CheckBox { Content = key, IsChecked = value, Margin = new Thickness(0, 6, 0, 6) }; Properties.Children.Add(box);
+        box.Click += (_, _) =>
+        {
+            bool snap = Selected.SnapToCell;
+            ImmediateProperty(box, () => setter(box.IsChecked == true));
+            if (snap != Selected.SnapToCell) BuildProperties();
+        };
     }
     private void Choice(string key, string value, IEnumerable<string> options, Action<string> setter, bool editable = false)
     {
-        Label(key); var combo = new ComboBox { ItemsSource = options.ToList(), IsEditable = editable, Text = value }; combo.SelectedItem = value; System.Windows.Automation.AutomationProperties.SetName(combo, key); Properties.Children.Add(combo); setters.Add(() => setter(combo.Text));
+        Label(key); var combo = new ComboBox { ItemsSource = options.ToList(), IsEditable = editable, Text = value }; combo.SelectedItem = value; System.Windows.Automation.AutomationProperties.SetName(combo, key); Properties.Children.Add(combo); LiveChoice(combo, () => setter(combo.IsEditable ? combo.Text : (string)combo.SelectedItem));
     }
     private void FontField(SceneObject node)
     {
@@ -155,7 +162,7 @@ public partial class MainWindow : Window
         var combo = new ComboBox { ItemsSource = FontNames.Installed, DisplayMemberPath = nameof(FontName.DisplayName), IsEditable = true };
         combo.SelectedItem = current; combo.Text = current?.DisplayName ?? original;
         Properties.Children.Add(combo);
-        setters.Add(() =>
+        LiveChoice(combo, () =>
         {
             var matched = combo.SelectedItem is FontName selected && combo.Text == selected.DisplayName
                 ? selected : FontNames.Installed.FirstOrDefault(font => font.Matches(combo.Text));
@@ -166,7 +173,7 @@ public partial class MainWindow : Window
     private void RequireEditable(SceneObject node) { if (!document.Editable(node)) throw new InvalidOperationException("オブジェクトまたは親がロックされています。"); }
     private void BuildProperties()
     {
-        Properties.Children.Clear(); setters.Clear();
+        CommitPropertyEdit(); Properties.Children.Clear();
         if (SelectedLayers().Count > 1)
         {
             VisibilityToggle.Visibility = LockToggle.Visibility = Visibility.Collapsed; PropertyLockNotice.Visibility = Visibility.Collapsed;
@@ -177,12 +184,12 @@ public partial class MainWindow : Window
         }
         var node = Selected; Label(node.Kind == ObjectKind.Border && node.ConnectCellCenters ? "中心罫線" : SceneObject.KindName(node.Kind)); TextField("名前", node.Name, v => node.Name = v);
         UpdatePropertyToggles();
-        int metadataCount = setters.Count;
+
         ObjectLayoutProperties(node);
         TemplateProperties(node);
         if (node.Kind == ObjectKind.Canvas)
         {
-            setters.Add(CanvasSettings(Properties, node, Surface.Renderer!.OutputBounds));
+            CanvasSettings(Properties, node, Surface.Renderer!.OutputBounds);
         }
         else if (!node.IsGridContent && !(node.Kind == ObjectKind.Group && node.OrganizeOnly)) { Pair(document.SelectionOwner(node)?.UseCellLayout == true ? "位置 X（ずらし量）" : "位置 X", node.X, v => node.X = v, document.SelectionOwner(node)?.UseCellLayout == true ? "位置 Y（ずらし量）" : "位置 Y", node.Y, v => node.Y = v); Number(node.Kind == ObjectKind.Image ? "回転（度 / 画像中央）" : "回転（度 / 左上中心）", node.Angle, v => node.Angle = v); }
         switch (node.Kind)
@@ -236,20 +243,6 @@ public partial class MainWindow : Window
                 Choice("始点の矢印", node.StartArrow, ["なし", "三角", "開いた矢印"], v => node.StartArrow = v); Choice("終点の矢印", node.EndArrow, ["なし", "三角", "開いた矢印"], v => node.EndArrow = v);
                 Number("矢印の大きさ", node.ArrowSize, v => node.ArrowSize = v, 1, 200); ColorField("線の色", node.Color, v => node.Color = v); Number("線の太さ", node.Thickness, v => node.Thickness = v, 0, 64); StrokeIconChoice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v); break;
         }
-        var apply = setters.ToArray();
-        Button("プロパティを適用", () => Change(() =>
-        {
-            if (document.Parent(node) is { } parent) RequireEditable(parent);
-            var oldGrid = (node.Columns, node.Rows, node.CellSize, node.Margin, node.MarginY);
-            bool editable = document.Editable(node); foreach (var set in apply.Take(metadataCount)) set();
-            if (editable) foreach (var set in apply.Skip(metadataCount)) set();
-            if (editable && node.Kind == ObjectKind.Grid)
-            {
-                var requested = (node.Columns, node.Rows, node.CellSize, node.Margin, node.MarginY);
-                (node.Columns, node.Rows, node.CellSize, node.Margin, node.MarginY) = oldGrid;
-                document.ResizeGrid(node, requested.Columns, requested.Rows, requested.CellSize, requested.Margin, requested.MarginY);
-            }
-        }));
         if (node.Kind == ObjectKind.Border) BorderTools(node);
         if (node.Kind == ObjectKind.GridText) TextTools(node);
         if (node.Kind == ObjectKind.Fill) Button("選択範囲の塗りを削除", () => Change(() => { RequireEditable(node); foreach (var cell in CellRange(node)) node.FilledCells.Remove(cell); }));
@@ -559,11 +552,13 @@ public partial class MainWindow : Window
     }
     private bool CanDiscard()
     {
+        CommitPropertyEdit();
         FinishDrag(); Surface.ReleaseMouseCapture();
         if (!Dirty) return true; var answer = MessageBox.Show(this, activeTab?.Owner is not null ? "部品の変更をライブラリへ反映しますか？" : $"「{System.IO.Path.GetFileName(path ?? "無題") }」の変更を保存しますか？", "GridSketch", MessageBoxButton.YesNoCancel, MessageBoxImage.Question); return answer == MessageBoxResult.No || answer == MessageBoxResult.Yes && Save(false);
     }
     private bool Save(bool saveAs)
     {
+        CommitPropertyEdit();
         FinishDrag(); Surface.ReleaseMouseCapture();
         if (!saveAs && activeTab?.Owner is not null) return ApplyPartEdit();
         string? destination = path;

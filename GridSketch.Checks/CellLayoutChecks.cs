@@ -71,9 +71,9 @@ internal static class CellLayoutChecks
         var panel = (StackPanel)window.FindName("Properties");
         PropertyChecks.Find<ComboBox>(panel, "配置領域").SelectedItem = "マス全体";
         PropertyChecks.Find<ComboBox>(panel, "領域への収め方").SelectedItem = "固定サイズ";
-        panel.Children.OfType<Button>().Single(b => Equals(b.Content, "プロパティを適用")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        LivePropertyChecks.Commit(window);
         Expect(image.TemplateRegion == "マス全体" && image.TemplateSizing == "固定サイズ", "Layout properties apply from UI");
-        Call("Undo");
+        Call("Undo"); Call("Undo");
         var restored = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;
         Expect(restored.Find(image.Id)!.TemplateRegion == "余白の内側", "Layout changes undo together");
         Set("savedState", restored.Snapshot());

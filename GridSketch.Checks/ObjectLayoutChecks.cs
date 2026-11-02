@@ -78,9 +78,9 @@ internal static class ObjectLayoutChecks
         var panel = (StackPanel)window.FindName("Properties");
         PropertyChecks.Find<ComboBox>(panel, "配置先").SelectedItem = "親の外側";
         PropertyChecks.Find<ComboBox>(panel, "サイズの扱い").SelectedItem = "広げる";
-        panel.Children.OfType<Button>().Single(b => Equals(b.Content, "プロパティを適用")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        LivePropertyChecks.Commit(window);
         Check(group.LayoutRegion == "親の外側" && group.LayoutSizing == "広げる", "Parent layout controls apply together");
-        Call("Undo"); var restored = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;
+        Call("Undo"); Call("Undo"); var restored = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;
         Check(restored.Find(group.Id)!.LayoutRegion == "親の内側", "Parent layout controls support undo"); Set("savedState", restored.Snapshot());
     }
 }

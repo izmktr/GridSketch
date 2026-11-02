@@ -8,6 +8,15 @@ public partial class MainWindow
 {
     private Action CanvasSettings(StackPanel panel, SceneObject canvas, Rect currentBounds)
     {
+        Action? apply = null;
+        void Batch(FrameworkElement source, Action change)
+        {
+            bool live = panel == Properties && apply is not null && !updatingProperty;
+            if (live) { CommitPropertyEdit(); updatingProperty = true; }
+            try { change(); }
+            finally { if (live) updatingProperty = false; }
+            if (live) ImmediateProperty(source, apply!);
+        }
         void LabelHere(string text) => panel.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 2) });
         TextBox Field(string label, double value)
         {
@@ -28,7 +37,7 @@ public partial class MainWindow
         NumericPair(fixedPanel, "幅", canvas.AutoSize ? currentBounds.Width * factor : canvas.Width,
             "高さ", canvas.AutoSize ? currentBounds.Height * factor : canvas.Height, out var width, out var height, 1, 4000);
         var swap = new Button { Content = "縦・横を入れ替える" }; fixedPanel.Children.Add(swap);
-        swap.Click += (_, _) => (width.Text, height.Text) = (height.Text, width.Text);
+        swap.Click += (_, _) => Batch(swap, () => (width.Text, height.Text) = (height.Text, width.Text));
         fixedPanel.Children.Add(new TextBlock { Text = "出力範囲の左上（編集座標 / px）" });
         NumericPair(fixedPanel, "X", canvas.AutoSize ? currentBounds.X : canvas.X, "Y", canvas.AutoSize ? currentBounds.Y : canvas.Y, out var x, out var y);
         var dpi = Field("解像度（dpi）", canvas.Dpi);
@@ -49,7 +58,7 @@ public partial class MainWindow
             }
             else estimate.Text = "幅・高さ・解像度を確認してください。";
         }
-        mode.SelectionChanged += (_, _) =>
+        mode.SelectionChanged += (_, _) => Batch(mode, () =>
         {
             if (mode.SelectedIndex == 1 && Parse(padding, out var p) && p >= 0 && p <= 1000 && Parse(dpi, out var d) && d > 0)
             {
@@ -62,8 +71,8 @@ public partial class MainWindow
                 x.Text = fitted.X.ToString(CultureInfo.CurrentCulture); y.Text = fitted.Y.ToString(CultureInfo.CurrentCulture);
             }
             Estimate();
-        };
-        unit.SelectionChanged += (_, _) =>
+        });
+        unit.SelectionChanged += (_, _) => Batch(unit, () =>
         {
             string next = (string)unit.SelectedItem;
             if (!changingPreset && next != previousUnit && Parse(width, out var w) && Parse(height, out var h) && Parse(dpi, out var d) && d > 0)
@@ -72,16 +81,19 @@ public partial class MainWindow
                 width.Text = (w * f).ToString("0.########", CultureInfo.CurrentCulture); height.Text = (h * f).ToString("0.########", CultureInfo.CurrentCulture);
             }
             previousUnit = next; Estimate();
-        };
+        });
         preset.SelectionChanged += (_, _) =>
         {
             if (preset.SelectedIndex <= 0) return;
+            Batch(preset, () =>
+            {
             (double w, double h) = preset.SelectedIndex switch { 1 => (297, 420), 2 => (210, 297), 3 => (148, 210), 4 => (105, 148), 5 => (182, 257), _ => (215.9, 279.4) };
             changingPreset = true; unit.SelectedItem = "mm"; width.Text = w.ToString(CultureInfo.CurrentCulture); height.Text = h.ToString(CultureInfo.CurrentCulture); changingPreset = false; Estimate();
+            });
         };
         foreach (var box in new[] { width, height }) box.TextChanged += (_, _) => { if (!changingPreset) preset.SelectedIndex = 0; Estimate(); };
         dpi.TextChanged += (_, _) => Estimate(); Estimate();
-        return () =>
+        apply = () =>
         {
             canvas.AutoSize = mode.SelectedIndex == 0; canvas.Dpi = double.Parse(dpi.Text); canvas.Background = background.Text;
             if (canvas.AutoSize) canvas.Padding = double.Parse(padding.Text);
@@ -91,5 +103,10 @@ public partial class MainWindow
                 canvas.X = double.Parse(x.Text); canvas.Y = double.Parse(y.Text);
             }
         };
+        if (panel == Properties)
+        {
+            foreach (var box in new[] { width, height, x, y, dpi, padding, background }) LiveText(box, apply);
+        }
+        return apply;
     }
 }

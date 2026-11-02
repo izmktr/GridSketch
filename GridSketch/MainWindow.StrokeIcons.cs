@@ -45,11 +45,11 @@ public partial class MainWindow
             button.Content = icon;
             button.Click += (_, _) =>
             {
-                selected = option;
+                selected = option; ImmediateProperty(button, () => setter(option));
                 foreach (var sibling in row.Children.OfType<ToggleButton>()) sibling.IsChecked = ReferenceEquals(sibling, button);
             };
             row.Children.Add(button);
         }
-        setters.Add(() => setter(selected));
+
     }
 }

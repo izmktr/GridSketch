@@ -9,14 +9,15 @@ public partial class MainWindow
         var regions = document.ParentRegions(node);
         string Describe(Rect? rect) => rect is { } r ? $"X {r.X:0.##}, Y {r.Y:0.##} / {r.Width:0.##} × {r.Height:0.##}" : "なし";
         Label("親の配置範囲");
-        Label("外側：" + Describe(regions.Outer)); Label("内側：" + Describe(regions.Inner)); Label(regions.Description);
+        Label("外側：" + Describe(regions.Outer)); Label("内側：" + Describe(regions.Inner));
+        if (node.Kind != ObjectKind.CellSelection) Label(regions.Description);
         if (node.PreservedTransform is { } p)
         {
             Label($"親変更時の拡縮を保持：横 {Math.Sqrt(p.M11 * p.M11 + p.M12 * p.M12):0.###} 倍 / 縦 {Math.Sqrt(p.M21 * p.M21 + p.M22 * p.M22):0.###} 倍");
             Button("保持した拡縮を解除", () => Change(() => { RequireEditable(node); node.PreservedTransform = null; }));
         }
         if (node.Kind == ObjectKind.Canvas) return;
-        if (node.IsGridContent) { Label("配置はグリッドのマス・辺に従います。"); return; }
+        if (node.IsGridContent) { if (node.Kind != ObjectKind.CellSelection) Label("配置はグリッドのマス・辺に従います。"); return; }
         if (node.Kind == ObjectKind.Group && node.OrganizeOnly) { Label("整理用グループは親の配置範囲を子へそのまま渡します。"); return; }
         if (document.SelectionOwner(node) is { UseObjectLayout: false })
         {

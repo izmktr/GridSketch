@@ -45,11 +45,11 @@ internal static class WindowChecks
         var resizePanel = (StackPanel)window.FindName("Properties");
         PropertyChecks.Find<TextBox>(resizePanel, "列数").Text = "4";
         PropertyChecks.Find<TextBox>(resizePanel, "行数").Text = "3";
-        resizePanel.Children.OfType<Button>().Single(b => Equals(b.Content, "プロパティを適用")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        LivePropertyChecks.Commit(window);
         if (legacyGrid.Columns != 4 || legacyGrid.Rows != 3) throw new Exception("Grid resize property action failed");
         Call("Undo");
         var undone = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;
-        if (undone.Canvas.Children[0].Columns != 16) throw new Exception("Grid resize undo failed");
+        if (undone.Canvas.Children[0].Columns != 4 || undone.Canvas.Children[0].Rows != 12) throw new Exception("Grid resize undo failed");
         Console.WriteLine("PASS: Grid property resize and undo with legacy default borders");
         var typing = new SceneDocument(); var typingGrid = SceneDocument.CreateGrid("基本の方眼紙"); typing.Canvas.Children.Add(typingGrid);
         var textLayer = typingGrid.Children.First(n => n.Kind == ObjectKind.GridText);

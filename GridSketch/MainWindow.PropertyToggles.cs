@@ -36,6 +36,7 @@ public partial class MainWindow
     private void LockToggleClick(object sender, RoutedEventArgs e) => ToggleProperty(true);
     private void ToggleProperty(bool locking) => Try(() =>
     {
+        CommitPropertyEdit();
         var node = Selected;
         if (node == document.Canvas || document.Parent(node) is { } parent && !document.Editable(parent)) { UpdatePropertyToggles(); return; }
         var before = document.Snapshot();
