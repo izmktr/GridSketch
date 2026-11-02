@@ -23,6 +23,13 @@ public partial class MainWindow
             });
         var targets = new List<StateTarget> { new(null, "未割り当て") };
         targets.AddRange(node.Children.Select(c => new StateTarget(c.Id, c.Name + " [" + SceneObject.KindName(c.Kind) + "]")));
+        Border? activeMarker = null;
+        void SetInsertionMarker(Border? next)
+        {
+            if (activeMarker != next && activeMarker is not null) activeMarker.Visibility = Visibility.Hidden;
+            activeMarker = next;
+            if (next is not null) next.Visibility = Visibility.Visible;
+        }
         for (int i = 0; i < node.States.Count; i++)
         {
             var state = node.States[i];
@@ -30,8 +37,12 @@ public partial class MainWindow
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
             row.ColumnDefinitions.Add(new ColumnDefinition());
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
-            var frame = new Border { Child = row, Background = Brushes.Transparent, BorderBrush = Brushes.DodgerBlue, BorderThickness = new Thickness(0), AllowDrop = true };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(38) });
+            // Draw the insertion marker over the row without changing its size or hit target.
+            var marker = new Border { Height = 2, Background = Brushes.DodgerBlue, VerticalAlignment = VerticalAlignment.Top,
+                IsHitTestVisible = false, Visibility = Visibility.Hidden };
+            var overlay = new Grid(); overlay.Children.Add(row); overlay.Children.Add(marker);
+            var frame = new Border { Child = overlay, Tag = marker, Margin = new Thickness(8, 0, 8, 0), Background = Brushes.Transparent, AllowDrop = true };
             Properties.Children.Add(frame);
             var grip = new Button { Content = "≡", Width = 32, Height = 32, Margin = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, ToolTip = "ドラッグで並べ替え（Alt＋↑／↓でも移動）", Padding = new Thickness(2), Cursor = System.Windows.Input.Cursors.SizeAll };
             row.Children.Add(grip);
@@ -59,7 +70,7 @@ public partial class MainWindow
                 try { DragDrop.DoDragDrop(grip, new DataObject("GridSketch.State", state.Id), DragDropEffects.Move); }
                 finally
                 {
-                    foreach (var border in Properties.Children.OfType<Border>()) border.BorderThickness = new Thickness(0);
+                    SetInsertionMarker(null);
                 }
             };
             grip.PreviewMouseLeftButtonUp += (_, _) => start = null;
@@ -68,13 +79,20 @@ public partial class MainWindow
             {
                 bool valid = e.Data.GetData("GridSketch.State") is string id && node.States.Any(s => s.Id == id);
                 e.Effects = valid ? DragDropEffects.Move : DragDropEffects.None;
-                frame.BorderThickness = valid ? e.GetPosition(frame).Y < frame.ActualHeight / 2 ? new Thickness(0, 2, 0, 0) : new Thickness(0, 0, 0, 2) : new Thickness(0);
+                marker.VerticalAlignment = e.GetPosition(frame).Y < frame.ActualHeight / 2 ? VerticalAlignment.Top : VerticalAlignment.Bottom;
+                SetInsertionMarker(valid ? marker : null);
                 e.Handled = true;
             };
-            frame.PreviewDragLeave += (_, _) => frame.BorderThickness = new Thickness(0);
+            frame.PreviewDragLeave += (_, e) =>
+            {
+                // Moving between child controls also raises DragLeave. Keep the marker
+                // until the pointer actually leaves the row.
+                var point = e.GetPosition(frame);
+                if (activeMarker == marker && !new Rect(frame.RenderSize).Contains(point)) SetInsertionMarker(null);
+            };
             frame.PreviewDrop += (_, e) =>
             {
-                frame.BorderThickness = new Thickness(0);
+                SetInsertionMarker(null);
                 if (e.Data.GetData("GridSketch.State") is string id) MoveState(node, id, state.Id, e.GetPosition(frame).Y >= frame.ActualHeight / 2);
                 e.Handled = true;
             };
@@ -87,7 +105,9 @@ public partial class MainWindow
             };
         }
         Button("＋ 状態を追加", () => Change(() => { RequireEditable(node); node.States.Add(new CellState { Name = $"状態 {node.States.Count + 1}" }); }));
-        ((Button)Properties.Children[Properties.Children.Count - 1]).IsEnabled = node.States.Count < 128 && document.Editable(node);
+        var addButton = (Button)Properties.Children[Properties.Children.Count - 1];
+        addButton.Margin = new Thickness(8, 3, 8, 3);
+        addButton.IsEnabled = node.States.Count < 128 && document.Editable(node);
     }
     private void MoveState(SceneObject node, string id, string targetId, bool after)
     {

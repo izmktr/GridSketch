@@ -83,17 +83,52 @@ internal static class CellSelectionChecks
         var dragData = new DataObject("GridSketch.State", currentSelector.States[0].Id);
         // WPF constructs these args internally during native drag/drop. Raise the
         // routed preview events from a child control, rather than calling MoveState.
-        DragEventArgs DragArgs(RoutedEvent routedEvent)
+        DragEventArgs DragArgs(RoutedEvent routedEvent, Point? position = null, Border? targetRow = null)
         {
+            targetRow ??= destination;
             var constructor = typeof(DragEventArgs).GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                 .Single(c => c.GetParameters().Length == 5);
-            var args = (DragEventArgs)constructor.Invoke([dragData, DragDropKeyStates.LeftMouseButton, DragDropEffects.Move, destination, new Point(4, destination.ActualHeight - 1)]);
+            var args = (DragEventArgs)constructor.Invoke([dragData, DragDropKeyStates.LeftMouseButton, DragDropEffects.Move, targetRow, position ?? new Point(4, targetRow.ActualHeight - 1)]);
             args.RoutedEvent = routedEvent; return args;
         }
+        var marker = (Border)destination.Tag;
+        var rowSize = destination.RenderSize;
+        var rowPosition = destination.TranslatePoint(new Point(), panel);
         var over = DragArgs(DragDrop.PreviewDragOverEvent); destinationCombo.RaiseEvent(over);
-        if (!over.Handled || over.Effects != DragDropEffects.Move || destination.BorderThickness.Bottom != 2)
+        if (!over.Handled || over.Effects != DragDropEffects.Move || marker.Visibility != Visibility.Visible || marker.VerticalAlignment != VerticalAlignment.Bottom)
             throw new Exception("State drag-over did not intercept child controls or show insertion line");
+        for (int repeat = 0; repeat < 4; repeat++)
+        {
+            window.UpdateLayout();
+            if (destination.RenderSize != rowSize || destination.TranslatePoint(new Point(), panel) != rowPosition || marker.IsHitTestVisible)
+                throw new Exception("Insertion marker changes row geometry or intercepts the mouse");
+            destinationCombo.RaiseEvent(DragArgs(DragDrop.PreviewDragLeaveEvent));
+            if (marker.Visibility != Visibility.Visible) throw new Exception("Moving between row children hides insertion marker");
+            destinationCombo.RaiseEvent(DragArgs(DragDrop.PreviewDragOverEvent));
+        }
+        destinationCombo.RaiseEvent(DragArgs(DragDrop.PreviewDragLeaveEvent, new Point(-2, -2)));
+        if (marker.Visibility != Visibility.Hidden) throw new Exception("Leaving the row retains the insertion marker");
+        destinationCombo.RaiseEvent(DragArgs(DragDrop.PreviewDragOverEvent, new Point(4, 1)));
+        window.UpdateLayout();
+        if (marker.VerticalAlignment != VerticalAlignment.Top || destination.RenderSize != rowSize)
+            throw new Exception("Top insertion marker changes row geometry");
+        // Cross rows without relying on DragLeave ordering, including a late leave
+        // from the old row after the new insertion position has already appeared.
+        var otherRow = panel.Children.OfType<Border>().Last();
+        var otherMarker = (Border)otherRow.Tag;
+        for (int repeat = 0; repeat < 4; repeat++)
+        {
+            otherRow.RaiseEvent(DragArgs(DragDrop.PreviewDragOverEvent, targetRow: otherRow));
+            destinationCombo.RaiseEvent(DragArgs(DragDrop.PreviewDragLeaveEvent, new Point(-2, -2)));
+            if (marker.Visibility != Visibility.Hidden || otherMarker.Visibility != Visibility.Visible)
+                throw new Exception("Moving to another state leaves duplicate markers or hides the new marker");
+            destinationCombo.RaiseEvent(DragArgs(DragDrop.PreviewDragOverEvent));
+            if (otherMarker.Visibility != Visibility.Hidden || marker.Visibility != Visibility.Visible)
+                throw new Exception("Returning to a previous state leaves its old insertion marker");
+        }
         var drop = DragArgs(DragDrop.PreviewDropEvent); destinationCombo.RaiseEvent(drop);
+        if (marker.Visibility != Visibility.Hidden || otherMarker.Visibility != Visibility.Hidden)
+            throw new Exception("Dropping retains an insertion marker");
         if (!drop.Handled) throw new Exception("State drop was not accepted over the dropdown");
         if (loaded.Find(selector.Id)!.States[1].ObjectId != blue.Id || loaded.Find(selector.Id)!.StateCells[2].StateId != before[2]) throw new Exception("State reorder UI changed placements");
         panel = (StackPanel)window.FindName("Properties");
