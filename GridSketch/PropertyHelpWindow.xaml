@@ -3,11 +3,11 @@
     <DockPanel>
      <StackPanel DockPanel.Dock="Top" Margin="0,0,0,16">
       <DockPanel>
-       <TextBlock Text="マス選択のヘルプ" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center"/>
+       <TextBlock x:Name="HelpHeading" Text="マス選択のヘルプ" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center"/>
       </DockPanel>
-      <TextBlock Text="マスごとに、絵や図形を切り替える" Foreground="#52677D" TextWrapping="Wrap" Margin="0,8,0,0"/>
+      <TextBlock x:Name="HelpSubtitle" Text="マスごとに、絵や図形を切り替える" Foreground="#52677D" TextWrapping="Wrap" Margin="0,8,0,0"/>
      </StackPanel>
-     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+     <ScrollViewer x:Name="HelpScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
       <StackPanel>
        <TextBlock Text="マスをクリックすると、登録した画像・図形・グループが順番に切り替わります。" TextWrapping="Wrap" LineHeight="22"/>
        <Border Background="White" BorderBrush="#D6DFE9" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,14,0,18">

@@ -83,7 +83,7 @@ internal static class CellSelectionChecks
         var helpEncoder = new PngBitmapEncoder(); helpEncoder.Frames.Add(BitmapFrame.Create(helpImage));
         using (var helpOutput = File.Create(Path.Combine(directory, "cell-selection-help.png"))) helpEncoder.Save(helpOutput);
         Set("selectedId", grid.Id); Call("RefreshAll");
-        if (helpWindow.IsVisible || helpToggle.Visibility != Visibility.Collapsed) throw new Exception("Unrelated selection keeps cell selection help visible");
+        if (!helpWindow.IsVisible || helpToggle.Visibility != Visibility.Visible || helpWindow.Title != "グリッドのヘルプ") throw new Exception("Selecting another object does not switch help topic");
         Set("selectedId", selector.Id); Call("RefreshAll");
         if (!helpWindow.IsVisible) throw new Exception("Returning to cell selection does not restore open help");
         Call("ClosePropertyHelpClick", window, new RoutedEventArgs());

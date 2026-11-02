@@ -9,7 +9,10 @@ public partial class MainWindow
 
     private void UpdatePropertyHelp()
     {
-        bool available = Selected.Kind == ObjectKind.CellSelection && SelectedLayers().Count <= 1;
+        bool available = SelectedLayers().Count <= 1;
+        string title = PropertyHelpWindow.TopicName(Selected) + "のヘルプ";
+        PropertyHelpToggle.ToolTip = title;
+        System.Windows.Automation.AutomationProperties.SetName(PropertyHelpToggle, title);
         PropertyHelpToggle.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
         PropertyHelpToggle.IsChecked = available && propertyHelpOpen;
         if (available && propertyHelpOpen)
@@ -24,6 +27,7 @@ public partial class MainWindow
                     PropertyHelpToggle.IsChecked = false;
                 };
             }
+            propertyHelpWindow.ShowTopic(Selected);
             if (!propertyHelpWindow.IsVisible) propertyHelpWindow.Show();
         }
         else propertyHelpWindow?.Hide();
