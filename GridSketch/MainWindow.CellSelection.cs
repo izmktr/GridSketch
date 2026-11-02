@@ -31,7 +31,7 @@ public partial class MainWindow
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
             row.ColumnDefinitions.Add(new ColumnDefinition());
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
-            var frame = new Border { Child = row, BorderBrush = Brushes.DodgerBlue, BorderThickness = new Thickness(0), AllowDrop = true };
+            var frame = new Border { Child = row, Background = Brushes.Transparent, BorderBrush = Brushes.DodgerBlue, BorderThickness = new Thickness(0), AllowDrop = true };
             Properties.Children.Add(frame);
             var grip = new Button { Content = "≡", ToolTip = "ドラッグで並べ替え（Alt＋↑／↓でも移動）", Padding = new Thickness(2), Cursor = System.Windows.Input.Cursors.SizeAll };
             row.Children.Add(grip);
@@ -47,22 +47,32 @@ public partial class MainWindow
             trash.Click += (_, _) => Change(() => { RequireEditable(node); node.States.RemoveAll(s => s.Id == state.Id); node.StateCells.RemoveAll(c => c.StateId == state.Id); });
             Point? start = null;
             grip.PreviewMouseLeftButtonDown += (_, e) => start = e.GetPosition(grip);
-            grip.MouseMove += (_, e) =>
+            // ButtonBase handles bubbling MouseMove while pressed. Observe the preview
+            // event before it does, then hand mouse capture to the drag/drop operation.
+            grip.PreviewMouseMove += (_, e) =>
             {
                 if (start is not { } origin || e.LeftButton != System.Windows.Input.MouseButtonState.Pressed) return;
                 var d = e.GetPosition(grip) - origin;
                 if (Math.Abs(d.X) < SystemParameters.MinimumHorizontalDragDistance && Math.Abs(d.Y) < SystemParameters.MinimumVerticalDragDistance) return;
-                start = null; CommitPropertyEdit(); DragDrop.DoDragDrop(grip, new DataObject("GridSketch.State", state.Id), DragDropEffects.Move);
+                start = null; CommitPropertyEdit();
+                grip.ReleaseMouseCapture(); e.Handled = true;
+                try { DragDrop.DoDragDrop(grip, new DataObject("GridSketch.State", state.Id), DragDropEffects.Move); }
+                finally
+                {
+                    foreach (var border in Properties.Children.OfType<Border>()) border.BorderThickness = new Thickness(0);
+                }
             };
-            frame.DragOver += (_, e) =>
+            grip.PreviewMouseLeftButtonUp += (_, _) => start = null;
+            grip.LostMouseCapture += (_, _) => start = null;
+            frame.PreviewDragOver += (_, e) =>
             {
                 bool valid = e.Data.GetData("GridSketch.State") is string id && node.States.Any(s => s.Id == id);
                 e.Effects = valid ? DragDropEffects.Move : DragDropEffects.None;
                 frame.BorderThickness = valid ? e.GetPosition(frame).Y < frame.ActualHeight / 2 ? new Thickness(0, 2, 0, 0) : new Thickness(0, 0, 0, 2) : new Thickness(0);
                 e.Handled = true;
             };
-            frame.DragLeave += (_, _) => frame.BorderThickness = new Thickness(0);
-            frame.Drop += (_, e) =>
+            frame.PreviewDragLeave += (_, _) => frame.BorderThickness = new Thickness(0);
+            frame.PreviewDrop += (_, e) =>
             {
                 frame.BorderThickness = new Thickness(0);
                 if (e.Data.GetData("GridSketch.State") is string id) MoveState(node, id, state.Id, e.GetPosition(frame).Y >= frame.ActualHeight / 2);

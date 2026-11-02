@@ -77,7 +77,24 @@ internal static class CellSelectionChecks
         // Reordering and deletion are immediate operations; both must retain stable state identities.
         panel = (StackPanel)window.FindName("Properties");
         var currentSelector = loaded.Find(selector.Id)!;
-        Call("MoveState", currentSelector, currentSelector.States[0].Id, currentSelector.States[1].Id, true);
+        window.UpdateLayout();
+        var destination = panel.Children.OfType<Border>().ElementAt(1);
+        var destinationCombo = PropertyChecks.Find<ComboBox>(destination, "状態2の表示オブジェクト");
+        var dragData = new DataObject("GridSketch.State", currentSelector.States[0].Id);
+        // WPF constructs these args internally during native drag/drop. Raise the
+        // routed preview events from a child control, rather than calling MoveState.
+        DragEventArgs DragArgs(RoutedEvent routedEvent)
+        {
+            var constructor = typeof(DragEventArgs).GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .Single(c => c.GetParameters().Length == 5);
+            var args = (DragEventArgs)constructor.Invoke([dragData, DragDropKeyStates.LeftMouseButton, DragDropEffects.Move, destination, new Point(4, destination.ActualHeight - 1)]);
+            args.RoutedEvent = routedEvent; return args;
+        }
+        var over = DragArgs(DragDrop.PreviewDragOverEvent); destinationCombo.RaiseEvent(over);
+        if (!over.Handled || over.Effects != DragDropEffects.Move || destination.BorderThickness.Bottom != 2)
+            throw new Exception("State drag-over did not intercept child controls or show insertion line");
+        var drop = DragArgs(DragDrop.PreviewDropEvent); destinationCombo.RaiseEvent(drop);
+        if (!drop.Handled) throw new Exception("State drop was not accepted over the dropdown");
         if (loaded.Find(selector.Id)!.States[1].ObjectId != blue.Id || loaded.Find(selector.Id)!.StateCells[2].StateId != before[2]) throw new Exception("State reorder UI changed placements");
         panel = (StackPanel)window.FindName("Properties");
 
