@@ -1,10 +1,21 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 
 namespace GridSketch;
 
 public partial class MainWindow
 {
+    private void LayerKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Delete || Keyboard.Modifiers != ModifierKeys.None || e.IsRepeat
+            || e.OriginalSource is TextBoxBase or PasswordBox) return;
+        e.Handled = true;
+        if (SelectedLayers().Count != 1 || Selected == document.Canvas || !document.Editable(Selected)) return;
+        DeleteClick(sender, e);
+    }
+
     private void AttachLayerMenu(TreeViewItem item)
     {
         var menu = new ContextMenu();
@@ -41,7 +52,7 @@ public partial class MainWindow
         void Item(string title, bool enabled, Action action)
         {
             if (SelectedLayers().Count > 1 && title != "グループ化") enabled = false;
-            var entry = new MenuItem { Header = title, IsEnabled = enabled };
+            var entry = new MenuItem { Header = title, IsEnabled = enabled, InputGestureText = title == "削除" ? "Delete" : "" };
             entry.Click += (_, _) => { if (enabled && document.Find(node.Id) is not null) { selectedId = node.Id; Try(action); } };
             menu.Items.Add(entry);
         }

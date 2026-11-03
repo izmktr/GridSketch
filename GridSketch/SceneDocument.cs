@@ -322,6 +322,7 @@ public sealed partial class SceneDocument
         PdfExport.Validate();
         if (Canvas is not null && Canvas.CanvasUnit is not ("px" or "mm")) throw new InvalidDataException("キャンバスの単位はpxまたはmmです。");
         if (Version != 3 || Canvas is null || Canvas.Kind != ObjectKind.Canvas) throw new InvalidDataException("未対応のプロジェクト形式です。");
+        ValidateVisibilityPresets();
         var ids = new HashSet<string>();
         void Check(SceneObject node, SceneObject? parent, int depth)
         {

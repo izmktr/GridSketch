@@ -56,6 +56,21 @@ internal static class LayerMenuChecks
         Check(scene.Find(shape.Id) is null, "Delete menu removes target");
         Call("Undo"); scene = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;
         Check(scene.Find(shape.Id) is not null, "Menu deletion is undoable");
+        Menu(scene.Find(shape.Id)!);
+        void DeleteKey(UIElement target) => target.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice,
+            PresentationSource.FromVisual(window), 0, Key.Delete) { RoutedEvent = Keyboard.KeyDownEvent });
+        var field = new TextBox { Text = "abc" };
+        ((StackPanel)window.FindName("Properties")).Children.Add(field);
+        DeleteKey(field);
+        Check(scene.Find(shape.Id) is not null, "Delete in a property editor does not remove a layer");
+        DeleteKey(layers);
+        Check(scene.Find(shape.Id) is null, "Delete key in the layer tree removes the selected layer");
+        Call("Undo"); scene = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;
+        Check(scene.Find(shape.Id) is not null, "Keyboard deletion is undoable");
+        var restoredShape = scene.Find(shape.Id)!; restoredShape.Locked = true; Menu(restoredShape); DeleteKey(layers);
+        Check(scene.Find(shape.Id) is not null, "Delete key preserves locked layers");
+        restoredShape.Locked = false; Menu(scene.Canvas); DeleteKey(layers);
+        Check(scene.Canvas.Children.Count > 0, "Delete key preserves the canvas");
         var grid = SceneDocument.CreateGrid("空のグリッド"); scene.Canvas.Children.Add(grid);
         var selector = new SceneObject { Kind = ObjectKind.CellSelection, UseCellLayout = true };
         var template = new SceneObject { Kind = ObjectKind.Group, Children = [new() { Kind = ObjectKind.Shape }] };

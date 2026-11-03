@@ -143,9 +143,9 @@
      <TextBlock DockPanel.Dock="Top" Text="レイヤー" FontSize="18" FontWeight="Bold" Margin="4,0,0,8"/>
      <WrapPanel DockPanel.Dock="Bottom">
       <Button Content="↑" ToolTip="手前へ" Click="LayerUp"/><Button Content="↓" ToolTip="奥へ" Click="LayerDown"/>
-      <Button Content="グループ化" Click="WrapClick"/><Button Content="解除" Click="UngroupClick"/><Button Content="削除" Click="DeleteClick"/>
+      <Button Content="表示プリセット ▾" Click="VisibilityPresetsClick"/>
      </WrapPanel>
-     <TreeView x:Name="Layers" SelectedItemChanged="LayerSelected" BorderThickness="0"/>
+     <TreeView x:Name="Layers" SelectedItemChanged="LayerSelected" KeyDown="LayerKeyDown" BorderThickness="0"/>
     </DockPanel>
     <GridSplitter Grid.Row="1" HorizontalAlignment="Stretch" Background="#CCD4DE"/>
     <DockPanel Grid.Row="2" Margin="14">

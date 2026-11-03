@@ -130,6 +130,7 @@ internal static class Program
             LayerInsertionChecks.Run(window);
             ObjectLayoutChecks.Run(window, Path.GetDirectoryName(temp)!);
             LayerMenuChecks.Run(window);
+            VisibilityPresetChecks.Run(window, Path.GetDirectoryName(temp)!);
             StrokeIconChecks.Run(window, Path.GetDirectoryName(temp)!);
             GroupLayoutChecks.Run(window, Path.GetDirectoryName(temp)!);
             MultiSelectionChecks.Run(window);
