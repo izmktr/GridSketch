@@ -333,7 +333,7 @@ public sealed partial class SceneDocument
             if (node.Style is null || !double.IsFinite(node.Style.OutlineWidth) || node.Style.OutlineWidth < 0 || node.Style.OutlineWidth > 64) throw new InvalidDataException("縁取りの太さは0～64pxで指定してください。");
             _ = (Color)ColorConverter.ConvertFromString(node.Style.OutlineColor);
             if (parent is not null && (node.Kind == ObjectKind.Canvas || !parent.IsContainer)) throw new InvalidDataException("不正な親子構造です。");
-            if (node.IsGridContent && (GridFor(node) is null || node.X != 0 || node.Y != 0 || node.Angle != 0)) throw new InvalidDataException("マスに配置する内容はグリッド直下で管理し、個別に移動・回転できません。");
+            if (node.IsGridContent && (GridFor(node) is null || node.Angle != 0)) throw new InvalidDataException("マスに配置する内容はグリッド内で管理し、個別に回転できません。");
             foreach (var value in new[] { node.X, node.Y, node.Angle, node.Width, node.Height, node.Dpi, node.Padding, node.CellSize, node.Margin, node.Thickness, node.FontSize, node.EndX, node.EndY, node.ControlX, node.ControlY, node.ArrowSize })
                 if (!double.IsFinite(value) || Math.Abs(value) > 100000) throw new InvalidDataException("数値が範囲外です。");
             if (node.Width < 1 || node.Height < 1 || node.Dpi < 1 || node.Dpi > 2400 || node.Padding < 0 || node.Padding > 1000 || node.Thickness < 0 || node.Thickness > 64 || node.FontSize < 1 || node.FontSize > 512 || node.ArrowSize < 1 || node.ArrowSize > 200) throw new InvalidDataException("サイズ・DPI・線幅が範囲外です。");
@@ -343,6 +343,10 @@ public sealed partial class SceneDocument
             if (node.Kind == ObjectKind.Grid && (node.Columns is < 1 or > 200 || node.Rows is < 1 or > 200 || node.CellSize < 12 || node.CellSize > 256 || node.Margin < 0 || node.Margin >= node.CellSize / 2 || node.MarginY < 0 || node.MarginY >= node.CellSize / 2)) throw new InvalidDataException("マス数は1～200、マス寸法は12～256、左右・上下のマス内余白はマス寸法の半分未満にしてください。");
             if (node.IsGridContent && GridFor(node) is { } grid)
             {
+                var extent = GridContentExtent(node, grid);
+                if (!extent.IsEmpty && (extent.Left + node.X < -0.001 || extent.Top + node.Y < -0.001 ||
+                    extent.Right + node.X > grid.Columns * grid.CellSize + 0.001 || extent.Bottom + node.Y > grid.Rows * grid.CellSize + 0.001))
+                    throw new InvalidDataException("罫線・グリッド文字はグリッドの範囲外へ移動できません。");
                 bool In(int c, int r) => c >= 0 && r >= 0 && c < grid.Columns && r < grid.Rows;
                 if (node.FrameCells.Any(c => !In(c.Column, c.Row))) throw new InvalidDataException("マス枠の対象がグリッドの範囲外です。");
                 if (node.Edges.Any(e => !BorderEdgeInside(node, grid, e)) || node.FilledCells.Any(c => !In(c.Column, c.Row)) || node.Glyphs.Any(g => g is null || !In(g.Column, g.Row) || g.Text is null || (g.Text.Length == 0 || !g.InCellText && new StringInfo(g.Text).LengthInTextElements != 1) || g.Text.Any(char.IsControl) || g.Size.HasValue && (!double.IsFinite(g.Size.Value) || g.Size < 1 || g.Size > 512))) throw new InvalidDataException("範囲外のマス・辺または不正な文字があります。縮小する場合は先に範囲外の内容を削除してください。");

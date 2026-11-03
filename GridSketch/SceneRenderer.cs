@@ -119,18 +119,7 @@ public sealed class SceneRenderer
                     break;
                 case ObjectKind.Image when node.ImageData is not null:
                     var bitmap = DocumentImage(node.ImageData);
-                    var imageBox = new Rect(0, 0, node.Width, node.Height);
-                    if (node.SnapToCell && grid is not null)
-                    {
-                        var available = SceneDocument.CellRect(grid, new(node.Column, node.Row), true);
-                        var ratio = Math.Min(1, Math.Min(available.Width / bitmap.PixelWidth, available.Height / bitmap.PixelHeight));
-                        imageBox = new Rect(node.Column * grid.CellSize + (grid.CellSize - bitmap.PixelWidth * ratio) / 2, node.Row * grid.CellSize + (grid.CellSize - bitmap.PixelHeight * ratio) / 2, bitmap.PixelWidth * ratio, bitmap.PixelHeight * ratio);
-                    }
-                    else
-                    {
-                        var ratio = Math.Min(node.Width / bitmap.PixelWidth, node.Height / bitmap.PixelHeight);
-                        imageBox = new Rect((node.Width - bitmap.PixelWidth * ratio) / 2, (node.Height - bitmap.PixelHeight * ratio) / 2, bitmap.PixelWidth * ratio, bitmap.PixelHeight * ratio);
-                    }
+                    var imageBox = ImagePlacementRect(node, grid);
                     dc.DrawImage(bitmap, imageBox);
                     break;
                 case ObjectKind.Text:
@@ -306,6 +295,21 @@ public sealed class SceneRenderer
             dc.DrawGeometry(Brush(node.Color), null, triangle);
         }
     }
+    public static Rect ImagePlacementRect(SceneObject node, SceneObject? grid)
+    {
+        if (node.ImageData is null) return new Rect(0, 0, node.Width, node.Height);
+        var bitmap = DocumentImage(node.ImageData);
+        if (node.SnapToCell && grid is not null)
+        {
+            var available = SceneDocument.CellRect(grid, new(node.Column, node.Row), true);
+            var ratio = Math.Min(1, Math.Min(available.Width / bitmap.PixelWidth, available.Height / bitmap.PixelHeight));
+            return new Rect(node.Column * grid.CellSize + (grid.CellSize - bitmap.PixelWidth * ratio) / 2,
+                node.Row * grid.CellSize + (grid.CellSize - bitmap.PixelHeight * ratio) / 2, bitmap.PixelWidth * ratio, bitmap.PixelHeight * ratio);
+        }
+        var scale = Math.Min(node.Width / bitmap.PixelWidth, node.Height / bitmap.PixelHeight);
+        return new Rect((node.Width - bitmap.PixelWidth * scale) / 2, (node.Height - bitmap.PixelHeight * scale) / 2,
+            bitmap.PixelWidth * scale, bitmap.PixelHeight * scale);
+    }
     public BitmapSource Export(int scale = 1)
     {
         if (scale is < 1 or > 4) throw new InvalidOperationException("出力倍率は1～4です。");
@@ -367,16 +371,18 @@ public sealed class SceneSurface : FrameworkElement
     {
         var inverse = Renderer!.Document.World(node); inverse.Invert(); return inverse.Transform(ToWorld(surfacePoint));
     }
+    public Point EditLocal(SceneObject grid, Point surfacePoint) => ToLocal(
+        Selected is { IsGridContent: true } node && Renderer!.Document.GridFor(node) == grid ? node : grid, surfacePoint);
     public CellPosition? CellAt(SceneObject grid, Point surfacePoint)
     {
-        var p = ToLocal(grid, surfacePoint); int c = (int)Math.Floor(p.X / grid.CellSize), r = (int)Math.Floor(p.Y / grid.CellSize);
+        var p = EditLocal(grid, surfacePoint); int c = (int)Math.Floor(p.X / grid.CellSize), r = (int)Math.Floor(p.Y / grid.CellSize);
         return c >= 0 && r >= 0 && c < grid.Columns && r < grid.Rows ? new(c, r) : null;
     }
     public GridEdge? EdgeAt(SceneObject grid, Point surfacePoint, double zoom)
     {
         var border = Selected is { Kind: ObjectKind.Border } selected ? selected : new SceneObject();
         var (columns, rows) = SceneDocument.BorderDimensions(border, grid);
-        var p = ToLocal(grid, surfacePoint); double size = grid.CellSize, tolerance = Math.Min(size * 0.22, 7 / zoom);
+        var p = EditLocal(grid, surfacePoint); double size = grid.CellSize, tolerance = Math.Min(size * 0.22, 7 / zoom);
         double offset = border.ConnectCellCenters ? size / 2 : 0;
         p.Offset(-offset, -offset);
         if (p.X < -tolerance || p.Y < -tolerance || p.X > columns * size + tolerance || p.Y > rows * size + tolerance) return null;
@@ -425,7 +431,7 @@ public sealed class SceneSurface : FrameworkElement
             var grid = Renderer.Document.GridFor(selected);
             if (grid is not null)
             {
-                dc.PushTransform(new MatrixTransform(Renderer.Document.World(grid)));
+                dc.PushTransform(new MatrixTransform(Renderer.Document.World(selected.IsGridContent ? selected : grid)));
                 if (ActiveCell is { } cell)
                 {
                     var end = RangeEnd ?? cell;

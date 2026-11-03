@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private Point? dragStart;
     private Point dragPosition;
     private string? dragSnapshot;
+    private SceneObject? dragContentOrigin;
     private SceneObject Selected => document.Find(selectedId) ?? document.Canvas;
     private bool Dirty => savedState != document.Snapshot();
     public MainWindow()
@@ -187,6 +188,7 @@ public partial class MainWindow : Window
 
         ObjectLayoutProperties(node);
         TemplateProperties(node);
+        if (node.Kind == ObjectKind.Image) ImagePlacementProperties(node);
         if (node.Kind == ObjectKind.Canvas)
         {
             CanvasSettings(Properties, node, Surface.Renderer!.OutputBounds);
@@ -227,7 +229,6 @@ public partial class MainWindow : Window
                 });
                  break;
             case ObjectKind.Image:
-                if (document.Parent(node)?.Kind == ObjectKind.Grid) Check("マス中央に配置", node.SnapToCell, v => { node.SnapToCell = v; if (v) node.X = node.Y = node.Angle = 0; });
                 if (node.SnapToCell) { Pair("列（1から）", node.Column + 1, v => node.Column = (int)v - 1, "行（1から）", node.Row + 1, v => node.Row = (int)v - 1, integer: true); }
                 else { Pair("幅（px）", node.Width, v => node.Width = v, "高さ（px）", node.Height, v => node.Height = v, 1, 1000); } break;
             case ObjectKind.Shape:
@@ -472,8 +473,9 @@ public partial class MainWindow : Window
             }
             var hit = Hit(document.Canvas); if (hit is null) return; selectedId = hit.Id; RefreshAll(); node = Selected;
         }
-        if (node == document.Canvas || node.IsGridContent || node.Kind == ObjectKind.Group && node.OrganizeOnly || !document.Editable(node)) return;
-        dragSnapshot = document.Snapshot(); dragStart = world; dragPosition = new Point(node.X, node.Y); Surface.CaptureMouse();
+        if (node == document.Canvas || node.Kind == ObjectKind.Group && node.OrganizeOnly || !document.Editable(node)) return;
+        dragSnapshot = document.Snapshot(); dragContentOrigin = SceneDocument.MovesCellContents(node) ? SceneDocument.Restore(dragSnapshot).Find(node.Id) : null;
+        dragStart = world; dragPosition = new Point(node.X, node.Y); Surface.CaptureMouse();
     });
     private void SurfaceMove(object sender, MouseEventArgs e)
     {
@@ -481,12 +483,12 @@ public partial class MainWindow : Window
         if (paintStroke is not null)
         {
             if (e.LeftButton != MouseButtonState.Pressed) { FinishDrag(); Surface.ReleaseMouseCapture(); return; }
-            paintStroke.Move(Surface.ToLocal(paintGrid!, p)); RefreshSurface(); return;
+            paintStroke.Move(Surface.EditLocal(paintGrid!, p)); RefreshSurface(); return;
         }
         if (dragStart is { } start)
         {
             var current = Surface.ToWorld(p); var parent = document.Parent(node)!; var inverse = document.World(parent); inverse.Invert(); var delta = inverse.Transform(current) - inverse.Transform(start);
-            node.X = dragPosition.X + delta.X; node.Y = dragPosition.Y + delta.Y; RefreshSurface(); return;
+            document.MoveOnGrid(node, dragPosition, delta, dragContentOrigin); RefreshSurface(); return;
         }
         var grid = document.GridFor(node); var edge = cellEditMode && node.Kind == ObjectKind.Border && grid is not null ? Surface.EdgeAt(grid, p, Zoom.Value) : null;
         if (edge != Surface.HoveredEdge) { Surface.HoveredEdge = edge; Surface.InvalidateVisual(); }
@@ -495,7 +497,7 @@ public partial class MainWindow : Window
     {
         if (node.Kind == ObjectKind.CellSelection && node.States.Count == 0) { Status.Text = "子に画像などを追加するか、プロパティで状態を追加してください。"; return; }
         dragSnapshot = document.Snapshot(); paintGrid = grid;
-        paintStroke = new GridPaintStroke(document, node, grid, Surface.ToLocal(grid, point), edge);
+        paintStroke = new GridPaintStroke(document, node, grid, Surface.EditLocal(grid, point), edge);
         Surface.Preview = []; Surface.RangeEnd = null; Surface.HoveredEdge = null;
         Surface.CaptureMouse(); RefreshSurface();
         Status.Text = "ドラッグで連続編集。開始時の追加／削除を維持します。";
@@ -505,9 +507,9 @@ public partial class MainWindow : Window
         string? mergeKey = dragStart is not null ? "move:" + Selected.Id : null;
         if (dragStart is null && paintStroke is null) return; dragStart = null; paintStroke = null; paintGrid = null;
         if (dragSnapshot is { } snapshot) { try { document.Validate(); if (snapshot != document.Snapshot()) RecordUndo(snapshot, mergeKey); } catch { document = SceneDocument.Restore(snapshot); BreakUndoMerge(); } }
-        dragSnapshot = null; RefreshAll();
+        dragSnapshot = null; dragContentOrigin = null; RefreshAll();
     }
-    private void SurfaceUp(object sender, MouseButtonEventArgs e) { if (paintStroke is not null) paintStroke.Move(Surface.ToLocal(paintGrid!, e.GetPosition(Surface))); FinishDrag(); Surface.ReleaseMouseCapture(); }
+    private void SurfaceUp(object sender, MouseButtonEventArgs e) { if (paintStroke is not null) paintStroke.Move(Surface.EditLocal(paintGrid!, e.GetPosition(Surface))); FinishDrag(); Surface.ReleaseMouseCapture(); }
     private void SurfaceLostCapture(object sender, MouseEventArgs e) => FinishDrag();
     private void SurfaceLeave(object sender, MouseEventArgs e) { Surface.HoveredEdge = null; Surface.InvalidateVisual(); }
     private void ZoomChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
