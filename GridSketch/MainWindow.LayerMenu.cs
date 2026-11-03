@@ -35,13 +35,6 @@ public partial class MainWindow
         };
     }
 
-    private bool CanMoveLayerToParent(SceneObject node) => node != document.Canvas
-        && document.Editable(node) && document.Parent(node) is { } parent
-        && document.Parent(parent) is { } target && document.Editable(target)
-        // Template layout uses cell-relative coordinates, not ordinary world coordinates.
-        && document.SelectionOwner(node) is null
-        && (!SceneDocument.RequiresGrid(node) || document.GridFor(node) == document.GridContainer(target));
-
     private void PopulateLayerMenu(ContextMenu menu)
     {
         menu.Items.Clear();
@@ -51,14 +44,14 @@ public partial class MainWindow
         bool parentEditable = parent is not null && document.Editable(parent);
         void Item(string title, bool enabled, Action action)
         {
-            if (SelectedLayers().Count > 1 && title != "グループ化") enabled = false;
+            if (SelectedLayers().Count > 1 && title is not ("グループ化" or "親の変更…")) enabled = false;
             var entry = new MenuItem { Header = title, IsEnabled = enabled, InputGestureText = title == "削除" ? "Delete" : "" };
             entry.Click += (_, _) => { if (enabled && document.Find(node.Id) is not null) { selectedId = node.Id; Try(action); } };
             menu.Items.Add(entry);
         }
         Item("複製", !root && editable, DuplicateLayer);
         Item("削除", !root && editable, () => DeleteClick(this, new RoutedEventArgs()));
-        Item("親の階層へ移動", CanMoveLayerToParent(node), MoveLayerToParent);
+        Item("親の変更…", document.ReparentSelectionError(SelectedLayers()) is null, ChooseSelectedParents);
         menu.Items.Add(new Separator());
         Item("名前の変更…", editable, RenameLayer);
         Item("グループ化", GroupSelectionError() is null, () => WrapClick(this, new RoutedEventArgs()));
@@ -83,18 +76,6 @@ public partial class MainWindow
         parent.Children.Insert(parent.Children.IndexOf(node) + 1, copy);
         if (parent.Kind == ObjectKind.CellSelection) SceneDocument.AssignNewState(parent, copy);
         selectedId = copy.Id;
-    });
-
-    private void MoveLayerToParent() => Change(() =>
-    {
-        var node = Selected;
-        if (!CanMoveLayerToParent(node)) throw new InvalidOperationException("このオブジェクトは親の階層へ移動できません。");
-        var parent = document.Parent(node)!;
-        var target = document.Parent(parent)!;
-        document.Reparent(node, target);
-        target.Children.Remove(node);
-        target.Children.Insert(target.Children.IndexOf(parent) + 1, node);
-        target.LayerExpanded = true;
     });
 
     private void RenameLayer()

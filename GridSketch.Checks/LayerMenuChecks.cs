@@ -39,12 +39,12 @@ internal static class LayerMenuChecks
         MenuItem Entry(ContextMenu menu, string title) => menu.Items.OfType<MenuItem>().Single(i => Equals(i.Header, title));
         void Click(ContextMenu menu, string title) => Entry(menu, title).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         var menu = Menu(shape);
-        Check(Entry(menu, "親の階層へ移動").IsEnabled, "Nested shape can move out of parent");
+        Check(Entry(menu, "親の変更…").IsEnabled, "Nested shape can move out of parent");
         Click(menu, "複製"); var copy = group.Children[1];
         Check(copy.Id != shape.Id && copy.X == shape.X && copy.Angle == shape.Angle, "Duplicate has independent identity and exact placement");
         copy.Width += 10; Check(copy.Width != shape.Width, "Duplicate content is independent");
         var before = scene.World(shape);
-        Click(Menu(shape), "親の階層へ移動");
+        Menu(shape); Call("Change", new Action(() => scene.ReparentMany(new[] { shape }, scene.Canvas)));
         var after = scene.World(shape);
         Check(scene.Canvas.Children[1] == shape && group.Children.Count == 1, "Move inserts directly below old parent");
         Check(Math.Abs(before.OffsetX - after.OffsetX) < 1e-8 && Math.Abs(before.OffsetY - after.OffsetY) < 1e-8
@@ -84,7 +84,7 @@ internal static class LayerMenuChecks
         Click(Menu(template), "複製");
         Check(selector.States.Count == 2 && selector.States[1].ObjectId == selector.Children[1].Id, "Duplicating template adds a separate assignment");
         menu = Menu(template);
-        Check(!Entry(menu, "グループ解除").IsEnabled && !Entry(menu, "親の階層へ移動").IsEnabled && Entry(menu, "部品として登録…").IsEnabled,
+        Check(!Entry(menu, "グループ解除").IsEnabled && Entry(menu, "親の変更…").IsEnabled && Entry(menu, "部品として登録…").IsEnabled,
             "Template restrictions and part registration reflected in menu");
         menu = Menu(scene.Canvas);
         Check(!Entry(menu, "複製").IsEnabled && !Entry(menu, "削除").IsEnabled && !Entry(menu, "ロック").IsEnabled, "Canvas restrictions reflected in menu");

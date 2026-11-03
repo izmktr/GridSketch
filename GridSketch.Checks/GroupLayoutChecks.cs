@@ -46,7 +46,7 @@ internal static class GroupLayoutChecks
         var panel = (StackPanel)window.FindName("Properties");
         Button RestoreButton() => panel.Children.OfType<Button>().Single(b => Equals(b.Content, "一括変形用に戻す"));
         Check(!RestoreButton().IsEnabled, "Restore button disabled while dependent content exists");
-        Set("selectedId", border.Id); Call("RefreshAll"); Call("MoveLayerToParent");
+        Set("selectedId", border.Id); Call("RefreshAll"); Call("Change", new Action(() => doc.ReparentMany(new[] { border }, inner)));
         Check(doc.Parent(border) == inner, "Dependent content can leave organizer within its grid");
         Set("selectedId", added.Id); Call("RefreshAll"); panel = (StackPanel)window.FindName("Properties");
         Check(added.OrganizeOnly && RestoreButton().IsEnabled, "Empty organizer remains organizer until explicit restoration");

@@ -74,6 +74,33 @@ internal static class ReparentDialogChecks
         Call("Undo");
         var restored = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;
         Check(restored.Snapshot() == before, "Parent move is not a single undo action");
+        var batch = new SceneDocument();
+        var origin = new SceneObject { Kind = ObjectKind.Group, X = 20, Angle = 30 };
+        var destination = new SceneObject { Kind = ObjectKind.Group, X = 90, Angle = -20 };
+        var a = new SceneObject { Kind = ObjectKind.Shape, X = 12 };
+        var b = new SceneObject { Kind = ObjectKind.Text, Y = 25 };
+        var existing = new SceneObject { Kind = ObjectKind.Shape };
+        origin.Children = [a, b]; destination.Children.Add(existing); batch.Canvas.Children = [origin, destination];
+        var aw = batch.World(a); var bw = batch.World(b);
+        Check(batch.ReparentTargets(new[] { b, a }).Contains(destination), "Batch target not offered");
+        Check(batch.ReparentTargets(new[] { a, existing }).Count == 0 && batch.ReparentTargets(new[] { origin, a }).Count == 0,
+            "Different parents and ancestor/descendant selection must be rejected");
+        b.Locked = true; Check(batch.ReparentTargets(new[] { a, b }).Count == 0, "Locked member must block batch"); b.Locked = false;
+        var batchBefore = batch.Snapshot();
+        Set("document", batch); Set("selectedId", a.Id); Call("RefreshAll");
+        window.Dispatcher.BeginInvoke(new Action(() =>
+        {
+            var dialog = Application.Current.Windows.OfType<ReparentDialog>().Single();
+            var tree = PropertyChecks.Find<TreeView>(dialog, "移動先のレイヤー");
+            Items(tree).Single(i => Equals(i.Tag, destination.Id)).IsSelected = true;
+            PropertyChecks.Find<Button>(dialog, "選択した親へ移動").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        }));
+        Call("ChooseParents", new List<SceneObject> { b, a });
+        Check(destination.Children.SequenceEqual(new[] { existing, a, b }), "Batch must append in original layer order");
+        Check((batch.World(a).Transform(new Point(3, 4)) - aw.Transform(new Point(3, 4))).Length < 1e-7 &&
+            (batch.World(b).Transform(new Point(3, 4)) - bw.Transform(new Point(3, 4))).Length < 1e-7, "Batch must preserve world transforms");
+        Call("Undo"); restored = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;
+        Check(restored.Snapshot() == batchBefore, "Batch parent change must undo as one action");
         Set("savedState", restored.Snapshot());
         Console.WriteLine("PASS: Legal parent targets, non-mutating validation, filtered hierarchy, modal selection, cancellation, world placement and undo");
     }

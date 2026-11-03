@@ -8,14 +8,18 @@ public sealed class ReparentDialog : Window
     public string? SelectedParentId { get; private set; }
 
     public ReparentDialog(SceneDocument document, SceneObject source)
+        : this(document, new[] { source }) { }
+
+    public ReparentDialog(SceneDocument document, IReadOnlyList<SceneObject> sources)
     {
+        var source = sources[0];
         Title = "親を変更"; Width = 460; Height = 560; MinWidth = 360; MinHeight = 360;
         WindowStartupLocation = WindowStartupLocation.CenterOwner; ShowInTaskbar = false;
         FontFamily = new System.Windows.Media.FontFamily("Yu Gothic UI");
         var root = new DockPanel { Margin = new Thickness(16) }; Content = root;
         var heading = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
         heading.Children.Add(new TextBlock { Text = "移動先の親を選択", FontSize = 18, FontWeight = FontWeights.SemiBold });
-        heading.Children.Add(new TextBlock { Text = "対象：" + source.Label, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) });
+        heading.Children.Add(new TextBlock { Text = "対象：" + (sources.Count == 1 ? source.Label : $"{sources.Count}個のレイヤー"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) });
         string Path(SceneObject node)
         {
             var parts = new List<string>();
@@ -34,7 +38,7 @@ public sealed class ReparentDialog : Window
         var selectedPath = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
         DockPanel.SetDock(selectedPath, Dock.Bottom); root.Children.Add(selectedPath);
 
-        var targets = document.ReparentTargets(source).ToDictionary(n => n.Id);
+        var targets = document.ReparentTargets(sources).ToDictionary(n => n.Id);
         if (targets.Count == 0)
         {
             root.Children.Add(new TextBlock { Text = "移動可能な親がありません。", TextWrapping = TextWrapping.Wrap });
