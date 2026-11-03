@@ -6,7 +6,7 @@ using System.Windows.Media;
 
 namespace GridSketch;
 
-public sealed class ColorPicker : Window
+public sealed partial class ColorPicker : Window
 {
     private readonly SaturationValueBox field = new();
     private readonly Slider hue = new() { Minimum = 0, Maximum = 360, Width = 32, Height = 260, Orientation = Orientation.Vertical, IsDirectionReversed = true };
@@ -18,8 +18,9 @@ public sealed class ColorPicker : Window
     private bool updating;
     public Color SelectedColor { get; private set; }
 
-    public ColorPicker(Color initial)
+    public ColorPicker(Color initial, RecentColors? history = null)
     {
+        history ??= RecentColors.Shared;
         Title = "色を選択"; SizeToContent = SizeToContent.WidthAndHeight; ResizeMode = ResizeMode.NoResize;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         var root = new StackPanel { Margin = new Thickness(20), Width = 550 }; Content = root;
@@ -57,10 +58,11 @@ public sealed class ColorPicker : Window
         hue.ValueChanged += (_, _) => { if (!updating) { field.Hue = hue.Value; FromField(); } };
         field.Changed += FromField;
         alpha.ValueChanged += (_, _) => { if (!updating) SetColor(Color.FromArgb((byte)alpha.Value, SelectedColor.R, SelectedColor.G, SelectedColor.B), true); };
+        AddPalettes(root, history);
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
         var cancel = new Button { Content = "キャンセル", IsCancel = true, MinWidth = 100 };
         var ok = new Button { Content = "OK", IsDefault = true, MinWidth = 90 };
-        ok.Click += (_, _) => { if (error.Text.Length == 0) DialogResult = true; };
+        ok.Click += (_, _) => { if (error.Text.Length == 0) { DialogResult = true; history.Remember(SelectedColor); } };
         buttons.Children.Add(cancel); buttons.Children.Add(ok); root.Children.Add(buttons);
         SetColor(initial);
     }
