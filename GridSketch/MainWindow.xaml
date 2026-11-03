@@ -133,7 +133,7 @@
       </DockPanel>
       <TextBlock x:Name="PropertyLockNotice" TextWrapping="Wrap" Margin="0,4,0,0"/>
      </StackPanel>
-     <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel x:Name="Properties"/></ScrollViewer>
+     <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel x:Name="Properties" Margin="0,0,8,0"/></ScrollViewer>
     </DockPanel>
    </Grid>
   </Grid>

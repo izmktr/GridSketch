@@ -42,7 +42,7 @@ public partial class MainWindow
             var marker = new Border { Height = 2, Background = Brushes.DodgerBlue, VerticalAlignment = VerticalAlignment.Top,
                 IsHitTestVisible = false, Visibility = Visibility.Hidden };
             var overlay = new Grid(); overlay.Children.Add(row); overlay.Children.Add(marker);
-            var frame = new Border { Child = overlay, Tag = marker, Margin = new Thickness(8, 0, 8, 0), Background = Brushes.Transparent, AllowDrop = true };
+            var frame = new Border { Child = overlay, Tag = marker, Margin = new Thickness(8, 0, 0, 0), Background = Brushes.Transparent, AllowDrop = true };
             Properties.Children.Add(frame);
             var grip = new Button { Content = "≡", Width = 32, Height = 32, Margin = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, ToolTip = "ドラッグで並べ替え（Alt＋↑／↓でも移動）", Padding = new Thickness(2), Cursor = System.Windows.Input.Cursors.SizeAll };
             row.Children.Add(grip);
@@ -106,7 +106,7 @@ public partial class MainWindow
         }
         Button("＋ 状態を追加", () => Change(() => { RequireEditable(node); node.States.Add(new CellState { Name = $"状態 {node.States.Count + 1}" }); }));
         var addButton = (Button)Properties.Children[Properties.Children.Count - 1];
-        addButton.Margin = new Thickness(8, 3, 8, 3);
+        addButton.Margin = new Thickness(8, 3, 0, 3);
         addButton.IsEnabled = node.States.Count < 128 && document.Editable(node);
     }
     private void MoveState(SceneObject node, string id, string targetId, bool after)
@@ -117,17 +117,11 @@ public partial class MainWindow
     private void TemplateProperties(SceneObject node)
     {
         if (document.SelectionOwner(node) is not { } owner) return;
-        if (owner.UseObjectLayout) Label("固定の配置範囲を基準にマスへ配置します。グループ内の他の画像の大きさには影響されません。");
-        else Label(owner.UseCellLayout
-            ? "マス全体と余白の内側は親グリッドから引き継ぎます。位置X/Yは配置基準からのずらし量です。"
-            : "従来の配置方式です。見本全体を縮小・中央配置します。子ごとの配置設定を使うには、マス選択の配置方式を変更してください。");
-        if (node.Kind == ObjectKind.Group && !owner.UseObjectLayout) Label("グループは2つの配置領域を子へ引き継ぎます。位置・回転は子全体へ適用し、内容の大きさによる自動縮小はしません（子ごとの配置方式）。");
-        else if (node.Kind != ObjectKind.Group && !owner.UseObjectLayout)
+        if (node.Kind != ObjectKind.Group && !owner.UseObjectLayout)
         {
             Choice("配置領域", node.TemplateRegion, ["マス全体", "余白の内側"], v => node.TemplateRegion = v);
             Choice("領域への収め方", node.TemplateSizing, ["固定サイズ", "収める", "親いっぱい"], v => node.TemplateSizing = v);
             Choice("配置基準", node.TemplateAnchor, ["左上", "上", "右上", "左", "中央", "右", "左下", "下", "右下"], v => node.TemplateAnchor = v);
-            Label("固定サイズは指定寸法を維持。収めるは縦横比を保って拡大縮小。親いっぱいは縦横を領域に合わせます。領域の外は切り取ります。");
         }
         var grid = document.GridFor(owner)!;
         var previewRoot = node;

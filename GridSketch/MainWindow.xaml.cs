@@ -179,7 +179,7 @@ public partial class MainWindow : Window
         {
             VisibilityToggle.Visibility = LockToggle.Visibility = Visibility.Collapsed; PropertyLockNotice.Visibility = Visibility.Collapsed;
             Label($"{SelectedLayers().Count}個のレイヤーを選択中");
-            Label(GroupSelectionError() ?? "まとめてグループ化できます。");
+            if (GroupSelectionError() is { } error) Label(error);
             Button("グループ化", () => WrapClick(this, new RoutedEventArgs()));
             return;
         }
@@ -202,13 +202,12 @@ public partial class MainWindow : Window
             case ObjectKind.Grid:
                 Pair("列数", node.Columns, v => node.Columns = (int)v, "行数", node.Rows, v => node.Rows = (int)v, integer: true); Number("マスの大きさ（px）", node.CellSize, v => node.CellSize = v, 12, 256);
                 Pair("マス内余白・左右（px）", node.Margin, v => node.Margin = v, "マス内余白・上下（px）", node.MarginY, v => node.MarginY = v);
-                Label("外枠・内枠はマス数に追従します。縮小時は個別罫線も範囲内に収めます。文字・画像・塗りは削除しません。"); break;
+                 break;
             case ObjectKind.Border:
-                if (node.ConnectCellCenters) Label("隣り合うマスの中心を縦・横につなぎます。中心間の線をクリック・ドラッグして編集します。");
-                ColorField("色", node.Color, v => node.Color = v); Number("太さ（0～64px）", node.Thickness, v => node.Thickness = v, 0, 64); StrokeIconChoice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v); StrokeIconChoice("端・角の形", node.EffectiveBorderEndCap, ["中央まで", "四角", "丸"], v => node.BorderEndCap = v, caps: true); Label("四角：端を線幅の半分延長して接続します。丸：線幅を直径とする丸い端にします。"); Label($"対象：{node.Pattern}。辺のクリックで個別編集になります。"); break;
+                ColorField("色", node.Color, v => node.Color = v); Number("太さ（0～64px）", node.Thickness, v => node.Thickness = v, 0, 64); StrokeIconChoice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v); StrokeIconChoice("端・角の形", node.EffectiveBorderEndCap, ["中央まで", "四角", "丸"], v => node.BorderEndCap = v, caps: true); Label($"対象：{node.Pattern}"); break;
             case ObjectKind.Fill:
                 Choice("塗る範囲", node.UseCellMargin ? "余白の内側" : "マス全体", ["マス全体", "余白の内側"], v => node.UseCellMargin = v == "余白の内側");
-                ColorField("塗り色", node.Color, v => node.Color = v); Check("この塗りのマスを文字入力から除外", node.BlockInput, v => node.BlockInput = v); Label("非表示でも入力除外を維持します。編集モードでマスをクリックして塗りを切り替えます。"); break;
+                ColorField("塗り色", node.Color, v => node.Color = v); Check("この塗りのマスを文字入力から除外", node.BlockInput, v => node.BlockInput = v);  break;
             case ObjectKind.GridText:
             case ObjectKind.Text:
                 FontField(node);
@@ -219,7 +218,6 @@ public partial class MainWindow : Window
                 Check("縁取りを有効にする", node.Style.OutlineEnabled, v => node.Style.OutlineEnabled = v);
                 ColorField("縁の色・不透明度", node.Style.OutlineColor, v => node.Style.OutlineColor = v);
                 Number("縁の太さ（外側 / 0～64px）", node.Style.OutlineWidth, v => node.Style.OutlineWidth = v, 0, 64);
-                if (node.Kind == ObjectKind.GridText) Label("すべての文字に適用します。縁も含めてマスに収まるように縮小します。");
                 break;
             case ObjectKind.CellFrame:
                 ColorField("枠の色", node.Color, v => node.Color = v); Number("枠の太さ（0～64px）", node.Thickness, v => node.Thickness = v, 0, 64);
@@ -229,7 +227,7 @@ public partial class MainWindow : Window
                     if (v == "指定マス" && node.FrameAllCells) document.SetFrameCells(node, [], true);
                     else if (v == "全マス") { node.FrameAllCells = true; node.FrameCells.Clear(); }
                 });
-                Label("マスをクリックして枠を切り替えます。余白は親グリッドで設定し、線の太さも余白の内側に収めます。"); break;
+                 break;
             case ObjectKind.Image:
                 if (document.Parent(node)?.Kind == ObjectKind.Grid) Check("マス中央に配置", node.SnapToCell, v => { node.SnapToCell = v; if (v) node.X = node.Y = node.Angle = 0; });
                 if (node.SnapToCell) { Pair("列（1から）", node.Column + 1, v => node.Column = (int)v - 1, "行（1から）", node.Row + 1, v => node.Row = (int)v - 1, integer: true); }
@@ -254,10 +252,9 @@ public partial class MainWindow : Window
         }
         if (node.Kind == ObjectKind.CellSelection) Button("選択範囲を空にする", () => Change(() => { RequireEditable(node); var cells = CellRange(node).ToHashSet(); node.StateCells.RemoveAll(c => cells.Contains(new(c.Column, c.Row))); }));
         if (node.Kind == ObjectKind.Image) Button("画像を読み込み / 置換…", () => ReplaceImage(node));
-        if (node.Kind == ObjectKind.Line && document.GridFor(node) is not null) Label("編集モード：クリックで始点、Shift+クリックで終点をマス中央へ配置します。");
         if (node != document.Canvas)
         {
-            Label("親の変更（見た目の位置・回転を維持）");
+            Label("親の変更");
             var candidates = document.All().Where(n => n.IsContainer && n != node && !Descendants(node).Contains(n)).ToList();
             var parents = new ComboBox { ItemsSource = candidates, DisplayMemberPath = "Name", SelectedItem = document.Parent(node) }; Properties.Children.Add(parents);
             Button("選択した親へ移動", () => Change(() => { if (parents.SelectedItem is SceneObject parent) document.Reparent(node, parent); }));
@@ -273,7 +270,7 @@ public partial class MainWindow : Window
     }
     private void BorderTools(SceneObject node)
     {
-        Label("辺の一括設定（未選択なら全体 / Shift+クリックで範囲）");
+        Label("辺の一括設定");
         var preview = new Canvas { Width = 190, Height = 145, Margin = new Thickness(0, 8, 0, 8) };
         var labels = new[] { "上辺", "左辺", "内側の縦", "右辺", "内側の横", "下辺" };
         var positions = new[] { new Rect(20, 10, 140, 14), new Rect(10, 24, 14, 96), new Rect(83, 24, 14, 96), new Rect(156, 24, 14, 96), new Rect(24, 65, 132, 14), new Rect(20, 120, 140, 14) };
@@ -289,7 +286,7 @@ public partial class MainWindow : Window
         {
             var b = new Button { Content = name }; b.Click += (_, _) => Change(() => { RequireEditable(node); node.Pattern = name == "なし" ? "個別" : name; node.Edges.Clear(); }); presets.Children.Add(b);
         }
-        Properties.Children.Add(presets); Label("プリセットは全体を置換し、マス数に追従します。下の操作は指定範囲へ適用します。");
+        Properties.Children.Add(presets);
         void Apply(bool remove) => Change(() =>
         {
             RequireEditable(node); var grid = document.GridFor(node)!; var cells = CellRange(node).ToList();
@@ -312,7 +309,7 @@ public partial class MainWindow : Window
     }
     private void TextTools(SceneObject node)
     {
-        Label("文字列を一括入力（編集モードで開始マスをクリック）");
+        Label("文字列を一括入力");
         var entry = new TextBox(); Properties.Children.Add(entry);
         var orientation = new ComboBox { ItemsSource = new[] { "横（右へ）", "縦（下へ）" }, SelectedIndex = 0 }; Properties.Children.Add(orientation);
         List<Glyph> Plan()

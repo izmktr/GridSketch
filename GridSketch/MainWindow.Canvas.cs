@@ -41,7 +41,6 @@ public partial class MainWindow
         fixedPanel.Children.Add(new TextBlock { Text = "出力範囲の左上（編集座標 / px）" });
         NumericPair(fixedPanel, "X", canvas.AutoSize ? currentBounds.X : canvas.X, "Y", canvas.AutoSize ? currentBounds.Y : canvas.Y, out var x, out var y);
         var dpi = Field("解像度（dpi）", canvas.Dpi);
-        LabelHere("px指定・自動サイズではdpiは用紙サイズの換算に使います。mm指定ではdpiに応じてPNGの画素数が変わります。オブジェクトは移動・拡大縮小しません。");
         LabelHere("背景色"); panel.Children.Add(ColorEditor(canvas.Background, out var background));
         var estimate = new TextBlock { TextWrapping = TextWrapping.Wrap }; panel.Children.Add(estimate);
         bool changingPreset = false; string previousUnit = canvas.CanvasUnit;
@@ -50,11 +49,12 @@ public partial class MainWindow
         {
             automaticPanel.Visibility = mode.SelectedIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
             fixedPanel.Visibility = mode.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
-            if (mode.SelectedIndex == 0) { estimate.Text = "内容と余白に合わせて出力範囲を自動更新します。"; return; }
+            if (mode.SelectedIndex == 0) { estimate.Text = ""; estimate.Visibility = Visibility.Collapsed; return; }
+            estimate.Visibility = Visibility.Visible;
             if (Parse(width, out var w) && Parse(height, out var h) && Parse(dpi, out var d) && w > 0 && h > 0 && d > 0)
             {
                 bool mm = unit.SelectedIndex == 1;
-                estimate.Text = $"PNG：{(mm ? Math.Max(1, Math.Round(w * d / 25.4)) : Math.Ceiling(w)):0} × {(mm ? Math.Max(1, Math.Round(h * d / 25.4)) : Math.Ceiling(h)):0} px\n用紙：{(mm ? w : w * 25.4 / d):0.##} × {(mm ? h : h * 25.4 / d):0.##} mm\n枠外の内容は保持し、出力時に切り取ります。";
+                estimate.Text = $"PNG：{(mm ? Math.Max(1, Math.Round(w * d / 25.4)) : Math.Ceiling(w)):0} × {(mm ? Math.Max(1, Math.Round(h * d / 25.4)) : Math.Ceiling(h)):0} px\n用紙：{(mm ? w : w * 25.4 / d):0.##} × {(mm ? h : h * 25.4 / d):0.##} mm";
             }
             else estimate.Text = "幅・高さ・解像度を確認してください。";
         }
