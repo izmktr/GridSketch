@@ -91,7 +91,8 @@ public partial class MainWindow
                 string name = tab.Owner is not null ? "部品：" + tab.Name : file is null ? "無題" : System.IO.Path.GetFileName(file);
                 var header = new StackPanel { Orientation = Orientation.Horizontal };
                 header.Children.Add(new TextBlock { Text = (dirty ? "* " : "") + name, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 8, 0) });
-                var close = new Button { Content = "×", Padding = new Thickness(5, 0, 5, 0), Margin = new Thickness(0), ToolTip = "タブを閉じる" };
+                var close = new Button { Content = "×", Style = (Style)FindResource("TabCloseButtonStyle"), ToolTip = "タブを閉じる" };
+                System.Windows.Automation.AutomationProperties.SetName(close, name + " のタブを閉じる");
                 close.Click += (_, e) => { e.Handled = true; Try(() => CloseEditorTab(tab)); };
                 header.Children.Add(close);
                 var item = new TabItem { Header = header, Tag = tab, ToolTip = file ?? name };
