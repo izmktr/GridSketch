@@ -134,6 +134,7 @@ internal static class Program
             GroupLayoutChecks.Run(window, Path.GetDirectoryName(temp)!);
             MultiSelectionChecks.Run(window);
             PropertyHelpChecks.Run(window);
+            ReparentDialogChecks.Run(window, Path.GetDirectoryName(temp)!);
             TabChecks.Run(window, Path.GetDirectoryName(temp)!);
             window.Close(); app.Shutdown();
             Console.WriteLine("All checks passed.");

@@ -20,9 +20,9 @@ public sealed partial class ColorPicker
     private void AddPalettes(StackPanel root, RecentColors history)
     {
         var heading = new DockPanel { Margin = new Thickness(0, 10, 0, 6) };
-        var transparent = new Button { Content = "透明", Padding = new Thickness(12, 2, 12, 2), Margin = new Thickness(0), MinHeight = 28 };
-        System.Windows.Automation.AutomationProperties.SetName(transparent, "透明");
-        transparent.Click += (_, _) => SetColor(Color.FromArgb(0, 0, 0, 0));
+        var transparent = PaletteButton(Color.FromArgb(0, 0, 0, 0), "透明");
+        transparent.Width = root.Width / 8 - transparent.Margin.Left - transparent.Margin.Right;
+        transparent.ToolTip = "透明（不透明度0%）";
         DockPanel.SetDock(transparent, Dock.Right); heading.Children.Add(transparent);
         heading.Children.Add(new TextBlock { Text = "プリセット", FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
         root.Children.Add(heading);
