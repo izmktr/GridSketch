@@ -89,7 +89,6 @@ public sealed class SceneObject
     public HashSet<GridEdge> Edges { get; set; } = [];
     public List<Glyph> Glyphs { get; set; } = [];
     public HashSet<CellPosition> FilledCells { get; set; } = [];
-    public bool BlockInput { get; set; } = true;
     public string Font { get; set; } = "Yu Gothic";
     public double FontSize { get; set; } = 28;
     public string Text { get; set; } = "テキスト";
@@ -192,9 +191,9 @@ public sealed partial class SceneDocument
         if (preset == "独立マス")
         {
             grid.Children = [
-                new() { Kind = ObjectKind.GridText, Name = "グリッド文字", UseCellMargin = true },
+                new() { Kind = ObjectKind.GridText, Name = "グリッド文字" },
                 new() { Kind = ObjectKind.CellFrame, Name = "マス枠", Color = "#000000", Thickness = 1 },
-                new() { Kind = ObjectKind.Fill, Name = "セル塗り", Color = "#FFF2A8", UseCellMargin = true, BlockInput = false }
+                new() { Kind = ObjectKind.Fill, Name = "セル塗り", Color = "#FFF2A8", UseCellMargin = true }
             ];
             return grid;
         }
@@ -202,7 +201,7 @@ public sealed partial class SceneDocument
             new() { Kind = ObjectKind.Border, Name = "外枠罫線", Pattern = "外枠", Thickness = 2 },
             new() { Kind = ObjectKind.Border, Name = "内枠罫線", Pattern = "内側", Thickness = 1, Color = preset == "基本の方眼紙" ? "#AAB8C5" : "#162A40" },
             new() { Kind = ObjectKind.GridText, Name = preset == "将棋盤" ? "駒の文字" : "グリッド文字" },
-            new() { Kind = ObjectKind.Fill, Name = preset == "クロスワード" ? "黒マス" : "セル塗り", Color = "#000000", BlockInput = preset == "クロスワード" }
+            new() { Kind = ObjectKind.Fill, Name = preset == "クロスワード" ? "黒マス" : "セル塗り", Color = "#000000" }
         ];
         return grid;
     }
@@ -296,8 +295,6 @@ public sealed partial class SceneDocument
         while (elements.MoveNext())
         {
             if (column < 0 || row < 0 || column >= grid.Columns || row >= grid.Rows) throw new InvalidOperationException("文字列がグリッドの範囲を超えます。");
-            if (GridMembers(grid).Any(n => n.Kind == ObjectKind.Fill && n.BlockInput && n.FilledCells.Contains(new(column, row))))
-                throw new InvalidOperationException($"{column + 1}列・{row + 1}行は黒マスです。");
             result.Add(new Glyph { Column = column, Row = row, Text = elements.GetTextElement() });
             if (vertical) row++; else column++;
         }

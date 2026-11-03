@@ -43,14 +43,13 @@ public partial class MainWindow
     }
 
     private bool OpenTextCell(SceneObject grid, CellPosition cell) => cell.Column >= 0 && cell.Row >= 0
-        && cell.Column < grid.Columns && cell.Row < grid.Rows
-        && !SceneDocument.GridMembers(grid).Any(n => n.Kind == ObjectKind.Fill && n.BlockInput && n.FilledCells.Contains(cell));
+        && cell.Column < grid.Columns && cell.Row < grid.Rows;
 
     // Validate the whole IME commit before making a single undoable change.
     private void CommitGridInput(string input)
     {
         if (!CanTypeInGrid || string.IsNullOrEmpty(input)) return;
-        if (gridInputStopped) throw new InvalidOperationException("端または黒マスの手前で停止しています。次の入力先を選択してください。");
+        if (gridInputStopped) throw new InvalidOperationException("グリッドの端で停止しています。次の入力先を選択してください。");
         var node = Selected; var cell = Surface.ActiveCell!.Value;
         if (Surface.TextInCell)
         {
@@ -81,7 +80,7 @@ public partial class MainWindow
         gridInputStopped = !canAdvance;
         Surface.ActiveCell = canAdvance ? next : new CellPosition(last.Column, last.Row);
         Surface.InvalidateVisual();
-        if (!canAdvance) Status.Text = "端または黒マスの手前で停止しました。次の入力先を選択してください。";
+        if (!canAdvance) Status.Text = "グリッドの端で停止しました。次の入力先を選択してください。";
     }
 
     private void GridInputText(object sender, TextCompositionEventArgs e)

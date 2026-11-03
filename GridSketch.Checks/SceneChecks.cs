@@ -51,8 +51,8 @@ internal static class SceneChecks
         Check(text.Glyphs.Count == 3 && text.Glyphs[2].Column == 2 && grid.Children.Count == 4, "Text input remains one layer");
         Check(scene.PlanText(text, 3, 0, "天地", true)[1].Row == 1, "Vertical bulk text placement");
         fill.FilledCells.Add(new(3, 1)); fill.Visible = false;
-        bool rejected = false; try { scene.PlanText(text, 3, 0, "天地", true); } catch (InvalidOperationException) { rejected = true; }
-        Check(rejected && text.Glyphs.Count == 3, "Black cells block text atomically even when hidden");
+        Check(scene.PlanText(text, 3, 0, "天地", true).Count == 2, "Filled cells accept text even when hidden");
+        bool rejected;
         rejected = false; try { scene.PlanText(text, 4, 0, "二字", false); } catch (InvalidOperationException) { rejected = true; }
         Check(rejected, "Out-of-bounds bulk placement rejected");
         Check(scene.PlanText(text, 0, 1, "か\u3099", false).Count == 1, "Combining character treated as one grid glyph");

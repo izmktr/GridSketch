@@ -99,7 +99,7 @@ public sealed class SceneRenderer
                 case ObjectKind.GridText when grid is not null:
                     foreach (var glyph in node.Glyphs)
                     {
-                        var box = SceneDocument.CellRect(grid, new(glyph.Column, glyph.Row), node.UseCellMargin);
+                        var box = SceneDocument.CellRect(grid, new(glyph.Column, glyph.Row), false);
                         if (!glyph.InCellText) dc.PushClip(new RectangleGeometry(box));
                         var text = StyledText(node, glyph.Text, glyph.Font ?? node.Font, glyph.Size ?? node.FontSize);
                         var bounds = text.Bounds;

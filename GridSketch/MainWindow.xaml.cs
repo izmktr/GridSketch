@@ -207,11 +207,10 @@ public partial class MainWindow : Window
                 ColorField("色", node.Color, v => node.Color = v); Number("太さ（0～64px）", node.Thickness, v => node.Thickness = v, 0, 64); StrokeIconChoice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v); StrokeIconChoice("端・角の形", node.EffectiveBorderEndCap, ["中央まで", "四角", "丸"], v => node.BorderEndCap = v, caps: true); Label($"対象：{node.Pattern}"); break;
             case ObjectKind.Fill:
                 Choice("塗る範囲", node.UseCellMargin ? "余白の内側" : "マス全体", ["マス全体", "余白の内側"], v => node.UseCellMargin = v == "余白の内側");
-                ColorField("塗り色", node.Color, v => node.Color = v); Check("この塗りのマスを文字入力から除外", node.BlockInput, v => node.BlockInput = v);  break;
+                ColorField("塗り色", node.Color, v => node.Color = v);  break;
             case ObjectKind.GridText:
             case ObjectKind.Text:
                 FontField(node);
-                if (node.Kind == ObjectKind.GridText) Choice("配置領域", node.UseCellMargin ? "余白の内側" : "マス全体", ["マス全体", "余白の内側"], v => node.UseCellMargin = v == "余白の内側");
                 Number("文字サイズ（px）", node.FontSize, v => node.FontSize = v, 1, 512); ColorField("文字色", node.Color, v => node.Color = v);
                 if (node.Kind == ObjectKind.GridText) Choice("配置", node.Alignment, ["中央", "左上"], v => node.Alignment = v); else TextField("文章", node.Text, v => node.Text = v, true);
                 Label("レイヤースタイル ― 縁取り");
@@ -307,22 +306,6 @@ public partial class MainWindow : Window
     }
     private void TextTools(SceneObject node)
     {
-        Label("文字列を一括入力");
-        var entry = new TextBox(); Properties.Children.Add(entry);
-        var orientation = new ComboBox { ItemsSource = new[] { "横（右へ）", "縦（下へ）" }, SelectedIndex = 0 }; Properties.Children.Add(orientation);
-        List<Glyph> Plan()
-        {
-            var cell = Surface.ActiveCell ?? throw new InvalidOperationException("開始マスをクリックしてください。");
-            return document.PlanText(node, cell.Column, cell.Row, entry.Text, orientation.SelectedIndex == 1);
-        }
-        Button("配置をプレビュー", () => { Surface.Preview = Plan(); Surface.InvalidateVisual(); });
-        Button("文字を配置", () =>
-        {
-            RequireEditable(node); var plan = Plan(); var conflicts = plan.Count(p => node.Glyphs.Any(g => g.Column == p.Column && g.Row == p.Row && g.Text != p.Text));
-            if (conflicts > 0 && MessageBox.Show(this, $"{conflicts}マスの文字を上書きしますか？", "文字の上書き", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
-            Change(() => { foreach (var p in plan) { var old = node.Glyphs.Find(g => g.Column == p.Column && g.Row == p.Row); if (old is null) node.Glyphs.Add(p); else if (old.Text != p.Text) { old.Text = p.Text; old.Font = null; old.Size = null; } } });
-        });
-        Button("選択範囲の文字を削除", () => Change(() => { RequireEditable(node); var cells = CellRange(node).ToHashSet(); node.Glyphs.RemoveAll(g => cells.Contains(new(g.Column, g.Row))); }));
         Button("個別書式を共通フォント・サイズへ統一", () => Change(() => { RequireEditable(node); foreach (var g in node.Glyphs) { g.Font = null; g.Size = null; } }));
     }
     private SceneObject AddParent(bool gridRequired)

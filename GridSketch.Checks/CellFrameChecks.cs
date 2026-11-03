@@ -13,7 +13,7 @@ internal static class CellFrameChecks
         var grid = SceneDocument.CreateGrid("独立マス", 2, 1, 40); grid.Margin = 3; grid.MarginY = 7; scene.Canvas.Children.Add(grid);
         if (!grid.Children.Select(n => n.Kind).SequenceEqual(new[] { ObjectKind.GridText, ObjectKind.CellFrame, ObjectKind.Fill })) throw new Exception("Independent preset order failed");
         var frame = grid.Children[1]; var fill = grid.Children[2]; frame.Thickness = 4; fill.Color = "#FF0000"; fill.FilledCells.Add(new(0, 0));
-        if (!fill.UseCellMargin || fill.BlockInput || !grid.Children[0].UseCellMargin) throw new Exception("Independent defaults failed");
+        if (!fill.UseCellMargin || grid.Children[0].UseCellMargin) throw new Exception("Independent defaults failed");
         scene.Canvas.AutoSize = false; scene.Canvas.Width = 80; scene.Canvas.Height = 40;
         var bitmap = new SceneRenderer(scene).Export(); var pixels = new byte[80 * 40 * 4]; bitmap.CopyPixels(pixels, 80 * 4, 0);
         for (int y = 0; y < 40; y++) for (int x = 0; x < 80; x++)

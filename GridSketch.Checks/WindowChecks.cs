@@ -96,11 +96,10 @@ internal static class WindowChecks
         var typingUndone = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;
         if (typingUndone.Snapshot() != beforeRejectedInput) throw new Exception("Commit undo failed");
         typingGrid = typingUndone.Canvas.Children[0]; textLayer = typingUndone.Find(textLayer.Id)!;
-        typingGrid.Children.Add(new SceneObject { Kind = ObjectKind.Fill, BlockInput = true, FilledCells = [new CellPosition(1, 1)] });
-        Call("SelectTextCell", new CellPosition(0, 1)); var beforeBlack = typingUndone.Snapshot();
-        try { Call("CommitGridInput", "AB"); throw new Exception("Black cell accepted input"); }
-        catch (TargetInvocationException ex) when (ex.InnerException is InvalidOperationException) { }
-        if (typingUndone.Snapshot() != beforeBlack) throw new Exception("Black cell rejection partially applied");
+        typingGrid.Children.Add(new SceneObject { Kind = ObjectKind.Fill, FilledCells = [new CellPosition(1, 1)] });
+        Call("SelectTextCell", new CellPosition(0, 1)); Call("CommitGridInput", "AB");
+        if (textLayer.Glyphs.Single(g => g.Column == 1 && g.Row == 1).Text != "B" || surface.ActiveCell != new CellPosition(2, 1))
+            throw new Exception("Filled cells must accept input and allow advancing");
         Call("SelectTextCell", new CellPosition(0, 0)); Call("EditGridKey", System.Windows.Input.Key.Delete);
         if (surface.ActiveCell != new CellPosition(0, 0) || textLayer.Glyphs.Any(g => g.Column == 0 && g.Row == 0)) throw new Exception("Delete moved cursor or retained text");
         Call("SelectTextCell", new CellPosition(0, 0)); Call("EditGridKey", System.Windows.Input.Key.Right);
