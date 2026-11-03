@@ -149,9 +149,38 @@ public sealed class SceneRenderer
                         if (node.PathKind == "曲線") context.QuadraticBezierTo(control, end, true, false);
                         else { if (node.PathKind == "折れ線") context.LineTo(control, true, false); context.LineTo(end, true, false); }
                     }
-                    dc.DrawGeometry(null, pen, geometry);
-                    Arrow(dc, node, start, node.PathKind == "直線" ? start - end : start - control, node.StartArrow);
-                    Arrow(dc, node, end, node.PathKind == "直線" ? end - start : end - control, node.EndArrow);
+                    // Cut the stroked shaft at the base of each filled arrowhead, including
+                    // square caps and dash caps. Union the head so translucent colors do not overlap.
+                    Geometry shaft = pen is null ? Geometry.Empty : geometry.GetWidenedPathGeometry(pen, 0.02, ToleranceType.Absolute);
+                    var startDirection = node.PathKind == "直線" ? start - end : start - control;
+                    var endDirection = node.PathKind == "直線" ? end - start : end - control;
+                    if (startDirection.Length < 0.001) startDirection = start - end;
+                    if (endDirection.Length < 0.001) endDirection = end - start;
+                    var heads = new List<Geometry>();
+                    void TrimHead(Point tip, Vector direction, string type)
+                    {
+                        if (type != "三角" || direction.Length < 0.001) return;
+                        direction.Normalize();
+                        var normal = new Vector(-direction.Y, direction.X);
+                        var basis = tip - direction * node.ArrowSize;
+                        // Restrict removal to the arrowhead's neighborhood so a bent path
+                        // elsewhere beyond the endpoint plane remains intact.
+                        double reach = node.ArrowSize + node.Thickness + 1;
+                        var cut = Polygon(basis + normal * reach, basis - normal * reach,
+                            tip + direction * reach - normal * reach, tip + direction * reach + normal * reach);
+                        shaft = Geometry.Combine(shaft, cut, GeometryCombineMode.Exclude, null, 0.02, ToleranceType.Absolute);
+                        heads.Add(Polygon(tip, basis + normal * node.ArrowSize * 0.45, basis - normal * node.ArrowSize * 0.45));
+                    }
+                    TrimHead(start, startDirection, node.StartArrow);
+                    TrimHead(end, endDirection, node.EndArrow);
+                    if (heads.Count == 0) dc.DrawGeometry(null, pen, geometry);
+                    else
+                    {
+                        foreach (var head in heads) shaft = Geometry.Combine(shaft, head, GeometryCombineMode.Union, null, 0.02, ToleranceType.Absolute);
+                        dc.DrawGeometry(Brush(node.Color), null, shaft);
+                    }
+                    if (node.StartArrow == "開いた矢印") Arrow(dc, node, start, startDirection, node.StartArrow);
+                    if (node.EndArrow == "開いた矢印") Arrow(dc, node, end, endDirection, node.EndArrow);
                     break;
             }
         }
@@ -255,6 +284,14 @@ public sealed class SceneRenderer
         }
         dc.DrawGeometry(Brush(node.Color), null, geometry);
         return drawing;
+    }
+    private static StreamGeometry Polygon(params Point[] points)
+    {
+        var geometry = new StreamGeometry();
+        using var context = geometry.Open();
+        context.BeginFigure(points[0], true, true);
+        foreach (var point in points.Skip(1)) context.LineTo(point, true, false);
+        return geometry;
     }
     private static void Arrow(DrawingContext dc, SceneObject node, Point tip, Vector direction, string type)
     {

@@ -13,6 +13,21 @@ internal static class SceneChecks
     }
     public static void Run(string directory)
     {
+        foreach (string pathKind in new[] { "直線", "曲線", "折れ線" })
+        foreach (string lineStyle in new[] { "実線", "破線", "点線" })
+        {
+            var arrows = new SceneDocument();
+            arrows.Canvas.AutoSize = false; arrows.Canvas.Width = 240; arrows.Canvas.Height = 160;
+            var arrow = new SceneObject { Kind = ObjectKind.Line, X = 40, Y = 80, EndX = 160, EndY = 0,
+                ControlX = 80, ControlY = pathKind == "直線" ? 0 : -40, PathKind = pathKind,
+                StartArrow = "三角", EndArrow = "三角", ArrowSize = 24, Thickness = 16, Color = "#000000", LineStyle = lineStyle };
+            arrows.Canvas.Children.Add(arrow);
+            var rendered = new SceneRenderer(arrows).Export();
+            Check(Pixel(rendered, 202, 80).R == 255 && Pixel(rendered, 37, 80).R == 255,
+                $"{pathKind}/{lineStyle}: shaft does not protrude beyond either triangle tip");
+            Check(Pixel(rendered, 187, 76).R < 30 && Pixel(rendered, 52, 76).R < 30,
+                $"{pathKind}/{lineStyle}: both filled arrowheads remain visible");
+        }
         var scene = new SceneDocument(); var grid = SceneDocument.CreateGrid("クロスワード", 5, 4, 48); scene.Canvas.Children.Add(grid);
         var resizeScene = SceneDocument.Migrate(new Document());
         var resizeGrid = resizeScene.Canvas.Children[0];
