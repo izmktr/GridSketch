@@ -14,16 +14,18 @@ public partial class MainWindow
     private bool updatingProperty;
     private bool propertyComposing;
     private bool propertyDragging;
+    private string? propertyMergeKey;
 
     private void CommitPropertyEdit()
     {
         if (updatingProperty) return;
         var before = propertyBefore;
+        var mergeKey = propertyMergeKey; propertyMergeKey = null;
         propertyBefore = null; propertyEditor = null;
         var reset = resetPropertyEditor; resetPropertyEditor = null;
         updatingProperty = true;
         try { reset?.Invoke(); } finally { updatingProperty = false; }
-        if (before is not null && before != document.Snapshot()) RememberUndo(before);
+        if (before is not null && before != document.Snapshot()) RecordUndo(before, mergeKey);
     }
 
     private void RestorePropertySnapshot(string snapshot)
@@ -42,7 +44,13 @@ public partial class MainWindow
     private void PreviewProperty(FrameworkElement editor, Action setter, Action? reset = null)
     {
         if (updatingProperty || propertyComposing) return;
-        if (propertyEditor != editor) { CommitPropertyEdit(); propertyEditor = editor; propertyBefore = document.Snapshot(); }
+        if (propertyEditor != editor)
+        {
+            CommitPropertyEdit(); propertyEditor = editor; propertyBefore = document.Snapshot();
+            var name = System.Windows.Automation.AutomationProperties.GetName(editor);
+            propertyMergeKey = "property:" + Selected.Id + ":" + (string.IsNullOrEmpty(name)
+                ? System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(editor).ToString() : name);
+        }
         resetPropertyEditor = reset;
         var before = document.Snapshot(); var node = Selected;
         updatingProperty = true;

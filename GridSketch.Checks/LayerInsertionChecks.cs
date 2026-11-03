@@ -46,7 +46,7 @@ internal static class LayerInsertionChecks
         group.LayerExpanded = false; Add(group, ObjectKind.Text);
         Check(grid.Children[3].Kind == ObjectKind.Text && group.Children.Count == 1 && !group.LayerExpanded, "Closed group must receive a sibling");
         group.LayerExpanded = true; var oldChild = group.Children[0]; Add(group, ObjectKind.Shape);
-        Check(group.Children.Count == 2 && group.Children[1] == oldChild, "Open group must receive first child");
+        Check(group.Children.Count == 2 && group.Children[0] == oldChild && group.Children[1].Kind == ObjectKind.Shape, "Open group must append the new child below existing children");
         var empty = new SceneObject { Kind = ObjectKind.Group, LayerExpanded = false }; grid.Children.Add(empty);
         Add(empty, ObjectKind.Text);
         Check(empty.Children.Count == 1 && empty.LayerExpanded, "Empty group must receive a visible child regardless of stored expansion");
@@ -56,7 +56,7 @@ internal static class LayerInsertionChecks
         try { Call("AddPlacement", true); throw new Exception("Invalid grid-only sibling accepted"); }
         catch (TargetInvocationException e) when (e.InnerException is InvalidOperationException) { }
         scene.Canvas.LayerExpanded = false; Add(scene.Canvas, ObjectKind.Group);
-        Check(scene.Canvas.Children[0].Kind == ObjectKind.Group && scene.Canvas.LayerExpanded, "Root must always receive a child");
+        Check(scene.Canvas.Children[^1].Kind == ObjectKind.Group && scene.Canvas.Children[0] == grid && scene.Canvas.LayerExpanded, "Root must append the new child below existing children");
         Call("Undo");
         var restored = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;
         Check(restored.Canvas.Children[0].Id == grid.Id && !restored.Canvas.LayerExpanded, "Undo restores order and expansion");

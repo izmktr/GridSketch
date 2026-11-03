@@ -48,9 +48,7 @@ public partial class MainWindow : Window
     }
     private void RememberUndo(string state)
     {
-        undo.Push(state);
-        if (undo.Count > 30) { var keep = undo.Take(30).Reverse().ToList(); undo.Clear(); foreach (var item in keep) undo.Push(item); }
-        redo.Clear();
+        RecordUndo(state, null);
     }
     private void Change(Action action) => Try(() =>
     {
@@ -61,8 +59,8 @@ public partial class MainWindow : Window
         if (document.Snapshot() != before) RememberUndo(before);
         Surface.Preview = []; Surface.HoveredEdge = null; RefreshAll(); Status.Text = "変更しました。Ctrl+Sで保存できます。";
     });
-    private void Undo() { CommitPropertyEdit(); if (undo.Count == 0) return; redo.Push(document.Snapshot()); document = SceneDocument.Restore(undo.Pop()); RefreshAll(); }
-    private void Redo() { CommitPropertyEdit(); if (redo.Count == 0) return; undo.Push(document.Snapshot()); document = SceneDocument.Restore(redo.Pop()); RefreshAll(); }
+    private void Undo() { CommitPropertyEdit(); BreakUndoMerge(); if (undo.Count == 0) return; redo.Push(document.Snapshot()); document = SceneDocument.Restore(undo.Pop()); RefreshAll(); }
+    private void Redo() { CommitPropertyEdit(); BreakUndoMerge(); if (redo.Count == 0) return; undo.Push(document.Snapshot()); document = SceneDocument.Restore(redo.Pop()); RefreshAll(); }
     private void RefreshAll()
     {
         CommitPropertyEdit(); refreshing = true; SyncLayerSelection();
@@ -84,6 +82,7 @@ public partial class MainWindow : Window
     private void LayerSelected(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
         if (refreshing || selectingLayers || e.NewValue is not TreeViewItem item) return;
+        if (!Equals(item.Tag, selectedId)) { CommitPropertyEdit(); BreakUndoMerge(); }
         layerSelection.Clear(); layerSelection.Add((string)item.Tag); layerAnchor = (string)item.Tag; PaintLayerSelection();
         selectedId = (string)item.Tag; Surface.Selected = Selected; Surface.ActiveCell = null; Surface.RangeEnd = null; Surface.Preview = []; Surface.HoveredEdge = null; Surface.InvalidateVisual(); BuildProperties();
     }
@@ -322,7 +321,7 @@ public partial class MainWindow : Window
         var parent = asChild ? selected : document.Parent(selected)!;
         if (gridRequired && document.GridContainer(parent) is null)
             throw new InvalidOperationException("このオブジェクトはグリッドの子として追加します。グリッドを開いて選択するか、グリッド直下のレイヤーを選択してください。");
-        return (parent, asChild ? 0 : parent.Children.IndexOf(selected) + 1);
+        return (parent, asChild ? parent.Children.Count : parent.Children.IndexOf(selected) + 1);
     }
     private void InsertAddedObject(SceneObject parent, int index, SceneObject node)
     {
@@ -503,8 +502,9 @@ public partial class MainWindow : Window
     }
     private void FinishDrag()
     {
+        string? mergeKey = dragStart is not null ? "move:" + Selected.Id : null;
         if (dragStart is null && paintStroke is null) return; dragStart = null; paintStroke = null; paintGrid = null;
-        if (dragSnapshot is { } snapshot) { try { document.Validate(); if (snapshot != document.Snapshot()) RememberUndo(snapshot); } catch { document = SceneDocument.Restore(snapshot); } }
+        if (dragSnapshot is { } snapshot) { try { document.Validate(); if (snapshot != document.Snapshot()) RecordUndo(snapshot, mergeKey); } catch { document = SceneDocument.Restore(snapshot); BreakUndoMerge(); } }
         dragSnapshot = null; RefreshAll();
     }
     private void SurfaceUp(object sender, MouseButtonEventArgs e) { if (paintStroke is not null) paintStroke.Move(Surface.ToLocal(paintGrid!, e.GetPosition(Surface))); FinishDrag(); Surface.ReleaseMouseCapture(); }

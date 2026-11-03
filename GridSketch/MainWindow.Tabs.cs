@@ -57,6 +57,7 @@ public partial class MainWindow
         clearingGridInput = true; GridInput.Clear(); clearingGridInput = false;
         Keyboard.ClearFocus(); GridInput.Visibility = Visibility.Collapsed;
         CaptureTab(); activeTab = tab;
+        BreakUndoMerge();
         document = tab.Document; path = tab.Path; savedState = tab.Saved; selectedId = tab.SelectedId;
         undo.Clear(); foreach (var state in tab.Undo) undo.Push(state);
         redo.Clear(); foreach (var state in tab.Redo) redo.Push(state);

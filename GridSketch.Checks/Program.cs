@@ -111,6 +111,7 @@ internal static class Program
             Check(window.IsVisible && window.ActualWidth > 0, "WPF window initialization and layout");
             WindowChecks.Run(window, Path.GetDirectoryName(temp)!);
             LivePropertyChecks.Run(window);
+            UndoMergeChecks.Run(window);
             CanvasChecks.Run(window, Path.GetDirectoryName(temp)!);
             PropertyChecks.Run(window, Path.GetDirectoryName(temp)!);
             ColorPickerChecks.Run(window, Path.GetDirectoryName(temp)!);

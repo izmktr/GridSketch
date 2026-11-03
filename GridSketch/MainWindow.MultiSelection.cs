@@ -34,6 +34,7 @@ public partial class MainWindow
     private void ChooseLayer(TreeViewItem item, bool control, bool shift, bool right = false)
     {
         var id = (string)item.Tag;
+        if (id != selectedId) { CommitPropertyEdit(); BreakUndoMerge(); }
         SyncLayerSelection();
         if (right && layerSelection.Contains(id)) { control = shift = false; }
         else if (shift && layerAnchor is not null)
