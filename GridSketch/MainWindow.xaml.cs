@@ -254,10 +254,8 @@ public partial class MainWindow : Window
         if (node.Kind == ObjectKind.Image) Button("画像を読み込み / 置換…", () => ReplaceImage(node));
         if (node != document.Canvas)
         {
-            Label("親の変更");
-            var candidates = document.All().Where(n => n.IsContainer && n != node && !Descendants(node).Contains(n)).ToList();
-            var parents = new ComboBox { ItemsSource = candidates, DisplayMemberPath = "Name", SelectedItem = document.Parent(node) }; Properties.Children.Add(parents);
-            Button("選択した親へ移動", () => Change(() => { if (parents.SelectedItem is SceneObject parent) document.Reparent(node, parent); }));
+            Button("親を変更…", () => ChooseParent(node));
+            ((Button)Properties.Children[Properties.Children.Count - 1]).IsEnabled = document.Editable(node);
         }
 
     }
