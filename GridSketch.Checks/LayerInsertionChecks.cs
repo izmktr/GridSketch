@@ -11,11 +11,30 @@ internal static class LayerInsertionChecks
         void Set(string name, object value) => typeof(MainWindow).GetField(name, flags)!.SetValue(window, value);
         object? Call(string name, params object[] args) => typeof(MainWindow).GetMethod(name, flags)!.Invoke(window, args);
         var scene = new SceneDocument();
+        var fixedGroup = new SceneObject { Kind = ObjectKind.Group, HasLayoutFrame = true, Width = 120, Height = 80,
+            LayoutHasInner = true, LayoutInsetX = 10, LayoutInsetY = 15 };
+        scene.Canvas.Children.Add(fixedGroup);
+        var organizer = new SceneObject { Kind = ObjectKind.Group, OrganizeOnly = true }; fixedGroup.Children.Add(organizer);
+        if (scene.InitialSquareSize(scene.Canvas) != 100 || scene.InitialSquareSize(fixedGroup) != 50 || scene.InitialSquareSize(organizer) != 50)
+            throw new Exception("Initial square size must use parent inner space, organizer pass-through, or fallback");
+        scene.Canvas.AutoSize = false; scene.Canvas.Width = 640; scene.Canvas.Height = 480;
+        if (scene.InitialSquareSize(scene.Canvas) != 480) throw new Exception("Fixed canvas initial size failed");
+        scene.Canvas.AutoSize = true; scene.Canvas.Children.Clear();
         var grid = SceneDocument.CreateGrid("空のグリッド"); scene.Canvas.Children.Add(grid);
         var first = new SceneObject { Kind = ObjectKind.Shape };
         var group = new SceneObject { Kind = ObjectKind.Group, Children = [new() { Kind = ObjectKind.Shape }] };
         grid.Children = [first, group];
         Set("document", scene);
+        foreach (var kind in new[] { ObjectKind.Image, ObjectKind.Shape })
+        {
+            var node = new SceneObject { Kind = kind };
+            Call("InitializeObjectLayout", node, grid);
+            double side = Math.Min(grid.CellSize - grid.Margin * 2, grid.CellSize - grid.MarginY * 2);
+            if (node.Width != side || node.Height != side) throw new Exception("New image/shape must use one inset cell, not the full grid");
+            double initial = node.Width; grid.CellSize += 10;
+            if (node.Width != initial) throw new Exception("Initial size must not track later parent edits");
+            grid.CellSize -= 10;
+        }
         void Add(SceneObject selected, ObjectKind kind)
         {
             Set("selectedId", selected.Id); Call("RefreshAll");

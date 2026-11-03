@@ -18,8 +18,10 @@ public sealed class PreservedTransform
 public sealed partial class SceneDocument
 {
     public LayoutRegions ParentRegions(SceneObject node)
+        => RegionsForChild(Parent(node), node);
+
+    private LayoutRegions RegionsForChild(SceneObject? parent, SceneObject node)
     {
-        var parent = Parent(node);
         if (parent is null) return new(null, null, "親はありません。");
         if (parent.Kind == ObjectKind.Group && parent.OrganizeOnly) return ParentRegions(parent);
         if (parent.Kind == ObjectKind.Canvas)
@@ -43,6 +45,18 @@ public sealed partial class SceneDocument
                 "自由配置用のグリッド全体。マスごとの配置はマス選択を使用します。");
         }
         return new(null, null, "親は配置範囲を持ちません。");
+    }
+    public double InitialSquareSize(SceneObject parent)
+    {
+        // Organizing groups pass their parent's space through without defining a frame.
+        while (parent.Kind == ObjectKind.Group && parent.OrganizeOnly && Parent(parent) is { } ancestor)
+            parent = ancestor;
+        var regions = parent.Kind == ObjectKind.Grid
+            ? CellRegions(parent, new(0, 0), "")
+            : RegionsForChild(parent, new SceneObject { Kind = ObjectKind.Shape });
+        var region = regions.Inner ?? regions.Outer;
+        return region is { Width: > 0, Height: > 0 } box
+            ? Math.Max(1, Math.Min(box.Width, box.Height)) : 100;
     }
     private static LayoutRegions CellRegions(SceneObject grid, CellPosition cell, string description) =>
         new(CellRect(grid, cell, false), CellRect(grid, cell, true), description);

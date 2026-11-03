@@ -38,6 +38,8 @@ public partial class MainWindow
     }
     private void InitializeObjectLayout(SceneObject node, SceneObject parent)
     {
+        if (node.Kind is ObjectKind.Image or ObjectKind.Shape)
+            node.Width = node.Height = document.InitialSquareSize(parent);
         if (node.Kind == ObjectKind.Group) { node.HasLayoutFrame = true; node.Width = node.Height = 100; }
         if (parent.Kind == ObjectKind.CellSelection && parent.UseObjectLayout)
         {
