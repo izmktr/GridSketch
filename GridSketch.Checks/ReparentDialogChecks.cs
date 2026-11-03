@@ -101,6 +101,33 @@ internal static class ReparentDialogChecks
             (batch.World(b).Transform(new Point(3, 4)) - bw.Transform(new Point(3, 4))).Length < 1e-7, "Batch must preserve world transforms");
         Call("Undo"); restored = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;
         Check(restored.Snapshot() == batchBefore, "Batch parent change must undo as one action");
+        var templatesScene = new SceneDocument();
+        var templatesGrid = SceneDocument.CreateGrid("空のグリッド"); templatesScene.Canvas.Children.Add(templatesGrid);
+        var owner = new SceneObject { Kind = ObjectKind.CellSelection, UseObjectLayout = true }; templatesGrid.Children.Add(owner);
+        var firstTemplate = new SceneObject { Kind = ObjectKind.Group, HasLayoutFrame = true, Width = 100, Height = 100,
+            UseParentLayout = true, LayoutRegion = "親の内側", LayoutSizing = "収める", Children = [new() { Kind = ObjectKind.Shape }] };
+        var secondTemplate = new SceneObject { Kind = ObjectKind.Group, HasLayoutFrame = true, Width = 100, Height = 100,
+            UseParentLayout = true, LayoutRegion = "親の内側", LayoutSizing = "収める", Children = [new() { Kind = ObjectKind.Text }] };
+        owner.Children = [firstTemplate, secondTemplate];
+        SceneDocument.AssignNewState(owner, firstTemplate); SceneDocument.AssignNewState(owner, secondTemplate);
+        SceneDocument.SetCellState(owner, new(0, 0), owner.States[0].Id); templatesScene.Validate();
+        var templatesBefore = templatesScene.Snapshot();
+        Check(templatesScene.ReparentTargets(new[] { secondTemplate, firstTemplate }).Contains(templatesGrid),
+            "Multiple templates must be able to move to their enclosing grid");
+        Check(templatesScene.Snapshot() == templatesBefore, "Template candidate calculation must not change assignments");
+        Set("document", templatesScene); Set("selectedId", firstTemplate.Id); Call("RefreshAll");
+        window.Dispatcher.BeginInvoke(new Action(() =>
+        {
+            var dialog = Application.Current.Windows.OfType<ReparentDialog>().Single();
+            Items(PropertyChecks.Find<TreeView>(dialog, "移動先のレイヤー")).Single(i => Equals(i.Tag, templatesGrid.Id)).IsSelected = true;
+            PropertyChecks.Find<Button>(dialog, "選択した親へ移動").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        }));
+        Call("ChooseParents", new List<SceneObject> { secondTemplate, firstTemplate });
+        Check(templatesGrid.Children.SequenceEqual(new[] { owner, firstTemplate, secondTemplate }) && owner.Children.Count == 0,
+            "Multiple templates append to the grid in layer order");
+        Check(owner.States.All(s => s.ObjectId is null) && owner.StateCells.Count == 1, "Moving templates clears assignments without deleting cell states");
+        Call("Undo"); restored = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;
+        Check(restored.Snapshot() == templatesBefore, "Undo restores all template groups and their assignments together");
         Set("savedState", restored.Snapshot());
         Console.WriteLine("PASS: Legal parent targets, non-mutating validation, filtered hierarchy, modal selection, cancellation, world placement and undo");
     }
