@@ -27,10 +27,24 @@ function Get-Sha256 {
 }
 function Find-Release {
     $items = @(Run gh @('api', '--paginate', "repos/$repo/releases", '--jq', '.[] | {tag_name, draft, prerelease}'))
-    $matches = @($items | ForEach-Object { $_ | ConvertFrom-Json } | Where-Object { $_.tag_name -eq $tag })
-    if ($matches.Count -gt 1) { throw "Multiple releases found for $tag." }
-    if ($matches.Count -eq 1) { return $matches[0] }
+    $releases = @($items | ForEach-Object { $_ | ConvertFrom-Json } | Where-Object { $_.tag_name -eq $tag })
+    if ($releases.Count -gt 1) { throw "Multiple releases found for $tag." }
+    if ($releases.Count -eq 1) { return $releases[0] }
     return $null
+}
+function Wait-Release {
+    for ($attempt = 0; $attempt -lt 6; $attempt++) {
+        $found = Find-Release
+        if ($null -ne $found) { return $found }
+        Start-Sleep -Seconds 2
+    }
+    throw "Release $tag is not visible yet. Retry with --resume $version."
+}
+function Test-ToolingChanges {
+    param([string] $Commit)
+    Run git @('merge-base', '--is-ancestor', $state.Commit, $Commit) | Out-Null
+    $files = @(Run git @('diff', '--name-only', $state.Commit, $Commit))
+    return @($files | Where-Object { $_ -notin @('release.ps1', 'release.bat') }).Count -eq 0
 }
 $usage = "Usage: release.bat --patch | --minor | --major | --version 1.2.3 | --resume 1.2.3"
 if (!$Options -or $Options[0] -in @('--help', '-h')) {
@@ -118,23 +132,31 @@ try {
     $expectedReadme = [regex]::Replace($originalReadme, $pattern, $link)
     $matchesExpectedReadme = ($readme.Replace("`r`n", "`n").TrimEnd("`n") -ceq $expectedReadme.TrimEnd("`n"))
     $changes = @(Run git @('status', '--porcelain'))
-    if ($changes.Count -gt 0 -and
-        !($changes.Count -eq 1 -and $changes[0] -in @(' M README.md', 'M  README.md', 'MM README.md') -and $matchesExpectedReadme)) {
+    $unexpectedChanges = @($changes | Where-Object {
+        $readmeChange = $_ -in @(' M README.md', 'M  README.md', 'MM README.md') -and $matchesExpectedReadme
+        $toolingChange = $mode -eq '--resume' -and $state.ZipHash -and $_ -in @(' M release.ps1', ' M release.bat')
+        !$readmeChange -and !$toolingChange
+    })
+    if ($unexpectedChanges.Count) {
         throw 'Unexpected working tree changes. Commit or stash them before resuming.'
     }
+    $releaseHead = $state.Commit
+    if ($mode -eq '--resume' -and $state.ZipHash -and !$state.ReadmeCommit -and (Test-ToolingChanges $headCommit)) {
+        $releaseHead = $headCommit
+    }
     # Recover a README commit made just before an interrupted state-file write.
-    if ($headCommit -ne $state.Commit -and !$state.ReadmeCommit) {
+    if ($headCommit -ne $releaseHead -and !$state.ReadmeCommit) {
         $parent = Run git @('rev-parse', 'HEAD^')
         $subject = Run git @('log', '-1', '--format=%s')
         $files = @(Run git @('diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'))
-        if ($parent -ne $state.Commit -or $subject -ne "Update download link for $tag" -or
+        if (!(Test-ToolingChanges $parent) -or $subject -ne "Update download link for $tag" -or
             $files.Count -ne 1 -or $files[0] -ne 'README.md' -or !$matchesExpectedReadme) {
             throw "Return to release commit $($state.Commit) before resuming."
         }
         $state.ReadmeCommit = "$headCommit"
         Save-State
     }
-    $expectedHead = if ($state.ReadmeCommit) { $state.ReadmeCommit } else { $state.Commit }
+    $expectedHead = if ($state.ReadmeCommit) { $state.ReadmeCommit } else { $releaseHead }
     if ($headCommit -ne $expectedHead) { throw "Return to commit $expectedHead before resuming." }
 
     if (!$state.ZipHash) {
@@ -167,7 +189,11 @@ try {
             [Text.UTF8Encoding]::new($false))
         Run gh @('release', 'create', $tag, '--repo', $repo, '--verify-tag', '--draft',
             '--title', "GridSketch $tag", '--notes-file', $notesPath, '--generate-notes') | Out-Host
-        $release = Find-Release
+        $release = Wait-Release
+    }
+    if ($null -eq $release -or $null -eq $release.PSObject.Properties['prerelease'] -or
+        $null -eq $release.PSObject.Properties['draft']) {
+        throw "Unexpected release response. Retry with --resume $version."
     }
     if ($release.prerelease) { throw 'Existing release is marked as prerelease.' }
     $assetNames = @(Run gh @('release', 'view', $tag, '--repo', $repo, '--json', 'assets', '--jq', '.assets[].name'))
