@@ -1,5 +1,30 @@
 # GridSketch
 
+## リリースの公開
+
+Git、.NET 9 SDK、GitHub CLI が必要です。初回は `gh auth login` でログインしてください。変更をコミットして main ブランチで実行します。
+
+```bat
+release.bat --patch
+release.bat --minor
+release.bat --major
+release.bat --version 1.5.0
+```
+
+最新の公開済み正式リリースを基準に、patch は 1.2.3 → 1.2.4、minor は 1.2.3 → 1.3.0、major は 1.2.3 → 2.0.0 と進めます。引数なしでは使い方を表示します。PowerShell からは `.\release.ps1 --patch` のように呼べます。
+
+確認プログラムの実行、自己完結型 Windows x64 ビルド、ZIP 作成、main とタグの push、下書き作成、ZIP アップロードとハッシュ照合、正式公開、README リンク更新のコミットと push を順に実行します。main の未 push コミットも公開対象です。タグはビルド元のコミットを指し、README 更新はその後のコミットになります。リリースノートには起動方法と GitHub の自動生成ノートを付けます。
+
+ZIP と進捗は Git 管理対象外の `artifacts` に保存します。途中で失敗した場合、原因を解消して表示されたバージョンで再開してください。
+
+```bat
+release.bat --resume 1.2.4
+```
+
+未完了の処理がある間、新しいリリースは開始できません。再開まで `artifacts` を保存し、ビルド元のコミットと ZIP を維持してください。別のコミットへ進んだ場合は、表示されたコミットに戻して再開します。既存タグの参照先や ZIP の内容が違う場合は停止します。GitHub 側で添付ファイルが不完全になった場合は、下書きの該当 ZIP を削除してから再開してください。公開済みリリースの添付ファイルを変更する必要がある場合は、手動で状況を確認してください。
+
+ビルドだけ行う場合は従来の `build-release.bat 1.2.4` を使います。公開前には通常のアプリ操作も確認してください。
+
 Windows用の方眼紙・オブジェクトエディタ。C# / WPF / .NET 9、Visual Studio 2022 17.14。
 
 [設計草案](document/object-design.md) / [今回の実装範囲と決定事項](document/object-implementation.md)
