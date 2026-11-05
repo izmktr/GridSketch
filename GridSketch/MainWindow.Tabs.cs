@@ -41,10 +41,6 @@ public partial class MainWindow
     }
     private void AddProjectTab(SceneDocument scene, string? file = null)
     {
-        if (activeTab is null && editorTabs.Count == 0)
-        {
-            activeTab = new EditorTab(); editorTabs.Add(activeTab); CaptureTab();
-        }
         var tab = new EditorTab { Document = scene, Path = file, SelectedId = scene.Canvas.Id, Saved = scene.Snapshot() };
         editorTabs.Add(tab); SwitchTab(tab);
     }
@@ -99,6 +95,7 @@ public partial class MainWindow
                 var item = new TabItem { Header = header, Tag = tab, ToolTip = file ?? name };
                 DocumentTabs.Items.Add(item); if (tab == activeTab) DocumentTabs.SelectedItem = item;
             }
+            UpdateStartScreen();
             ApplyPartButton.Visibility = activeTab?.Owner is null ? Visibility.Collapsed : Visibility.Visible;
         }
         finally { updatingTabs = false; }
@@ -114,15 +111,13 @@ public partial class MainWindow
         int index = editorTabs.IndexOf(tab); editorTabs.Remove(tab); activeTab = null;
         if (editorTabs.Count == 0)
         {
-            var scene = new SceneDocument(); scene.Canvas.Children.Add(SceneDocument.CreateGrid("基本の方眼紙"));
-            var fresh = new EditorTab { Document = scene, Saved = scene.Snapshot(), SelectedId = scene.Canvas.Id };
-            editorTabs.Add(fresh);
+            ShowStartScreen(); return true;
         }
         SwitchTab(editorTabs[Math.Min(index, editorTabs.Count - 1)]); return true;
     }
     private bool CanCloseAllTabs()
     {
-        if (editorTabs.Count == 0) return CanDiscard();
+        if (editorTabs.Count == 0) return true;
         var original = activeTab;
         foreach (var tab in editorTabs.OrderByDescending(t => t.Owner is not null).ToList())
         {

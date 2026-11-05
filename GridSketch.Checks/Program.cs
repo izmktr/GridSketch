@@ -110,6 +110,7 @@ internal static class Program
             // Construct only the test window; App.InitializeComponent queues a second StartupUri window.
             var app = new App(); var window = new MainWindow(); window.Show(); window.UpdateLayout();
             Check(window.IsVisible && window.ActualWidth > 0, "WPF window initialization and layout");
+            StartScreenChecks.Run(window, Path.GetDirectoryName(temp)!);
             WindowChecks.Run(window, Path.GetDirectoryName(temp)!);
             LivePropertyChecks.Run(window);
             UndoMergeChecks.Run(window);

@@ -60,22 +60,22 @@
  <DockPanel>
   <Menu DockPanel.Dock="Top">
    <MenuItem Header="ファイル(_F)">
-    <MenuItem Header="タブを閉じる" Click="CloseTabClick"/>
+    <MenuItem x:Name="CloseDocumentMenu" Header="タブを閉じる" Click="CloseTabClick"/>
     <MenuItem Header="新規(_N)…" InputGestureText="Ctrl+N" Click="NewClick"/>
     <MenuItem Header="開く(_O)…" InputGestureText="Ctrl+O" Click="OpenClick"/>
     <MenuItem x:Name="RecentFilesMenu" Header="最近使ったファイル(_R)"/>
     <Separator/>
-    <MenuItem Header="保存(_S)" InputGestureText="Ctrl+S" Click="SaveClick"/>
-    <MenuItem Header="名前を付けて保存(_A)…" Click="SaveAsClick"/>
-    <MenuItem Header="エクスポート(_E)"><MenuItem Header="PNG(_P)…" Click="ExportClick"/><MenuItem Header="PDF(_D)…" Click="ExportPdfClick"/></MenuItem>
-    <MenuItem Header="エクスポート設定…" Click="ExportSettingsClick"/>
+    <MenuItem x:Name="SaveDocumentMenu" Header="保存(_S)" InputGestureText="Ctrl+S" Click="SaveClick"/>
+    <MenuItem x:Name="SaveAsDocumentMenu" Header="名前を付けて保存(_A)…" Click="SaveAsClick"/>
+    <MenuItem x:Name="ExportDocumentMenu" Header="エクスポート(_E)"><MenuItem Header="PNG(_P)…" Click="ExportClick"/><MenuItem Header="PDF(_D)…" Click="ExportPdfClick"/></MenuItem>
+    <MenuItem x:Name="ExportSettingsMenu" Header="エクスポート設定…" Click="ExportSettingsClick"/>
     <Separator/><MenuItem Header="終了(_X)" InputGestureText="Alt+F4" Click="ExitClick"/>
    </MenuItem>
-   <MenuItem Header="編集(_E)">
+   <MenuItem x:Name="EditDocumentMenu" Header="編集(_E)">
     <MenuItem Header="元に戻す(_U)" Command="ApplicationCommands.Undo"/>
     <MenuItem Header="やり直し(_R)" Command="ApplicationCommands.Redo"/>
    </MenuItem>
-   <MenuItem Header="追加(_A)">
+   <MenuItem x:Name="AddDocumentMenu" Header="追加(_A)">
     <MenuItem Header="グリッド（方眼紙）…" Tag="Grid" Click="AddClick"/>
     <MenuItem Header="グリッド（独立マス）…" Tag="IndependentGrid" Click="AddClick"/>
     <MenuItem Header="グループ" Tag="Group" Click="AddClick"/>
@@ -92,14 +92,14 @@
     <MenuItem Header="ライン・矢印" Tag="Line" Click="AddClick"/>
     <MenuItem Header="図形" Tag="Shape" Click="AddClick"/>
    </MenuItem>
-   <MenuItem Header="部品(_P)">
+   <MenuItem x:Name="PartsDocumentMenu" Header="部品(_P)">
     <MenuItem Header="ライブラリ…" Click="PartLibraryClick"/>
     <MenuItem Header="選択グループを登録…" Click="RegisterPartClick"/>
     <Separator/>
     <MenuItem Header="インポート…" Click="ImportPartClick"/>
    </MenuItem>
   </Menu>
-  <ScrollViewer DockPanel.Dock="Top" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+  <ScrollViewer x:Name="TabStrip" DockPanel.Dock="Top" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
    <TabControl x:Name="DocumentTabs" SelectionChanged="DocumentTabChanged" MinHeight="36">
     <TabControl.Template>
      <ControlTemplate TargetType="TabControl">
@@ -109,7 +109,7 @@
    </TabControl>
   </ScrollViewer>
   <Button x:Name="ApplyPartButton" DockPanel.Dock="Top" Content="ライブラリへ反映" Visibility="Collapsed" HorizontalAlignment="Left" Click="ApplyPartClick"/>
-  <Border DockPanel.Dock="Top" Background="White" Padding="8">
+  <Border x:Name="EditorToolbar" DockPanel.Dock="Top" Background="White" Padding="8">
    <WrapPanel VerticalAlignment="Center">
     <ToggleButton x:Name="MoveModeButton" Style="{StaticResource IconToggleStyle}" Width="36" Height="32" Margin="8,0,3,0" Click="ModeChanged" ToolTip="移動：オブジェクトを選択・ドラッグ移動" AutomationProperties.Name="移動モード">
      <Path Data="M10,1 L10,19 M1,10 L19,10 M6,5 L10,1 14,5 M6,15 L10,19 14,15 M5,6 L1,10 5,14 M15,6 L19,10 15,14" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.6" Width="20" Height="20" Stretch="Uniform"/>
@@ -126,6 +126,8 @@
   </Border>
   <StatusBar DockPanel.Dock="Bottom"><TextBlock x:Name="Status" Text="レイヤーを選択して編集します。"/></StatusBar>
   <Grid>
+   <ScrollViewer x:Name="StartScreen" VerticalScrollBarVisibility="Auto" AllowDrop="True" PreviewDragOver="StartDragOver" Drop="StartDrop"><StackPanel x:Name="StartContent" MaxWidth="960" Margin="40,32"/></ScrollViewer>
+  <Grid x:Name="EditorArea">
    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="5"/><ColumnDefinition Width="370" MinWidth="300"/></Grid.ColumnDefinitions>
    <ScrollViewer x:Name="Viewport" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="#8191A3"
     PreviewMouseDown="ViewportMouseDown" PreviewMouseMove="ViewportMouseMove" PreviewMouseUp="ViewportMouseUp" LostMouseCapture="ViewportLostCapture" PreviewMouseWheel="ViewportMouseWheel">
@@ -163,6 +165,7 @@
      <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel x:Name="Properties" Margin="0,0,8,0"/></ScrollViewer>
     </DockPanel>
    </Grid>
+  </Grid>
   </Grid>
  </DockPanel>
 </Window>

@@ -33,15 +33,12 @@ public partial class MainWindow : Window
         TextCompositionManager.AddPreviewTextInputStartHandler(GridInput, (_, _) => gridComposing = true);
         GridInput.AddHandler(TextCompositionManager.PreviewTextInputEvent, new TextCompositionEventHandler(GridInputText), true);
         GridInput.AddHandler(TextCompositionManager.TextInputEvent, new TextCompositionEventHandler(GridInputText), true);
-        document.Canvas.Children.Add(SceneDocument.CreateGrid("基本の方眼紙"));
-        selectedId = document.Canvas.Id; savedState = document.Snapshot();
-        activeTab = new EditorTab(); editorTabs.Add(activeTab); CaptureTab();
-        CommandBindings.Add(new CommandBinding(ApplicationCommands.Save, (_, _) => Save(false)));
+        CommandBindings.Add(new CommandBinding(ApplicationCommands.Save, (_, _) => Save(false), (_, e) => e.CanExecute = activeTab is not null));
         CommandBindings.Add(new CommandBinding(ApplicationCommands.Open, (_, _) => OpenClick(this, new RoutedEventArgs())));
         CommandBindings.Add(new CommandBinding(ApplicationCommands.New, (_, _) => NewClick(this, new RoutedEventArgs())));
         CommandBindings.Add(new CommandBinding(ApplicationCommands.Undo, (_, _) => Undo(), (_, e) => e.CanExecute = undo.Count > 0 && dragStart is null && paintStroke is null));
         CommandBindings.Add(new CommandBinding(ApplicationCommands.Redo, (_, _) => Redo(), (_, e) => e.CanExecute = redo.Count > 0 && dragStart is null && paintStroke is null));
-        RefreshAll(); RefreshRecentFilesMenu(); Loaded += (_, _) => CenterClick(this, new RoutedEventArgs());
+        ShowStartScreen(); RefreshRecentFilesMenu(); Loaded += (_, _) => { if (activeTab is not null) CenterClick(this, new RoutedEventArgs()); };
     }
     private void Try(Action action)
     {
@@ -539,6 +536,7 @@ public partial class MainWindow : Window
     }
     private bool Save(bool saveAs)
     {
+        if (activeTab is null) return false;
         CommitPropertyEdit();
         FinishDrag(); Surface.ReleaseMouseCapture();
         if (!saveAs && activeTab?.Owner is not null) return ApplyPartEdit();
@@ -575,6 +573,7 @@ public partial class MainWindow : Window
     private void RememberFile(string filePath) { if (!recentFiles.Remember(filePath)) Status.Text += " 履歴を保存できませんでした。"; RefreshRecentFilesMenu(); }
     private void RefreshRecentFilesMenu()
     {
+        RefreshStartRecent();
         RecentFilesMenu.Items.Clear(); if (recentFiles.Entries.Count == 0) { RecentFilesMenu.Items.Add(new MenuItem { Header = "履歴はありません", IsEnabled = false }); return; }
         foreach (var filePath in recentFiles.Entries)
         {
