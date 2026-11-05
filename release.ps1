@@ -14,6 +14,17 @@ function Save-State {
     $state | ConvertTo-Json | Set-Content -LiteralPath "$statePath.tmp" -Encoding UTF8
     Move-Item -LiteralPath "$statePath.tmp" -Destination $statePath -Force
 }
+function Get-Sha256 {
+    param([string] $Path)
+    $stream = [IO.File]::OpenRead($Path)
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    try {
+        return [BitConverter]::ToString($algorithm.ComputeHash($stream)).Replace('-', '')
+    } finally {
+        $algorithm.Dispose()
+        $stream.Dispose()
+    }
+}
 function Find-Release {
     $items = @(Run gh @('api', '--paginate', "repos/$repo/releases", '--jq', '.[] | {tag_name, draft, prerelease}'))
     $matches = @($items | ForEach-Object { $_ | ConvertFrom-Json } | Where-Object { $_.tag_name -eq $tag })
@@ -134,11 +145,11 @@ try {
             '--self-contained', 'true', "-p:Version=$version", '-p:DebugType=None', '-o', $appDir) | Out-Host
         if (!(Test-Path (Join-Path $appDir 'GridSketch.exe'))) { throw 'GridSketch.exe missing.' }
         Compress-Archive -LiteralPath $appDir -DestinationPath $zipPath -Force
-        $state.ZipHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash
+        $state.ZipHash = Get-Sha256 $zipPath
         Save-State
     }
     if (!(Test-Path -LiteralPath $zipPath) -or
-        (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash -ne $state.ZipHash) {
+        (Get-Sha256 $zipPath) -ne $state.ZipHash) {
         throw "ZIP missing or changed. Restore the original ZIP at $zipPath."
     }
 
@@ -166,7 +177,7 @@ try {
     }
     $verifyDir = Join-Path $releaseDir ('verify-' + [guid]::NewGuid().ToString('N'))
     Run gh @('release', 'download', $tag, '--repo', $repo, '--pattern', $zipName, '--dir', $verifyDir) | Out-Host
-    if ((Get-FileHash -LiteralPath (Join-Path $verifyDir $zipName) -Algorithm SHA256).Hash -ne $state.ZipHash) {
+    if ((Get-Sha256 (Join-Path $verifyDir $zipName)) -ne $state.ZipHash) {
         throw 'Uploaded ZIP differs from the local ZIP.'
     }
     if ($release.draft) {
