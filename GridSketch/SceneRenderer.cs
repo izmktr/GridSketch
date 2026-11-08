@@ -105,12 +105,14 @@ public sealed class SceneRenderer
                         var bounds = text.Bounds;
                         if (!bounds.IsEmpty)
                         {
-                            double spacing = node.Alignment == "左上" ? 2 : 1;
+                            double spacing = node.Alignment == "中央" ? 1 : 2;
                             double insetX = Math.Min(spacing, box.Width / 4), insetY = Math.Min(spacing, box.Height / 4);
                             double scale = Math.Min(1, Math.Min((box.Width - insetX * 2) / Math.Max(1, bounds.Width), (box.Height - insetY * 2) / Math.Max(1, bounds.Height)));
                             if (glyph.InCellText) scale = 1;
-                            var x = !glyph.InCellText && node.Alignment == "左上" ? box.X + insetX : box.X + (box.Width - bounds.Width * scale) / 2;
-                            var y = !glyph.InCellText && node.Alignment == "左上" ? box.Y + insetY : box.Y + (box.Height - bounds.Height * scale) / 2;
+                            double ax = glyph.InCellText ? 0.5 : node.Alignment.Contains('左') ? 0 : node.Alignment.Contains('右') ? 1 : 0.5;
+                            double ay = glyph.InCellText ? 0.5 : node.Alignment.Contains('上') ? 0 : node.Alignment.Contains('下') ? 1 : 0.5;
+                            var x = box.X + insetX + (box.Width - insetX * 2 - bounds.Width * scale) * ax;
+                            var y = box.Y + insetY + (box.Height - insetY * 2 - bounds.Height * scale) * ay;
                             dc.PushTransform(new TranslateTransform(x, y)); dc.PushTransform(new ScaleTransform(scale, scale)); dc.PushTransform(new TranslateTransform(-bounds.X, -bounds.Y));
                             dc.DrawDrawing(text); dc.Pop(); dc.Pop(); dc.Pop();
                         }

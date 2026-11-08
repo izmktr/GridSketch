@@ -115,6 +115,7 @@ internal static class Program
             LivePropertyChecks.Run(window);
             UndoMergeChecks.Run(window);
             ImagePlacementChecks.Run(window);
+            AlignmentChecks.Run(window, Path.GetDirectoryName(temp)!);
             CanvasChecks.Run(window, Path.GetDirectoryName(temp)!);
             PropertyChecks.Run(window, Path.GetDirectoryName(temp)!);
             ColorPickerChecks.Run(window, Path.GetDirectoryName(temp)!);

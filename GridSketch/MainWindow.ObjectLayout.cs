@@ -7,9 +7,10 @@ public partial class MainWindow
     private void ObjectLayoutProperties(SceneObject node)
     {
         var regions = document.ParentRegions(node);
-        string Describe(Rect? rect) => rect is { } r ? $"X {r.X:0.##}, Y {r.Y:0.##} / {r.Width:0.##} × {r.Height:0.##}" : "なし";
-        Label("親の配置範囲");
-        Label("外側：" + Describe(regions.Outer)); Label("内側：" + Describe(regions.Inner));
+        string Describe(Rect r) => $"X {r.X:0.##}, Y {r.Y:0.##} / {r.Width:0.##} × {r.Height:0.##}";
+        if (regions.Outer is not null || regions.Inner is not null) Label("親の配置範囲");
+        if (regions.Outer is { } outer) Label("外側：" + Describe(outer));
+        if (regions.Inner is { } inner) Label("内側：" + Describe(inner));
         if (node.PreservedTransform is { } p)
         {
             Label($"親変更時の拡縮を保持：横 {Math.Sqrt(p.M11 * p.M11 + p.M12 * p.M12):0.###} 倍 / 縦 {Math.Sqrt(p.M21 * p.M21 + p.M22 * p.M22):0.###} 倍");
@@ -34,7 +35,8 @@ public partial class MainWindow
         });
         Choice("配置先", node.LayoutRegion, regions.Inner is null ? ["親の外側"] : ["親の外側", "親の内側"], v => node.LayoutRegion = v);
         Choice("サイズの扱い", node.LayoutSizing, ["固定", "収める", "広げる"], v => node.LayoutSizing = v);
-        Choice("位置合わせ", node.LayoutAnchor, ["左上", "上", "右上", "左", "中央", "右", "左下", "下", "右下"], v => node.LayoutAnchor = v);
+        if (node.Kind == ObjectKind.Text) AlignmentIcons("位置合わせ", node.LayoutAnchor, v => node.LayoutAnchor = v);
+        else Choice("位置合わせ", node.LayoutAnchor, ["左上", "上", "右上", "左", "中央", "右", "左下", "下", "右下"], v => node.LayoutAnchor = v);
     }
     private void InitializeObjectLayout(SceneObject node, SceneObject parent)
     {

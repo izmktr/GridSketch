@@ -210,7 +210,7 @@ public partial class MainWindow : Window
             case ObjectKind.Text:
                 FontField(node);
                 Number("文字サイズ（px）", node.FontSize, v => node.FontSize = v, 1, 512); ColorField("文字色", node.Color, v => node.Color = v);
-                if (node.Kind == ObjectKind.GridText) Choice("配置", node.Alignment, ["中央", "左上"], v => node.Alignment = v); else TextField("文章", node.Text, v => node.Text = v, true);
+                if (node.Kind == ObjectKind.GridText) AlignmentIcons("配置", node.Alignment, v => node.Alignment = v); else TextField("文章", node.Text, v => node.Text = v, true);
                 Label("レイヤースタイル ― 縁取り");
                 Check("縁取りを有効にする", node.Style.OutlineEnabled, v => node.Style.OutlineEnabled = v);
                 ColorField("縁の色・不透明度", node.Style.OutlineColor, v => node.Style.OutlineColor = v);
