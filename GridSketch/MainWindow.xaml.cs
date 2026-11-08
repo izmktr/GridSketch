@@ -485,7 +485,7 @@ public partial class MainWindow : Window
         if (dragStart is { } start)
         {
             var current = Surface.ToWorld(p); var parent = document.Parent(node)!; var inverse = document.World(parent); inverse.Invert(); var delta = inverse.Transform(current) - inverse.Transform(start);
-            document.MoveOnGrid(node, dragPosition, delta, dragContentOrigin); RefreshSurface(); return;
+            document.MoveOnGrid(node, dragPosition, delta, dragContentOrigin, Zoom.Value); RefreshSurface(); return;
         }
         var grid = document.GridFor(node); var edge = cellEditMode && node.Kind == ObjectKind.Border && grid is not null ? Surface.EdgeAt(grid, p, Zoom.Value) : null;
         if (edge != Surface.HoveredEdge) { Surface.HoveredEdge = edge; Surface.InvalidateVisual(); }

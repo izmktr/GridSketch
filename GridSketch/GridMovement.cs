@@ -62,32 +62,23 @@ public sealed partial class SceneDocument
             node.StateCells = source.StateCells.Select(c => new CellStatePlacement { Column = c.Column + dx, Row = c.Row + dy, StateId = c.StateId }).ToList();
     }
 
-    public void MoveOnGrid(SceneObject node, Point origin, Vector delta, SceneObject? contentOrigin = null)
+    public void MoveOnGrid(SceneObject node, Point origin, Vector delta, SceneObject? contentOrigin = null, double zoom = 1)
     {
         if (MovesCellContents(node) && GridFor(node) is { } contentGrid)
         {
             MoveCellContents(node, contentOrigin ?? Restore(Snapshot()).Find(node.Id)!, contentGrid, delta); return;
         }
-        var parent = Parent(node);
-        var grid = parent;
-        while (grid is not null && grid.Kind != ObjectKind.Grid) grid = Parent(grid);
-        if (grid is not null && parent is not null)
+        var parentMatrix = Parent(node) is { } parent ? World(parent) : System.Windows.Media.Matrix.Identity;
+        double Step(double scale)
         {
-            var toGrid = World(parent); var inverseGrid = World(grid); inverseGrid.Invert(); toGrid.Append(inverseGrid);
-            var gridDelta = toGrid.Transform(delta); double step = grid.CellSize / 2;
-            gridDelta = new Vector(Math.Round(gridDelta.X / step, MidpointRounding.AwayFromZero) * step,
-                Math.Round(gridDelta.Y / step, MidpointRounding.AwayFromZero) * step);
-            toGrid.Invert(); delta = toGrid.Transform(gridDelta);
-            var extent = GridContentExtent(node, grid);
-            if (!extent.IsEmpty)
-            {
-                // Grid-dependent layers have translation only, including their organizing ancestors.
-                delta.X = Math.Clamp(delta.X, Math.Ceiling((-extent.Left - origin.X) / step) * step,
-                    Math.Floor((grid.Columns * grid.CellSize - extent.Right - origin.X) / step) * step);
-                delta.Y = Math.Clamp(delta.Y, Math.Ceiling((-extent.Top - origin.Y) / step) * step,
-                    Math.Floor((grid.Rows * grid.CellSize - extent.Bottom - origin.Y) / step) * step);
-            }
+            double magnification = zoom * scale;
+            return magnification <= 1 ? 1 : Math.Pow(2, -Math.Ceiling(Math.Log2(magnification)));
         }
-        node.X = origin.X + delta.X; node.Y = origin.Y + delta.Y;
+        double stepX = Step(new Vector(parentMatrix.M11, parentMatrix.M12).Length);
+        double stepY = Step(new Vector(parentMatrix.M21, parentMatrix.M22).Length);
+        // Snap the resulting coordinates, not just the drag delta: fractional starting
+        // positions must also land on the current coordinate lattice.
+        node.X = Math.Round((origin.X + delta.X) / stepX, MidpointRounding.AwayFromZero) * stepX;
+        node.Y = Math.Round((origin.Y + delta.Y) / stepY, MidpointRounding.AwayFromZero) * stepY;
     }
 }
