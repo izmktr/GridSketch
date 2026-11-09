@@ -44,12 +44,13 @@ public partial class MainWindow
         bool parentEditable = parent is not null && document.Editable(parent);
         void Item(string title, bool enabled, Action action)
         {
-            if (SelectedLayers().Count > 1 && title is not ("グループ化" or "親の変更…")) enabled = false;
+            if (SelectedLayers().Count > 1 && title is not ("グループ化" or "親の変更…" or "複製先を選択…")) enabled = false;
             var entry = new MenuItem { Header = title, IsEnabled = enabled, InputGestureText = title == "削除" ? "Delete" : "" };
             entry.Click += (_, _) => { if (enabled && document.Find(node.Id) is not null) { selectedId = node.Id; Try(action); } };
             menu.Items.Add(entry);
         }
         Item("複製", !root && editable, DuplicateLayer);
+        Item("複製先を選択…", document.ReparentSelectionError(SelectedLayers()) is null, ChooseDuplicateParent);
         Item("削除", !root && editable, () => DeleteClick(this, new RoutedEventArgs()));
         Item("親の変更…", document.ReparentSelectionError(SelectedLayers()) is null, ChooseSelectedParents);
         menu.Items.Add(new Separator());

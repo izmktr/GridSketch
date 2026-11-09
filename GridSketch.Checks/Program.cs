@@ -141,6 +141,7 @@ internal static class Program
             MultiSelectionChecks.Run(window);
             PropertyHelpChecks.Run(window);
             ReparentDialogChecks.Run(window, Path.GetDirectoryName(temp)!);
+            DuplicateTargetChecks.Run(window);
             TabChecks.Run(window, Path.GetDirectoryName(temp)!);
             window.Close(); app.Shutdown();
             Console.WriteLine("All checks passed.");
