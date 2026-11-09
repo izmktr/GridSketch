@@ -30,6 +30,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Layers.PreviewMouseDown += LayerMouseDown;
+        PreviewKeyDown += CancelLineHandle;
         TextCompositionManager.AddPreviewTextInputStartHandler(GridInput, (_, _) => gridComposing = true);
         GridInput.AddHandler(TextCompositionManager.PreviewTextInputEvent, new TextCompositionEventHandler(GridInputText), true);
         GridInput.AddHandler(TextCompositionManager.TextInputEvent, new TextCompositionEventHandler(GridInputText), true);
@@ -456,6 +457,7 @@ public partial class MainWindow : Window
             });
             Surface.InvalidateVisual(); Status.Text = $"{c.Column + 1}列・{c.Row + 1}行を選択。Shift+クリックで範囲選択。"; return;
         }
+        if (StartLineHandle(p)) { e.Handled = true; return; }
         var world = Surface.ToWorld(p);
         if (node == document.Canvas || !Surface.Renderer!.Bounds.TryGetValue(node.Id, out var selectedBounds) || !selectedBounds.Contains(world))
         {
@@ -484,9 +486,12 @@ public partial class MainWindow : Window
         }
         if (dragStart is { } start)
         {
+            if (lineHandleDrag is not null) { lineHandleDrag.Move(Surface.ToWorld(p) - start, Zoom.Value); RefreshSurface(); return; }
             var current = Surface.ToWorld(p); var parent = document.Parent(node)!; var inverse = document.World(parent); inverse.Invert(); var delta = inverse.Transform(current) - inverse.Transform(start);
             document.MoveOnGrid(node, dragPosition, delta, dragContentOrigin, Zoom.Value); RefreshSurface(); return;
         }
+        var handle = cellEditMode ? null : Surface.LineHandleAt(p);
+        if (handle != Surface.HoveredLineHandle) { Surface.HoveredLineHandle = handle; Surface.Cursor = handle is null ? null : Cursors.SizeAll; Surface.InvalidateVisual(); }
         var grid = document.GridFor(node); var edge = cellEditMode && node.Kind == ObjectKind.Border && grid is not null ? Surface.EdgeAt(grid, p, Zoom.Value) : null;
         if (edge != Surface.HoveredEdge) { Surface.HoveredEdge = edge; Surface.InvalidateVisual(); }
     }
@@ -501,14 +506,14 @@ public partial class MainWindow : Window
     }
     private void FinishDrag()
     {
-        string? mergeKey = dragStart is not null ? "move:" + Selected.Id : null;
+        string? mergeKey = lineHandleDrag is not null ? "line-handle:" + Selected.Id + ":" + lineHandleDrag.Handle : dragStart is not null ? "move:" + Selected.Id : null;
         if (dragStart is null && paintStroke is null) return; dragStart = null; paintStroke = null; paintGrid = null;
         if (dragSnapshot is { } snapshot) { try { document.Validate(); if (snapshot != document.Snapshot()) RecordUndo(snapshot, mergeKey); } catch { document = SceneDocument.Restore(snapshot); BreakUndoMerge(); } }
-        dragSnapshot = null; dragContentOrigin = null; RefreshAll();
+        dragSnapshot = null; dragContentOrigin = null; lineHandleDrag = null; Surface.Cursor = null; RefreshAll();
     }
     private void SurfaceUp(object sender, MouseButtonEventArgs e) { if (paintStroke is not null) paintStroke.Move(Surface.EditLocal(paintGrid!, e.GetPosition(Surface))); FinishDrag(); Surface.ReleaseMouseCapture(); }
     private void SurfaceLostCapture(object sender, MouseEventArgs e) => FinishDrag();
-    private void SurfaceLeave(object sender, MouseEventArgs e) { Surface.HoveredEdge = null; Surface.InvalidateVisual(); }
+    private void SurfaceLeave(object sender, MouseEventArgs e) { Surface.HoveredEdge = null; if (lineHandleDrag is null) { Surface.HoveredLineHandle = null; Surface.Cursor = null; } Surface.InvalidateVisual(); }
     private void ZoomChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (Surface is null || Viewport is null) return;

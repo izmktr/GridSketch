@@ -38,17 +38,21 @@ public sealed partial class SceneDocument
         var copies = parent.Children.Where(nodes.Contains).Select(LibraryPart.Clone).ToList();
         foreach (var copy in copies)
         {
-            var stem = copy.Name.Length > 180 ? copy.Name[..180] : copy.Name;
-            copy.Name = stem + " のコピー";
-            int suffix = 2;
-            while (target.Children.Any(n => n.Name == copy.Name)) copy.Name = stem + " のコピー " + suffix++;
-            parent.Children.Add(copy);
+            if (RequiresGrid(copy) && GridContainer(parent) != GridContainer(target))
+                throw new InvalidOperationException("グリッド依存の内容は同じグリッド内に複製してください。");
             if (target != parent)
+                copy.Name = System.Text.RegularExpressions.Regex.Replace(copy.Name, @"(?: のコピー(?: \d+)?)+$", "");
+            if (target.Children.Any(n => n.Name == copy.Name))
             {
-                Reparent(copy, target);
-                target.Children.Remove(copy); target.Children.Add(copy);
+                var stem = copy.Name.Length > 180 ? copy.Name[..180] : copy.Name;
+                copy.Name = stem + " のコピー";
+                int suffix = 2;
+                while (target.Children.Any(n => n.Name == copy.Name)) copy.Name = stem + " のコピー " + suffix++;
             }
-            else if (target.Kind == ObjectKind.CellSelection) AssignNewState(target, copy);
+            // Duplication keeps local coordinates and layout settings. Reparent would
+            // rewrite them to preserve world coordinates, moving the copy within its new parent.
+            target.Children.Add(copy);
+            if (target.Kind == ObjectKind.CellSelection) AssignNewState(target, copy);
         }
         target.LayerExpanded = true;
         PrepareGroupLayouts(); ClearMissingStateObjects(); Validate();

@@ -332,7 +332,7 @@ public sealed class SceneRenderer
     }
 }
 
-public sealed class SceneSurface : FrameworkElement
+public sealed partial class SceneSurface : FrameworkElement
 {
     public bool ShowSelectionBounds { get; set; }
     private double minimumWorkspaceWidth = 2400, minimumWorkspaceHeight = 1800;
@@ -469,6 +469,7 @@ public sealed class SceneSurface : FrameworkElement
                 dc.Pop();
             }
         }
+        DrawLineHandles(dc);
         dc.Pop();
     }
 }
