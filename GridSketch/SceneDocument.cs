@@ -8,7 +8,7 @@ using System.Windows.Media;
 namespace GridSketch;
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
-public enum ObjectKind { Canvas, Group, Grid, Border, GridText, Fill, Image, Text, Line, Shape, CellFrame, CellSelection }
+public enum ObjectKind { Canvas, Group, Grid, Border, GridText, Fill, Image, Text, Line, Shape, CellFrame, CellSelection, EdgeSelection }
 
 public sealed class Glyph
 {
@@ -108,14 +108,18 @@ public sealed class SceneObject
     public string EndArrow { get; set; } = "三角";
     public double ArrowSize { get; set; } = 14;
 
-    [JsonIgnore] public bool IsContainer => Kind is ObjectKind.Canvas or ObjectKind.Group or ObjectKind.Grid or ObjectKind.CellSelection;
-    [JsonIgnore] public bool IsGridContent => Kind is ObjectKind.Border or ObjectKind.GridText or ObjectKind.Fill or ObjectKind.CellFrame or ObjectKind.CellSelection || Kind == ObjectKind.Image && SnapToCell;
+    [JsonIgnore] public bool IsStateSelector => Kind is ObjectKind.CellSelection or ObjectKind.EdgeSelection;
+    public List<EdgeStatePlacement> StateEdges { get; set; } = [];
+    public string EdgeFilter { get; set; } = "すべて";
+    public string VerticalRotation { get; set; } = "右90°";
+    [JsonIgnore] public bool IsContainer => Kind is ObjectKind.Canvas or ObjectKind.Group or ObjectKind.Grid or ObjectKind.CellSelection or ObjectKind.EdgeSelection;
+    [JsonIgnore] public bool IsGridContent => Kind is ObjectKind.Border or ObjectKind.GridText or ObjectKind.Fill or ObjectKind.CellFrame or ObjectKind.CellSelection or ObjectKind.EdgeSelection || Kind == ObjectKind.Image && SnapToCell;
     [JsonIgnore] public string Label => $"{(Visible ? "" : "非表示 · ")}{(Locked ? "🔒 " : "")}{Name}  [{(Kind == ObjectKind.Border && ConnectCellCenters ? "中心罫線" : KindName(Kind))}]";
     public static string KindName(ObjectKind kind) => kind switch
     {
         ObjectKind.Canvas => "キャンバス", ObjectKind.Group => "グループ", ObjectKind.Grid => "グリッド",
         ObjectKind.Border => "罫線", ObjectKind.CellFrame => "マス枠", ObjectKind.GridText => "グリッド文字", ObjectKind.Fill => "セル塗り",
-        ObjectKind.CellSelection => "マス選択", ObjectKind.Image => "画像", ObjectKind.Text => "フリーテキスト", ObjectKind.Line => "ライン", _ => "図形"
+        ObjectKind.EdgeSelection => "辺切り替え", ObjectKind.CellSelection => "マス切り替え", ObjectKind.Image => "画像", ObjectKind.Text => "フリーテキスト", ObjectKind.Line => "ライン", _ => "図形"
     };
 }
 
@@ -168,7 +172,7 @@ public sealed partial class SceneDocument
         if (!Editable(node) || !Editable(target)) throw new InvalidOperationException("ロックされています。");
         var world = World(node); var inverse = World(target); inverse.Invert(); world.Append(inverse);
         Parent(node)!.Children.Remove(node); target.Children.Insert(0, node);
-        if (target.Kind == ObjectKind.CellSelection) AssignNewState(target, node);
+        if (target.IsStateSelector) AssignNewState(target, node);
         node.UseParentLayout = false;
         node.PreservedTransform = null;
         double sx = Math.Sqrt(world.M11 * world.M11 + world.M12 * world.M12);
@@ -246,7 +250,9 @@ public sealed partial class SceneDocument
                 throw new InvalidOperationException($"「{child.Name}」の文字が変更後の範囲外になります。文字を移動・削除してから縮小してください。");
             if (child.Kind == ObjectKind.Image && child.SnapToCell && Outside(child.Column, child.Row))
                 throw new InvalidOperationException($"「{child.Name}」の画像が変更後の範囲外になります。配置マスを変更してから縮小してください。");
-            if (child.Kind == ObjectKind.CellSelection && child.StateCells.Any(c => Outside(c.Column, c.Row)))
+            if (child.Kind == ObjectKind.EdgeSelection && child.StateEdges.Any(e => !e.Edge.IsInside(columns, rows)))
+                throw new InvalidOperationException($"「{child.Name}」の辺が変更後の範囲外になります。先に範囲外の辺を空にしてください。");
+            if (child.IsStateSelector && child.StateCells.Any(c => Outside(c.Column, c.Row)))
                 throw new InvalidOperationException($"「{child.Name}」の配置が変更後の範囲外になります。先に範囲外のマスを空にしてください。");
             if (child.Kind == ObjectKind.Fill && child.FilledCells.Any(c => Outside(c.Column, c.Row)))
                 throw new InvalidOperationException($"「{child.Name}」の塗りが変更後の範囲外になります。該当する塗りを削除してから縮小してください。");
@@ -356,7 +362,7 @@ public sealed partial class SceneDocument
             if (node.Kind == ObjectKind.Group && node.OrganizeOnly && (node.X != 0 || node.Y != 0 || node.Angle != 0)) throw new InvalidDataException("整理用グループは移動・回転できません。");
             if (node.Kind == ObjectKind.Group && RequiresGrid(node) && !node.OrganizeOnly) throw new InvalidDataException("グリッド依存の内容を含むグループは整理用にしてください。");
             ValidateObjectLayout(node);
-            ValidateCellSelection(node, node.Kind == ObjectKind.CellSelection ? GridFor(node) : parent);
+            ValidateCellSelection(node, node.IsStateSelector ? GridFor(node) : parent);
             if (node.ImageData is not null) _ = Document.DecodeImage(node.ImageData);
             foreach (var child in node.Children) Check(child, node, depth + 1);
         }

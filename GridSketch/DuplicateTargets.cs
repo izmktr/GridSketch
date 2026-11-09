@@ -52,7 +52,7 @@ public sealed partial class SceneDocument
             // Duplication keeps local coordinates and layout settings. Reparent would
             // rewrite them to preserve world coordinates, moving the copy within its new parent.
             target.Children.Add(copy);
-            if (target.Kind == ObjectKind.CellSelection) AssignNewState(target, copy);
+            if (target.IsStateSelector) AssignNewState(target, copy);
         }
         target.LayerExpanded = true;
         PrepareGroupLayouts(); ClearMissingStateObjects(); Validate();

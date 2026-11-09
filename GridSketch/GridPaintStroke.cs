@@ -13,7 +13,12 @@ public sealed class GridPaintStroke
     public GridPaintStroke(SceneDocument document, SceneObject node, SceneObject grid, Point start, GridEdge? edge = null)
     {
         this.node = node; this.grid = grid;
-        if (node.Kind == ObjectKind.Border)
+        if (node.Kind == ObjectKind.EdgeSelection)
+        {
+            currentEdge = edge ?? throw new ArgumentException("開始辺が必要です。");
+            stateId = SceneDocument.NextEdgeState(node, edge.Value); PaintEdge(edge.Value);
+        }
+        else if (node.Kind == ObjectKind.Border)
         {
             currentEdge = edge ?? throw new ArgumentException("開始辺が必要です。");
             node.Edges = SceneDocument.BorderEdges(node, grid).ToHashSet(); node.Pattern = "個別";
@@ -42,7 +47,7 @@ public sealed class GridPaintStroke
         var cells = node.Kind == ObjectKind.CellFrame ? node.FrameCells : node.FilledCells;
         if (adding) cells.Add(cell); else cells.Remove(cell);
     }
-    private void PaintEdge(GridEdge edge) { if (adding) node.Edges.Add(edge); else node.Edges.Remove(edge); }
+    private void PaintEdge(GridEdge edge) { if (node.Kind == ObjectKind.EdgeSelection) { if (SceneDocument.EdgeSelectable(node, edge)) SceneDocument.SetEdgeState(node, edge, stateId); return; } if (adding) node.Edges.Add(edge); else node.Edges.Remove(edge); }
     public void Move(Point local)
     {
         var end = Normalize(local);
@@ -67,6 +72,7 @@ public sealed class GridPaintStroke
         {
             var other = vertex + direction;
             var candidate = new GridEdge((int)Math.Min(vertex.X, other.X), (int)Math.Min(vertex.Y, other.Y), direction.X == 0);
+            if (node.Kind == ObjectKind.EdgeSelection && !SceneDocument.EdgeSelectable(node, candidate)) continue;
             if (candidate == current || !SceneDocument.BorderEdgeInside(node, grid, candidate)) continue;
             var delta = p - vertex;
             double progress = Vector.Multiply(delta, direction);

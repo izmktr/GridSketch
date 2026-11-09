@@ -56,7 +56,7 @@ public partial class MainWindow
         menu.Items.Add(new Separator());
         Item("名前の変更…", editable, RenameLayer);
         Item("グループ化", GroupSelectionError() is null, () => WrapClick(this, new RoutedEventArgs()));
-        Item("グループ解除", node.Kind == ObjectKind.Group && editable && parent?.Kind != ObjectKind.CellSelection
+        Item("グループ解除", node.Kind == ObjectKind.Group && editable && parent?.IsStateSelector != true
             && node.Children.All(c => document.Editable(c)), () => UngroupClick(this, new RoutedEventArgs()));
         menu.Items.Add(new Separator());
         Item(node.Visible ? "非表示にする" : "表示する", !root && parentEditable, () => ToggleProperty(false));
@@ -75,7 +75,7 @@ public partial class MainWindow
         int suffix = 2;
         while (parent.Children.Any(c => c.Name == copy.Name)) copy.Name = stem + " のコピー " + suffix++;
         parent.Children.Insert(parent.Children.IndexOf(node) + 1, copy);
-        if (parent.Kind == ObjectKind.CellSelection) SceneDocument.AssignNewState(parent, copy);
+        if (parent.IsStateSelector) SceneDocument.AssignNewState(parent, copy);
         selectedId = copy.Id;
     });
 

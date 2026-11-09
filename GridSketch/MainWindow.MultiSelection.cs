@@ -81,7 +81,7 @@ public partial class MainWindow
         if (nodes.Any(n => !document.Editable(n))) return "ロックされたレイヤーが含まれています。";
         var parent = document.Parent(nodes[0])!;
         if (nodes.Any(n => document.Parent(n) != parent)) return "同じ親の下にあるレイヤーを選択してください。";
-        if (nodes.Count > 1 && parent.Kind == ObjectKind.CellSelection) return "マス選択の複数の見本はまとめられません。";
+        if (nodes.Count > 1 && parent.IsStateSelector) return "切り替えオブジェクトの複数の見本はまとめられません。";
         var indices = nodes.Select(n => parent.Children.IndexOf(n)).Order().ToArray();
         if (indices[^1] - indices[0] + 1 != nodes.Count) return "描画順を維持するため、間に未選択レイヤーを含まない範囲を選択してください。";
         return null;

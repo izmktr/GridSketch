@@ -9,8 +9,8 @@ public sealed partial class SceneDocument
         var bounds = Rect.Empty;
         if (node.Kind == ObjectKind.GridText)
             foreach (var glyph in node.Glyphs) bounds.Union(CellRect(grid, new(glyph.Column, glyph.Row), false));
-        if (node.Kind == ObjectKind.Border)
-            foreach (var edge in BorderEdges(node, grid))
+        if (node.Kind is ObjectKind.Border or ObjectKind.EdgeSelection)
+            foreach (var edge in node.Kind == ObjectKind.EdgeSelection ? node.StateEdges.Select(e => e.Edge) : BorderEdges(node, grid))
             {
                 double offset = node.ConnectCellCenters ? 0.5 : 0;
                 var start = new Point((edge.Column + offset) * grid.CellSize, (edge.Row + offset) * grid.CellSize);
@@ -20,7 +20,7 @@ public sealed partial class SceneDocument
     }
 
     public static bool MovesCellContents(SceneObject node) => node.Kind is ObjectKind.Border or ObjectKind.GridText
-        or ObjectKind.Fill or ObjectKind.CellFrame or ObjectKind.CellSelection;
+        or ObjectKind.Fill or ObjectKind.CellFrame or ObjectKind.CellSelection or ObjectKind.EdgeSelection;
 
     public void MoveCellContents(SceneObject node, SceneObject source, SceneObject grid, Vector delta)
     {
@@ -58,6 +58,8 @@ public sealed partial class SceneDocument
             node.FrameCells = (node.FrameAllCells ? source.FrameCells : FramedCells(source, grid))
                 .Select(c => new CellPosition(c.Column + dx, c.Row + dy)).ToHashSet();
         }
+        if (node.Kind == ObjectKind.EdgeSelection)
+            node.StateEdges = source.StateEdges.Select(p => new EdgeStatePlacement { Edge = new GridEdge(p.Edge.Column + dx, p.Edge.Row + dy, p.Edge.Vertical), StateId = p.StateId }).ToList();
         if (node.Kind == ObjectKind.CellSelection)
             node.StateCells = source.StateCells.Select(c => new CellStatePlacement { Column = c.Column + dx, Row = c.Row + dy, StateId = c.StateId }).ToList();
     }

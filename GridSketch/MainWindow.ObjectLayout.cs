@@ -43,7 +43,7 @@ public partial class MainWindow
         if (node.Kind is ObjectKind.Image or ObjectKind.Shape)
             node.Width = node.Height = document.InitialSquareSize(parent);
         if (node.Kind == ObjectKind.Group) { node.HasLayoutFrame = true; node.Width = node.Height = 100; }
-        if (parent.Kind == ObjectKind.CellSelection && parent.UseObjectLayout)
+        if (parent.IsStateSelector && parent.UseObjectLayout)
         {
             node.UseParentLayout = true; node.LayoutRegion = "親の内側"; node.LayoutSizing = "収める"; node.LayoutAnchor = "中央";
         }

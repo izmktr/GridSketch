@@ -35,14 +35,14 @@ public sealed partial class SceneDocument
                 Math.Max(0, parent.Width - 2 * parent.LayoutInsetX), Math.Max(0, parent.Height - 2 * parent.LayoutInsetY)) : null;
             return new(outer, inner, "親グループ自身の配置範囲（拡縮前）");
         }
-        if (parent.Kind == ObjectKind.CellSelection && GridFor(parent) is { } cells)
-            return CellRegions(cells, new(0, 0), "マス選択から渡される1マスの範囲");
+        if (parent.IsStateSelector && GridFor(parent) is { } cells)
+            return CellRegions(cells, new(0, 0), "マス切り替えから渡される1マスの範囲");
         if (parent.Kind == ObjectKind.Grid)
         {
             if (node.IsGridContent)
                 return CellRegions(parent, node.Kind == ObjectKind.Image ? new(node.Column, node.Row) : new(0, 0), "対象マスごとに渡される範囲（表示は1マス分）");
             return new(new Rect(0, 0, parent.Columns * parent.CellSize, parent.Rows * parent.CellSize), null,
-                "自由配置用のグリッド全体。マスごとの配置はマス選択を使用します。");
+                "自由配置用のグリッド全体。マスごとの配置はマス切り替えを使用します。");
         }
         return new(null, null, "親は配置範囲を持ちません。");
     }

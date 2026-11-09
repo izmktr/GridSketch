@@ -196,6 +196,9 @@ public partial class MainWindow : Window
         {
             case ObjectKind.Group:
                 GroupProperties(node); break;
+            case ObjectKind.EdgeSelection:
+                EdgeSelectionProperties(node);
+                break;
             case ObjectKind.CellSelection:
                 CellSelectionProperties(node); break;
             case ObjectKind.Grid:
@@ -341,13 +344,13 @@ public partial class MainWindow : Window
         byte[]? image = kind == ObjectKind.Image ? ReadImage() : null; if (kind == ObjectKind.Image && image is null) return;
         Change(() =>
         {
-            var (parent, index) = AddPlacement(kind is ObjectKind.Border or ObjectKind.GridText or ObjectKind.Fill or ObjectKind.CellFrame or ObjectKind.CellSelection); RequireEditable(parent);
-            var node = new SceneObject { Kind = kind, Name = centerBorder ? "中心罫線" : SceneObject.KindName(kind), ConnectCellCenters = centerBorder, UseCellLayout = kind == ObjectKind.CellSelection, UseObjectLayout = kind == ObjectKind.CellSelection, ImageData = image };
+            var (parent, index) = AddPlacement(kind is ObjectKind.Border or ObjectKind.GridText or ObjectKind.Fill or ObjectKind.CellFrame or ObjectKind.CellSelection or ObjectKind.EdgeSelection); RequireEditable(parent);
+            var node = new SceneObject { Kind = kind, Name = centerBorder ? "中心罫線" : SceneObject.KindName(kind), ConnectCellCenters = centerBorder, UseCellLayout = kind is ObjectKind.CellSelection or ObjectKind.EdgeSelection, UseObjectLayout = kind is ObjectKind.CellSelection or ObjectKind.EdgeSelection, ImageData = image };
             InitializeObjectLayout(node, parent);
             if (kind == ObjectKind.Image && parent.Kind == ObjectKind.Grid) { node.SnapToCell = true; node.Column = Surface.ActiveCell?.Column ?? 0; node.Row = Surface.ActiveCell?.Row ?? 0; }
             if (kind == ObjectKind.Fill) node.Color = "#000000";
             InsertAddedObject(parent, index, node);
-            if (parent.Kind == ObjectKind.CellSelection)
+            if (parent.IsStateSelector)
             {
                 var baseName = node.Name; int suffix = 1;
                 while (parent.Children.Any(c => c != node && c.Name == node.Name)) node.Name = $"{baseName} {++suffix}";
@@ -412,7 +415,7 @@ public partial class MainWindow : Window
         parent.Children.Insert(index, group);
         foreach (var node in nodes) document.Reparent(node, group);
         group.Children = nodes;
-        if (parent.Kind == ObjectKind.CellSelection)
+        if (parent.IsStateSelector)
             foreach (var state in parent.States.Where(s => s.ObjectId == nodes[0].Id)) state.ObjectId = group.Id;
         layerSelection.Clear(); layerSelection.Add(group.Id); selectedId = group.Id;
     });
@@ -420,7 +423,7 @@ public partial class MainWindow : Window
     {
         RequireSingleLayer(); var node = Selected; RequireEditable(node); if (node.Kind != ObjectKind.Group) throw new InvalidOperationException("通常のグループを選択してください。");
         var parent = document.Parent(node)!;
-        if (parent.Kind == ObjectKind.CellSelection) throw new InvalidOperationException("見本グループは解除せず、子を個別に移動して割り当て直してください。");
+        if (parent.IsStateSelector) throw new InvalidOperationException("見本グループは解除せず、子を個別に移動して割り当て直してください。");
         var children = node.Children.ToList(); int index = parent.Children.IndexOf(node);
         foreach (var child in children) document.Reparent(child, parent); foreach (var child in children) parent.Children.Remove(child); parent.Children.Remove(node); parent.Children.InsertRange(index, children); selectedId = parent.Id;
     });
@@ -442,9 +445,9 @@ public partial class MainWindow : Window
         {
             RequireEditable(node); var grid = document.GridFor(node); if (grid is null) { Status.Text = "グリッド直下のレイヤーを選択してください。"; return; }
             var cell = Surface.CellAt(grid, p);
-            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) && cell is { } rangeEnd && node.Kind != ObjectKind.Line) { Surface.ActiveCell ??= rangeEnd; Surface.RangeEnd = rangeEnd; Surface.InvalidateVisual(); return; }
-            if (node.Kind == ObjectKind.Border && Surface.EdgeAt(grid, p, Zoom.Value) is { } edge) { StartPaint(node, grid, p, edge); e.Handled = true; return; }
-            if (cell is not { } c) return;
+            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) && cell is { } rangeEnd && node.Kind is not (ObjectKind.Line or ObjectKind.EdgeSelection)) { Surface.ActiveCell ??= rangeEnd; Surface.RangeEnd = rangeEnd; Surface.InvalidateVisual(); return; }
+            if (node.Kind is ObjectKind.Border or ObjectKind.EdgeSelection && Surface.EdgeAt(grid, p, Zoom.Value) is { } edge) { StartPaint(node, grid, p, edge); e.Handled = true; return; }
+            if (node.Kind == ObjectKind.EdgeSelection || cell is not { } c) return;
             if (node.Kind == ObjectKind.GridText) { SelectTextCell(c); e.Handled = true; return; }
             Surface.ActiveCell = c; Surface.RangeEnd = null; Surface.Preview = [];
             if (node.Kind is ObjectKind.Fill or ObjectKind.CellFrame or ObjectKind.CellSelection) { StartPaint(node, grid, p); e.Handled = true; return; }
@@ -492,12 +495,12 @@ public partial class MainWindow : Window
         }
         var handle = cellEditMode ? null : Surface.LineHandleAt(p);
         if (handle != Surface.HoveredLineHandle) { Surface.HoveredLineHandle = handle; Surface.Cursor = handle is null ? null : Cursors.SizeAll; Surface.InvalidateVisual(); }
-        var grid = document.GridFor(node); var edge = cellEditMode && node.Kind == ObjectKind.Border && grid is not null ? Surface.EdgeAt(grid, p, Zoom.Value) : null;
+        var grid = document.GridFor(node); var edge = cellEditMode && node.Kind is ObjectKind.Border or ObjectKind.EdgeSelection && grid is not null ? Surface.EdgeAt(grid, p, Zoom.Value) : null;
         if (edge != Surface.HoveredEdge) { Surface.HoveredEdge = edge; Surface.InvalidateVisual(); }
     }
     private void StartPaint(SceneObject node, SceneObject grid, Point point, GridEdge? edge = null)
     {
-        if (node.Kind == ObjectKind.CellSelection && node.States.Count == 0) { Status.Text = "子に画像などを追加するか、プロパティで状態を追加してください。"; return; }
+        if (node.IsStateSelector && node.States.Count == 0) { Status.Text = "子に画像などを追加するか、プロパティで状態を追加してください。"; return; }
         dragSnapshot = document.Snapshot(); paintGrid = grid;
         paintStroke = new GridPaintStroke(document, node, grid, Surface.EditLocal(grid, point), edge);
         Surface.Preview = []; Surface.RangeEnd = null; Surface.HoveredEdge = null;

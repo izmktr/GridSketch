@@ -51,11 +51,27 @@ public sealed class SceneRenderer
         using (var dc = drawing.Open())
         {
             if (node.Kind == ObjectKind.Grid) grid = node;
-            if (node.Kind != ObjectKind.CellSelection)
+            if (!node.IsStateSelector)
                 foreach (var child in node.Children.AsEnumerable().Reverse()) DrawNode(dc, child, grid, recordBounds, applyLayout);
             var pen = node.Thickness > 0 ? Pen(node) : null;
             switch (node.Kind)
             {
+                case ObjectKind.EdgeSelection when grid is not null:
+                    var edgeTemplates = node.Children.Where(c => c.Visible).ToDictionary(c => c.Id, c => ObjectTemplate(c));
+                    foreach (var placement in node.StateEdges)
+                    {
+                        var assigned = node.States.Find(s => s.Id == placement.StateId)?.ObjectId;
+                        if (assigned is null || !edgeTemplates.TryGetValue(assigned, out var picture)) continue;
+                        var child = node.Children.Single(c => c.Id == assigned);
+                        var center = SceneDocument.EdgeCenter(grid, placement.Edge);
+                        dc.PushTransform(new TranslateTransform(center.X, center.Y));
+                        double angle = placement.Edge.Vertical ? child.VerticalRotation switch { "右90°" => 90, "左90°" => -90, _ => 0 } : 0;
+                        dc.PushTransform(new RotateTransform(angle));
+                        dc.PushTransform(new TranslateTransform(-grid.CellSize / 2, -grid.CellSize / 2));
+                        dc.PushClip(new RectangleGeometry(new Rect(0, 0, grid.CellSize, grid.CellSize)));
+                        dc.DrawDrawing(picture); dc.Pop(); dc.Pop(); dc.Pop(); dc.Pop();
+                    }
+                    break;
                 case ObjectKind.CellSelection when grid is not null:
                     var templates = node.Children.Where(c => c.Visible).ToDictionary(c => c.Id, c => node.UseObjectLayout ? ObjectTemplate(c) : node.UseCellLayout ? CellTemplate(c, grid) : Template(c));
                     var states = node.States.ToDictionary(s => s.Id);
@@ -393,6 +409,8 @@ public sealed partial class SceneSurface : FrameworkElement
         var vertical = new GridEdge(c, Math.Clamp((int)Math.Floor(p.Y / size), 0, Math.Max(0, rows - 1)), true);
         var horizontal = new GridEdge(Math.Clamp((int)Math.Floor(p.X / size), 0, Math.Max(0, columns - 1)), r, false);
         bool v = vertical.IsInside(columns, rows) && dx <= tolerance, h = horizontal.IsInside(columns, rows) && dy <= tolerance;
+        if (Selected is { Kind: ObjectKind.EdgeSelection } selector)
+        { v &= SceneDocument.EdgeSelectable(selector, vertical); h &= SceneDocument.EdgeSelectable(selector, horizontal); }
         if (v && (!h || dx <= dy)) return vertical;
         return h ? horizontal : null;
     }

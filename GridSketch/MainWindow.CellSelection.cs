@@ -9,7 +9,7 @@ public partial class MainWindow
     private sealed record StateTarget(string? Id, string Name);
     private void CellSelectionProperties(SceneObject node)
     {
-        Choice("見本の配置方式", node.UseObjectLayout ? "親の配置範囲を使う" : node.UseCellLayout ? "子ごとにマスへ配置" : "全体を収める",
+        if (node.Kind == ObjectKind.CellSelection) Choice("見本の配置方式", node.UseObjectLayout ? "親の配置範囲を使う" : node.UseCellLayout ? "子ごとにマスへ配置" : "全体を収める",
             ["親の配置範囲を使う", "子ごとにマスへ配置", "全体を収める"], v =>
             {
                 bool activate = v == "親の配置範囲を使う" && !node.UseObjectLayout;
@@ -21,8 +21,10 @@ public partial class MainWindow
                     if (child.Kind == ObjectKind.Group && !child.OrganizeOnly) child.HasLayoutFrame = true;
                 }
             });
+        Label("状態");
         var targets = new List<StateTarget> { new(null, "未割り当て") };
         targets.AddRange(node.Children.Select(c => new StateTarget(c.Id, c.Name + " [" + SceneObject.KindName(c.Kind) + "]")));
+        var refreshRotations = new List<Action>();
         Border? activeMarker = null;
         void SetInsertionMarker(Border? next)
         {
@@ -37,6 +39,8 @@ public partial class MainWindow
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
             row.ColumnDefinitions.Add(new ColumnDefinition());
+            if (node.Kind == ObjectKind.EdgeSelection)
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(38) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(38) });
             // Draw the insertion marker over the row without changing its size or hit target.
             var marker = new Border { Height = 2, Background = Brushes.DodgerBlue, VerticalAlignment = VerticalAlignment.Top,
@@ -51,11 +55,36 @@ public partial class MainWindow
             System.Windows.Automation.AutomationProperties.SetName(target, $"状態{i + 1}の表示オブジェクト");
             Grid.SetColumn(target, 2); row.Children.Add(target);
             LiveChoice(target, () => node.States.Single(s => s.Id == state.Id).ObjectId = (target.SelectedItem as StateTarget)?.Id);
+            if (node.Kind == ObjectKind.EdgeSelection)
+            {
+                var rotation = new Button { Width = 32, Height = 32, Margin = new Thickness(0), Padding = new Thickness(1),
+                    HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+                System.Windows.Automation.AutomationProperties.SetName(rotation, $"状態{i + 1}の垂直辺での向き");
+                SceneObject? Template() => node.Children.Find(c => c.Id == state.ObjectId);
+                void RefreshRotation()
+                {
+                    var template = Template();
+                    rotation.IsEnabled = template is not null && document.Editable(template);
+                    rotation.Content = EdgeRotationIcon(template?.VerticalRotation ?? "回転なし");
+                    rotation.ToolTip = template is null ? "表示オブジェクトを選択してください" : $"垂直辺での向き：{template.VerticalRotation}（クリックで切り替え）";
+                }
+                refreshRotations.Add(RefreshRotation);
+                RefreshRotation();
+                target.SelectionChanged += (_, _) => { foreach (var refresh in refreshRotations) refresh(); };
+                rotation.Click += (_, _) =>
+                {
+                    if (Template() is not { } template || !document.Editable(template)) return;
+                    ImmediateProperty(rotation, () => template.VerticalRotation = template.VerticalRotation switch
+                    { "回転なし" => "右90°", "右90°" => "左90°", _ => "回転なし" });
+                    foreach (var refresh in refreshRotations) refresh();
+                };
+                Grid.SetColumn(rotation, 3); row.Children.Add(rotation);
+            }
             var trash = new Button { Content = new System.Windows.Shapes.Path { Data = Geometry.Parse("M3,5 L17,5 M6,5 L7,19 13,19 14,5 M8,5 L8,2 12,2 12,5 M9,8 L9,16 M11,8 L11,16"), Stroke = Brushes.DimGray, StrokeThickness = 1.5, Width = 18, Height = 20, Stretch = Stretch.Uniform }, ToolTip = "状態を削除", Width = 32, Height = 32, Margin = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center, Padding = new Thickness(5) };
             System.Windows.Automation.AutomationProperties.SetName(trash, $"状態{i + 1}を削除");
-            Grid.SetColumn(trash, 3); row.Children.Add(trash);
+            Grid.SetColumn(trash, node.Kind == ObjectKind.EdgeSelection ? 4 : 3); row.Children.Add(trash);
             row.IsEnabled = document.Editable(node);
-            trash.Click += (_, _) => Change(() => { RequireEditable(node); node.States.RemoveAll(s => s.Id == state.Id); node.StateCells.RemoveAll(c => c.StateId == state.Id); });
+            trash.Click += (_, _) => Change(() => { RequireEditable(node); node.States.RemoveAll(s => s.Id == state.Id); node.StateCells.RemoveAll(c => c.StateId == state.Id); node.StateEdges.RemoveAll(c => c.StateId == state.Id); });
             Point? start = null;
             grip.PreviewMouseLeftButtonDown += (_, e) => start = e.GetPosition(grip);
             // ButtonBase handles bubbling MouseMove while pressed. Observe the preview
@@ -142,6 +171,6 @@ public partial class MainWindow
         }
         if (!drawing.Bounds.IsEmpty)
             Properties.Children.Add(new Image { Source = new DrawingImage(drawing), Height = 90, Stretch = Stretch.Uniform, Margin = new Thickness(8) });
-        Button("マス選択の割り当てを開く", () => { selectedId = owner.Id; RefreshAll(); });
+        Button(SceneObject.KindName(owner.Kind) + "の割り当てを開く", () => { selectedId = owner.Id; RefreshAll(); });
     }
 }

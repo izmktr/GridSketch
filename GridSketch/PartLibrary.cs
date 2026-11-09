@@ -41,6 +41,7 @@ public sealed class LibraryPart
                 state.Id = states[state.Id];
                 if (state.ObjectId is not null) state.ObjectId = ids[state.ObjectId];
             }
+            foreach (var edge in node.StateEdges) edge.StateId = states[edge.StateId];
             foreach (var cell in node.StateCells) cell.StateId = states[cell.StateId];
         }
         return clone;
@@ -78,14 +79,14 @@ public sealed partial class SceneDocument
     {
         if (!All().Contains(parent) || !parent.IsContainer || !Editable(parent)) throw new InvalidOperationException("編集可能な追加先を選択してください。");
         var copy = part.CreateCopy(); parent.Children.Insert(0, copy);
-        if (parent.Kind == ObjectKind.CellSelection && parent.UseObjectLayout && !copy.UseParentLayout && copy.HasLayoutFrame)
+        if (parent.IsStateSelector && parent.UseObjectLayout && !copy.UseParentLayout && copy.HasLayoutFrame)
         {
             copy.UseParentLayout = true; copy.LayoutRegion = "親の内側"; copy.LayoutSizing = "収める"; copy.LayoutAnchor = "中央";
         }
         int stateCount = parent.States.Count;
         try
         {
-            if (parent.Kind == ObjectKind.CellSelection) AssignNewState(parent, copy);
+            if (parent.IsStateSelector) AssignNewState(parent, copy);
             Validate(); return copy;
         }
         catch

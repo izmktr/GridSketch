@@ -124,6 +124,7 @@ internal static class Program
             OutlineChecks.Run(Path.GetDirectoryName(temp)!);
             CellFrameChecks.Run(Path.GetDirectoryName(temp)!);
             DragPaintChecks.Run(window);
+            EdgeSelectionChecks.Run(window);
             CellSelectionChecks.Run(window, Path.GetDirectoryName(temp)!);
             PropertyToggleChecks.Run(window);
             ImageRotationChecks.Run();
