@@ -37,6 +37,27 @@ internal static class TabChecks
         Call("Undo"); Check(Current().Canvas.Children.Count == 1, "First tab undo remains available");
         Call("SwitchTab", b); Check(Current().Canvas.Children[0].Text == "第二文書", "Other tab unaffected by undo");
         Call("SwitchTab", a);
+        var sourceDocument = Current();
+        var sourceObject = sourceDocument.Canvas.Children[0];
+        Set("selectedId", sourceObject.Id); Call("RefreshAll");
+        string sourceBefore = sourceDocument.Snapshot(), destinationBefore = second.Snapshot();
+        window.Dispatcher.BeginInvoke(new Action(() =>
+        {
+            var dialog = Application.Current.Windows.OfType<ReparentDialog>().Single();
+            var files = PropertyChecks.Find<ComboBox>(dialog, "複製先のファイル");
+            files.SelectedItem = files.Items.OfType<ComboBoxItem>().Single(i => ReferenceEquals(i.Tag, second));
+            var tree = PropertyChecks.Find<TreeView>(dialog, "複製先のレイヤー");
+            ((TreeViewItem)tree.Items[0]).IsSelected = true;
+            PropertyChecks.Find<Button>(dialog, "選択した親へ複製").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        }));
+        Call("ChooseDuplicateParent");
+        Check(ReferenceEquals(Field("activeTab"), b) && second.Canvas.Children.Count == 2
+            && second.Canvas.Children[1].Id != sourceObject.Id && second.Canvas.Children[1].Children[0].Id != sourceObject.Children[0].Id
+            && sourceDocument.Snapshot() == sourceBefore, "Cross-tab duplication selects destination and preserves source with fresh subtree identities");
+        Check((bool)typeof(MainWindow).GetProperty("Dirty", flags)!.GetValue(window)!, "Destination becomes unsaved after duplication");
+        Call("Undo"); Check(Current().Snapshot() == destinationBefore, "Cross-tab duplication undoes in destination");
+        Call("Redo"); Check(Current().Canvas.Children.Count == 2, "Cross-tab duplication redoes in destination");
+        Call("Undo"); Call("SwitchTab", a);
         var originalPart = Current().Parts[0]; var originalCopyWidth = Current().Canvas.Children[0].Children[0].Width;
         Call("EditPartTab", originalPart); var partTab = Field("activeTab")!;
         Check(!ReferenceEquals(partTab, a) && Current().Canvas.Children.Count == 1, "Part opens as separate editable document");

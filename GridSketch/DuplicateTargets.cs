@@ -4,9 +4,10 @@ namespace GridSketch;
 
 public sealed partial class SceneDocument
 {
-    public IReadOnlyList<SceneObject> DuplicateTargets(IReadOnlyList<SceneObject> nodes)
+    public IReadOnlyList<SceneObject> DuplicateTargets(IReadOnlyList<SceneObject> nodes, SceneDocument? sourceDocument = null)
     {
-        if (ReparentSelectionError(nodes) is not null) return [];
+        sourceDocument ??= this;
+        if (sourceDocument.ReparentSelectionError(nodes) is not null) return [];
         var snapshot = Snapshot();
         var targets = new List<SceneObject>();
         foreach (var target in All().Where(n => n.IsContainer && Editable(n)))
@@ -14,7 +15,7 @@ public sealed partial class SceneDocument
             var trial = Restore(snapshot);
             try
             {
-                trial.DuplicateIntoCore(nodes.Select(n => trial.Find(n.Id)!).ToList(), trial.Find(target.Id)!);
+                trial.DuplicateIntoCore(nodes, trial.Find(target.Id)!, sourceDocument, sourceDocument == this);
                 targets.Add(target);
             }
             catch (Exception ex) when (ex is InvalidOperationException or InvalidDataException or ArgumentException or OverflowException) { }
@@ -22,23 +23,24 @@ public sealed partial class SceneDocument
         return targets;
     }
 
-    public IReadOnlyList<SceneObject> DuplicateInto(IReadOnlyList<SceneObject> nodes, SceneObject target)
+    public IReadOnlyList<SceneObject> DuplicateInto(IReadOnlyList<SceneObject> nodes, SceneObject target, SceneDocument? sourceDocument = null)
     {
-        if (ReparentSelectionError(nodes) is { } error) throw new InvalidOperationException(error);
+        sourceDocument ??= this;
+        if (sourceDocument.ReparentSelectionError(nodes) is { } error) throw new InvalidOperationException(error);
         if (Find(target.Id) != target || !target.IsContainer || !Editable(target)) throw new InvalidOperationException("この親には複製できません。");
         var trial = Restore(Snapshot());
-        trial.DuplicateIntoCore(nodes.Select(n => trial.Find(n.Id)!).ToList(), trial.Find(target.Id)!);
-        return DuplicateIntoCore(nodes, target);
+        trial.DuplicateIntoCore(nodes, trial.Find(target.Id)!, sourceDocument, sourceDocument == this);
+        return DuplicateIntoCore(nodes, target, sourceDocument, sourceDocument == this);
     }
 
-    private List<SceneObject> DuplicateIntoCore(IReadOnlyList<SceneObject> nodes, SceneObject target)
+    private List<SceneObject> DuplicateIntoCore(IReadOnlyList<SceneObject> nodes, SceneObject target, SceneDocument sourceDocument, bool sameDocument)
     {
-        var parent = Parent(nodes[0])!;
+        var parent = sourceDocument.Parent(nodes[0])!;
         // Clone all sources before inserting anything, even if the target is inside a source.
         var copies = parent.Children.Where(nodes.Contains).Select(LibraryPart.Clone).ToList();
         foreach (var copy in copies)
         {
-            if (RequiresGrid(copy) && GridContainer(parent) != GridContainer(target))
+            if (sameDocument && RequiresGrid(copy) && sourceDocument.GridContainer(parent)?.Id != GridContainer(target)?.Id)
                 throw new InvalidOperationException("グリッド依存の内容は同じグリッド内に複製してください。");
             if (target != parent)
                 copy.Name = System.Text.RegularExpressions.Regex.Replace(copy.Name, @"(?: のコピー(?: \d+)?)+$", "");

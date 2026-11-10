@@ -6,12 +6,15 @@ namespace GridSketch;
 public sealed class ReparentDialog : Window
 {
     public string? SelectedParentId { get; private set; }
+    public SceneDocument SelectedDocument { get; private set; }
 
     public ReparentDialog(SceneDocument document, SceneObject source)
         : this(document, new[] { source }) { }
 
-    public ReparentDialog(SceneDocument document, IReadOnlyList<SceneObject> sources, bool duplicate = false)
+    public ReparentDialog(SceneDocument document, IReadOnlyList<SceneObject> sources, bool duplicate = false,
+        IReadOnlyList<(string Name, SceneDocument Document)>? documents = null)
     {
+        SelectedDocument = document;
         var source = sources[0];
         Title = duplicate ? "複製先を選択" : "親を変更"; Width = 460; Height = 560; MinWidth = 360; MinHeight = 360;
         WindowStartupLocation = WindowStartupLocation.CenterOwner; ShowInTaskbar = false;
@@ -23,7 +26,7 @@ public sealed class ReparentDialog : Window
         string Path(SceneObject node)
         {
             var parts = new List<string>();
-            for (SceneObject? current = node; current is not null; current = document.Parent(current)) parts.Add(current.Name);
+            for (SceneObject? current = node; current is not null; current = SelectedDocument.Parent(current)) parts.Add(current.Name);
             parts.Reverse(); return string.Join(" / ", parts);
         }
         heading.Children.Add(new TextBlock { Text = "現在の親：" + (document.Parent(source) is { } parent ? Path(parent) : "なし"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
@@ -38,12 +41,7 @@ public sealed class ReparentDialog : Window
         var selectedPath = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
         DockPanel.SetDock(selectedPath, Dock.Bottom); root.Children.Add(selectedPath);
 
-        var targets = (duplicate ? document.DuplicateTargets(sources) : document.ReparentTargets(sources)).ToDictionary(n => n.Id);
-        if (targets.Count == 0)
-        {
-            root.Children.Add(new TextBlock { Text = duplicate ? "複製可能な親がありません。" : "移動可能な親がありません。", TextWrapping = TextWrapping.Wrap });
-            return;
-        }
+        var targets = new Dictionary<string, SceneObject>();
         var tree = new TreeView { Padding = new Thickness(6) };
         System.Windows.Automation.AutomationProperties.SetName(tree, duplicate ? "複製先のレイヤー" : "移動先のレイヤー");
         void Add(SceneObject node, ItemsControl destination, string pathPrefix)
@@ -57,7 +55,33 @@ public sealed class ReparentDialog : Window
             else
                 foreach (var child in node.Children) Add(child, destination, pathPrefix + node.Name + " / ");
         }
-        Add(document.Canvas, tree, "");
+        void Populate()
+        {
+            SelectedParentId = null; move.IsEnabled = false; selectedPath.Text = "";
+            tree.Items.Clear();
+            targets = (duplicate ? SelectedDocument.DuplicateTargets(sources, document) : document.ReparentTargets(sources)).ToDictionary(n => n.Id);
+            Add(SelectedDocument.Canvas, tree, "");
+            if (targets.Count == 0) selectedPath.Text = duplicate ? "複製可能な親がありません。" : "移動可能な親がありません。";
+        }
+        if (duplicate && documents is { Count: > 1 })
+        {
+            heading.Children.Add(new TextBlock { Text = "複製先のファイル", Margin = new Thickness(0, 12, 0, 4) });
+            var files = new ComboBox();
+            System.Windows.Automation.AutomationProperties.SetName(files, "複製先のファイル");
+            foreach (var entry in documents)
+                files.Items.Add(new ComboBoxItem { Content = entry.Name, Tag = entry.Document });
+            files.SelectedItem = files.Items.OfType<ComboBoxItem>().First(i => ReferenceEquals(i.Tag, document));
+            files.SelectionChanged += (_, _) =>
+            {
+                if (files.SelectedItem is ComboBoxItem { Tag: SceneDocument destination })
+                {
+                    SelectedDocument = destination;
+                    Populate();
+                }
+            };
+            heading.Children.Add(files);
+        }
+        Populate();
         tree.SelectedItemChanged += (_, e) =>
         {
             SelectedParentId = (e.NewValue as TreeViewItem)?.Tag as string;
