@@ -49,8 +49,7 @@ public sealed partial class SceneDocument
                 int suffix = 2;
                 while (target.Children.Any(n => n.Name == copy.Name)) copy.Name = stem + " のコピー " + suffix++;
             }
-            // Duplication keeps local coordinates and layout settings. Reparent would
-            // rewrite them to preserve world coordinates, moving the copy within its new parent.
+            // Preserve source coordinates relative to the parent, including cell template offsets.
             target.Children.Add(copy);
             if (target.IsStateSelector) AssignNewState(target, copy);
         }

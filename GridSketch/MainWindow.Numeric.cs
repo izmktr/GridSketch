@@ -91,7 +91,7 @@ public partial class MainWindow
         bool separate = grid.SeparateCellHeight.HasValue;
         var header = new WrapPanel { Margin = new Thickness(0, 6, 0, 2) };
         header.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
-        var toggle = new CheckBox { Content = "個別設定", IsChecked = separate, Margin = new Thickness(8, 0, 0, 0),
+        var toggle = new CheckBox { Content = "縦横別", IsChecked = separate, Margin = new Thickness(8, 0, 0, 0),
             VerticalAlignment = VerticalAlignment.Center, ToolTip = "横幅と縦幅を別々に設定します。オフにすると横幅で正方形に戻ります。" };
         header.Children.Add(toggle);
         Properties.Children.Add(header);

@@ -2,6 +2,7 @@ using System.IO;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using GridSketch;
@@ -46,6 +47,24 @@ internal static class VisibilityPresetChecks
         typeof(MainWindow).GetMethod("Undo", flags)!.Invoke(window, null);
         var undone = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;
         Check(undone.Snapshot() == beforeApply, "Preset application is a single undoable operation");
+        var grid = SceneDocument.CreateGrid("基本の方眼紙");
+        var text = grid.Children.Single(n => n.Kind == ObjectKind.GridText);
+        undone.Canvas.Children.Add(grid);
+        typeof(MainWindow).GetField("selectedId", flags)!.SetValue(window, text.Id);
+        var surface = (SceneSurface)window.FindName("Surface");
+        var canType = typeof(MainWindow).GetProperty("CanTypeInGrid", flags)!;
+        var mode = typeof(MainWindow).GetField("cellEditMode", flags)!;
+        var previousMode = mode.GetValue(window);
+        mode.SetValue(window, true);
+        typeof(MainWindow).GetMethod("RefreshAll", flags)!.Invoke(window, null);
+        surface.ActiveCell = new CellPosition(0, 0);
+        Check((bool)canType.GetValue(window)!, "Visible grid text accepts input");
+        grid.Visible = false;
+        Check(!(bool)canType.GetValue(window)!, "Grid text under a hidden parent rejects keyboard input");
+        typeof(MainWindow).GetMethod("SurfaceDown", flags)!.Invoke(window,
+            [surface, new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)]);
+        Check(((TextBlock)window.FindName("Status")).Text == "表示してからマス・辺を編集してください。", "Hidden grid content rejects canvas editing");
+        mode.SetValue(window, previousMode);
         Console.WriteLine("PASS: Visibility presets capture, apply, locks, new/deleted layers, persistence, draft cancellation and undo");
     }
 }

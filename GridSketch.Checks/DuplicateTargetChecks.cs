@@ -56,14 +56,26 @@ internal static class DuplicateTargetChecks
             "Copies must preserve parent layout settings");
         var grid = SceneDocument.CreateGrid("空のグリッド"); scene = new SceneDocument(); scene.Canvas.Children.Add(grid);
         var selector = new SceneObject { Kind = ObjectKind.CellSelection }; grid.Children.Add(selector);
-        var template = new SceneObject { Kind = ObjectKind.Group, Children = [new() { Kind = ObjectKind.Shape }] };
+        var template = new SceneObject { Kind = ObjectKind.Group, X = 7, Y = -4, Children = [new() { Kind = ObjectKind.Shape, X = 3 }] };
         selector.Children.Add(template); SceneDocument.AssignNewState(selector, template);
         SceneDocument.SetCellState(selector, new(0, 0), selector.States[0].Id);
         var copiedSelector = scene.DuplicateInto(new[] { selector }, grid).Single();
         Check(copiedSelector.States[0].Id != selector.States[0].Id && copiedSelector.States[0].ObjectId == copiedSelector.Children[0].Id
             && copiedSelector.StateCells[0].StateId == copiedSelector.States[0].Id, "Cloned selector must remap all internal references");
         scene.DuplicateInto(new[] { template }, selector);
-        Check(selector.States.Count == 2 && selector.States[1].ObjectId == selector.Children[1].Id, "Copying a template into same selector adds an assignment");
+        Check(selector.States.Count == 2 && selector.States[1].ObjectId == selector.Children[1].Id
+            && selector.Children[1].X == 7 && selector.Children[1].Y == -4, "Copying a template into the same selector preserves its offset and adds an assignment");
+        var otherGrid = SceneDocument.CreateGrid("空のグリッド", cellSize: 32);
+        otherGrid.X = 200;
+        var otherSelector = new SceneObject { Kind = ObjectKind.CellSelection };
+        otherGrid.Children.Add(otherSelector);
+        scene.Canvas.Children.Add(otherGrid);
+        selector.Children[1].X = selector.Children[1].Y = 0;
+        var copies = scene.DuplicateInto(selector.Children.ToArray(), otherSelector);
+        Check(copies.Count == 2 && copies.Zip(selector.Children).All(pair =>
+                pair.First.X == pair.Second.X && pair.First.Y == pair.Second.Y && pair.First.Children[0].X == pair.Second.Children[0].X)
+            && otherSelector.States.Select(s => s.ObjectId).SequenceEqual(copies.Select(c => c.Id))
+            && template.X == 7 && template.Y == -4, "Copying cell templates across grids preserves each source offset, including zero");
         Console.WriteLine("PASS: Duplicate target dialog, cancel, batch order, relative placement, naming, layout, undo and state remapping");
     }
 }

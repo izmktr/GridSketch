@@ -14,7 +14,7 @@ public partial class MainWindow
 
     private bool CanTypeInGrid => cellEditMode && Selected.Kind == ObjectKind.GridText
         && Surface.ActiveCell is { } cell && (Surface.RangeEnd is null || Surface.RangeEnd == cell)
-        && document.Editable(Selected);
+        && document.Shown(Selected) && document.Editable(Selected);
 
     private void SelectTextCell(CellPosition cell)
     {

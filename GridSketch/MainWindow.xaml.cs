@@ -65,7 +65,7 @@ public partial class MainWindow : Window
         CommitPropertyEdit(); refreshing = true; SyncLayerSelection();
         if (Surface.Selected?.Id != Selected.Id) { Surface.ActiveCell = null; Surface.RangeEnd = null; }
         var selectedGrid = document.GridFor(Selected);
-        if (selectedGrid is null || Surface.ActiveCell is { } cell && (cell.Column >= selectedGrid.Columns || cell.Row >= selectedGrid.Rows)) { Surface.ActiveCell = null; Surface.RangeEnd = null; }
+        if (!document.Shown(Selected) || selectedGrid is null || Surface.ActiveCell is { } cell && (cell.Column >= selectedGrid.Columns || cell.Row >= selectedGrid.Rows)) { Surface.ActiveCell = null; Surface.RangeEnd = null; }
         if (selectedGrid is not null && Surface.RangeEnd is { } end && (end.Column >= selectedGrid.Columns || end.Row >= selectedGrid.Rows)) Surface.RangeEnd = null;
         Surface.Selected = Selected; Surface.Preview = []; RefreshSurface(); Layers.Items.Clear();
         TreeViewItem Item(SceneObject node)
@@ -445,6 +445,7 @@ public partial class MainWindow : Window
         var p = e.GetPosition(Surface); var node = Selected;
         if (cellEditMode)
         {
+            if (!document.Shown(node)) { Status.Text = "表示してからマス・辺を編集してください。"; return; }
             RequireEditable(node); var grid = document.GridFor(node); if (grid is null) { Status.Text = "グリッド直下のレイヤーを選択してください。"; return; }
             var cell = Surface.CellAt(grid, p);
             if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) && cell is { } rangeEnd && node.Kind is not (ObjectKind.Line or ObjectKind.EdgeSelection)) { Surface.ActiveCell ??= rangeEnd; Surface.RangeEnd = rangeEnd; Surface.InvalidateVisual(); return; }
@@ -464,7 +465,7 @@ public partial class MainWindow : Window
         }
         if (StartLineHandle(p)) { e.Handled = true; return; }
         var world = Surface.ToWorld(p);
-        if (node == document.Canvas || !Surface.Renderer!.Bounds.TryGetValue(node.Id, out var selectedBounds) || !selectedBounds.Contains(world))
+        if (node == document.Canvas || !document.Shown(node) || !Surface.Renderer!.Bounds.TryGetValue(node.Id, out var selectedBounds) || !selectedBounds.Contains(world))
         {
             SceneObject? Hit(SceneObject root)
             {
@@ -497,7 +498,7 @@ public partial class MainWindow : Window
         }
         var handle = cellEditMode ? null : Surface.LineHandleAt(p);
         if (handle != Surface.HoveredLineHandle) { Surface.HoveredLineHandle = handle; Surface.Cursor = handle is null ? null : Cursors.SizeAll; Surface.InvalidateVisual(); }
-        var grid = document.GridFor(node); var edge = cellEditMode && node.Kind is ObjectKind.Border or ObjectKind.EdgeSelection && grid is not null ? Surface.EdgeAt(grid, p, Zoom.Value) : null;
+        var grid = document.GridFor(node); var edge = cellEditMode && node.Kind is ObjectKind.Border or ObjectKind.EdgeSelection && grid is not null && document.Shown(node) ? Surface.EdgeAt(grid, p, Zoom.Value) : null;
         if (edge != Surface.HoveredEdge) { Surface.HoveredEdge = edge; Surface.InvalidateVisual(); }
     }
     private void StartPaint(SceneObject node, SceneObject grid, Point point, GridEdge? edge = null)

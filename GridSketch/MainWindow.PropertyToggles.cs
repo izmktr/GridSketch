@@ -42,7 +42,9 @@ public partial class MainWindow
         var before = document.Snapshot();
         if (locking) node.Locked = !node.Locked; else node.Visible = !node.Visible;
         RememberUndo(before);
-        if (!document.Editable(node) || !document.Shown(node)) GridInput.Visibility = Visibility.Collapsed;
+        bool shown = document.Shown(node);
+        if (!document.Editable(node) || !shown) GridInput.Visibility = Visibility.Collapsed;
+        if (!shown) { Surface.ActiveCell = null; Surface.RangeEnd = null; }
         Surface.Preview = []; Surface.HoveredEdge = null;
         RefreshSurface(); UpdatePropertyToggles();
         // Update existing tree headers without replacing property editors or their pending values.
