@@ -61,6 +61,11 @@ public sealed partial class SceneDocument
             }
             node.FilledCells = MapCells(node.FilledCells);
             node.FrameCells = MapCells(node.FrameCells);
+            node.RegionLinks = node.RegionLinks.Select(edge => RegionNeighbors(edge))
+                .Where(pair => !Removed(Index(pair.First)) && !Removed(Index(pair.Second)))
+                .Select(pair => (First: MapCell(pair.First), Second: MapCell(pair.Second)))
+                .Where(pair => Math.Abs(pair.First.Column - pair.Second.Column) + Math.Abs(pair.First.Row - pair.Second.Row) == 1)
+                .Select(pair => RegionLink(pair.First, pair.Second)).ToHashSet();
             node.StateCells.RemoveAll(c => Removed(rows ? c.Row : c.Column));
             foreach (var cell in node.StateCells)
             {

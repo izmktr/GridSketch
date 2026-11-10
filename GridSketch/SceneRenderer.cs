@@ -103,14 +103,7 @@ public sealed class SceneRenderer
                     foreach (var cell in node.FilledCells) dc.DrawRectangle(Brush(node.Color), null, SceneDocument.CellRect(grid, cell, node.UseCellMargin));
                     break;
                 case ObjectKind.CellFrame when grid is not null:
-                    if (pen is not null) foreach (var cell in SceneDocument.FramedCells(node, grid))
-                    {
-                        var frame = SceneDocument.CellRect(grid, cell, true);
-                        var framePen = pen.Clone(); framePen.Thickness = Math.Min(pen.Thickness, Math.Min(frame.Width, frame.Height));
-                        dc.PushClip(new RectangleGeometry(frame));
-                        frame.Inflate(-framePen.Thickness / 2, -framePen.Thickness / 2);
-                        dc.DrawRectangle(null, framePen, frame); dc.Pop();
-                    }
+                    dc.DrawDrawing(RegionFrameDrawing.Drawing(node, grid));
                     break;
                 case ObjectKind.GridText when grid is not null:
                     foreach (var glyph in node.Glyphs)

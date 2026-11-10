@@ -71,7 +71,14 @@ public sealed class SceneObject
     private double? marginY;
     public double MarginY { get => marginY ?? Margin; set => marginY = value; }
     public bool UseCellMargin { get; set; }
-    public bool FrameAllCells { get; set; } = true;
+    public bool FrameAllCells { get; set; }
+    public HashSet<GridEdge> RegionLinks { get; set; } = [];
+    public string RegionOuterStyle { get; set; } = "実線";
+    public string RegionInnerStyle { get; set; } = "なし";
+    public double RegionInset { get; set; }
+    public double RegionInnerThickness { get; set; } = 1;
+    private string? regionInnerColor;
+    public string RegionInnerColor { get => regionInnerColor ?? Color; set => regionInnerColor = value; }
     public List<CellState> States { get; set; } = [];
     public bool UseCellLayout { get; set; }
     public bool UseObjectLayout { get; set; }
@@ -121,7 +128,7 @@ public sealed class SceneObject
     public static string KindName(ObjectKind kind) => kind switch
     {
         ObjectKind.Canvas => "キャンバス", ObjectKind.Group => "グループ", ObjectKind.Grid => "グリッド",
-        ObjectKind.Border => "罫線", ObjectKind.CellFrame => "マス枠", ObjectKind.GridText => "グリッド文字", ObjectKind.Fill => "セル塗り",
+        ObjectKind.Border => "罫線", ObjectKind.CellFrame => "領域枠", ObjectKind.GridText => "グリッド文字", ObjectKind.Fill => "セル塗り",
         ObjectKind.EdgeSelection => "辺切り替え", ObjectKind.CellSelection => "マス切り替え", ObjectKind.Image => "画像", ObjectKind.Text => "フリーテキスト", ObjectKind.Line => "ライン", _ => "図形"
     };
 }
@@ -199,7 +206,7 @@ public sealed partial class SceneDocument
         {
             grid.Children = [
                 new() { Kind = ObjectKind.GridText, Name = "グリッド文字" },
-                new() { Kind = ObjectKind.CellFrame, Name = "マス枠", Color = "#000000", Thickness = 1 },
+                new() { Kind = ObjectKind.CellFrame, Name = "領域枠", Color = "#000000", Thickness = 1 },
                 new() { Kind = ObjectKind.Fill, Name = "セル塗り", Color = "#FFF2A8", UseCellMargin = true }
             ];
             return grid;
@@ -292,7 +299,11 @@ public sealed partial class SceneDocument
                     .Where(e => e.IsInside(columns, rows)).ToHashSet();
             }
         }
-        foreach (var frame in GridMembers(grid).Where(n => n.Kind == ObjectKind.CellFrame)) frame.FrameCells.RemoveWhere(c => c.Column >= columns || c.Row >= rows);
+        foreach (var frame in GridMembers(grid).Where(n => n.Kind == ObjectKind.CellFrame))
+        {
+            frame.FrameCells.RemoveWhere(c => c.Column >= columns || c.Row >= rows);
+            PruneRegionLinks(frame, resized);
+        }
         grid.Columns = columns; grid.Rows = rows; grid.CellSize = cellSize; grid.SeparateCellHeight = separateCellHeight; grid.Margin = margin; grid.MarginY = verticalMargin ?? margin;
     }
 
@@ -316,10 +327,11 @@ public sealed partial class SceneDocument
         => frame.FrameAllCells ? Enumerable.Range(0, grid.Rows).SelectMany(row => Enumerable.Range(0, grid.Columns).Select(col => new CellPosition(col, row))) : frame.FrameCells;
     public void SetFrameCells(SceneObject frame, IEnumerable<CellPosition> cells, bool? enabled)
     {
-        var grid = GridFor(frame) ?? throw new InvalidOperationException("グリッド内のマス枠を選択してください。");
+        var grid = GridFor(frame) ?? throw new InvalidOperationException("グリッド内の領域枠を選択してください。");
         if (frame.FrameAllCells) { frame.FrameCells = FramedCells(frame, grid).ToHashSet(); frame.FrameAllCells = false; }
         foreach (var cell in cells)
             if (enabled ?? !frame.FrameCells.Contains(cell)) frame.FrameCells.Add(cell); else frame.FrameCells.Remove(cell);
+        PruneRegionLinks(frame, grid);
     }
 
     public void Validate()
@@ -337,7 +349,7 @@ public sealed partial class SceneDocument
         {
             if (node is null || depth > 24 || ids.Count > 5000 || string.IsNullOrWhiteSpace(node.Id) || !ids.Add(node.Id)) throw new InvalidDataException("階層が深すぎるか、IDが重複しています。");
             if (!Enum.IsDefined(node.Kind) || node.Children is null || node.Name is null || node.Name.Length > 200 || node.Glyphs is null || node.Edges is null || node.FilledCells is null) throw new InvalidDataException("オブジェクトが不正です。");
-            if (node.FrameCells is null || !double.IsFinite(node.MarginY)) throw new InvalidDataException("マス枠またはマス内余白が不正です。");
+            if (node.FrameCells is null || node.RegionLinks is null || !double.IsFinite(node.MarginY)) throw new InvalidDataException("領域枠またはマス内余白が不正です。");
             if (node.BorderEndCap is not (null or "中央まで" or "四角" or "丸")) throw new InvalidDataException("罫線の端の形が不正です。");
             if (node.Style is null || !double.IsFinite(node.Style.OutlineWidth) || node.Style.OutlineWidth < 0 || node.Style.OutlineWidth > 64) throw new InvalidDataException("縁取りの太さは0～64pxで指定してください。");
             _ = (Color)ColorConverter.ConvertFromString(node.Style.OutlineColor);
@@ -357,7 +369,7 @@ public sealed partial class SceneDocument
                     extent.Right + node.X > grid.Columns * grid.CellSize + 0.001 || extent.Bottom + node.Y > grid.Rows * grid.CellHeight + 0.001))
                     throw new InvalidDataException("罫線・グリッド文字はグリッドの範囲外へ移動できません。");
                 bool In(int c, int r) => c >= 0 && r >= 0 && c < grid.Columns && r < grid.Rows;
-                if (node.FrameCells.Any(c => !In(c.Column, c.Row))) throw new InvalidDataException("マス枠の対象がグリッドの範囲外です。");
+                if (node.FrameCells.Any(c => !In(c.Column, c.Row))) throw new InvalidDataException("領域枠の対象がグリッドの範囲外です。");
                 if (node.Edges.Any(e => !BorderEdgeInside(node, grid, e)) || node.FilledCells.Any(c => !In(c.Column, c.Row)) || node.Glyphs.Any(g => g is null || !In(g.Column, g.Row) || g.Text is null || (g.Text.Length == 0 || !g.InCellText && new StringInfo(g.Text).LengthInTextElements != 1) || g.Text.Any(char.IsControl) || g.Size.HasValue && (!double.IsFinite(g.Size.Value) || g.Size < 1 || g.Size > 512))) throw new InvalidDataException("範囲外のマス・辺または不正な文字があります。縮小する場合は先に範囲外の内容を削除してください。");
                 if (node.Glyphs.Select(g => (g.Column, g.Row)).Distinct().Count() != node.Glyphs.Count) throw new InvalidDataException("文字のマスが重複しています。");
                 if (node.Kind == ObjectKind.Image && !In(node.Column, node.Row)) throw new InvalidDataException("画像の配置マスが範囲外です。");
@@ -365,6 +377,7 @@ public sealed partial class SceneDocument
             if (node.Kind == ObjectKind.Group && node.OrganizeOnly && (node.X != 0 || node.Y != 0 || node.Angle != 0)) throw new InvalidDataException("整理用グループは移動・回転できません。");
             if (node.Kind == ObjectKind.Group && RequiresGrid(node) && !node.OrganizeOnly) throw new InvalidDataException("グリッド依存の内容を含むグループは整理用にしてください。");
             ValidateObjectLayout(node);
+            ValidateRegionFrame(node);
             ValidateCellSelection(node, node.IsStateSelector ? GridFor(node) : parent);
             if (node.ImageData is not null) _ = Document.DecodeImage(node.ImageData);
             foreach (var child in node.Children) Check(child, node, depth + 1);

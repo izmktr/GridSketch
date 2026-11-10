@@ -224,13 +224,15 @@ public partial class MainWindow : Window
                 Number("縁の太さ（外側 / 0～64px）", node.Style.OutlineWidth, v => node.Style.OutlineWidth = v, 0, 64);
                 break;
             case ObjectKind.CellFrame:
-                ColorField("枠の色", node.Color, v => node.Color = v); Number("枠の太さ（0～64px）", node.Thickness, v => node.Thickness = v, 0, 64);
-                StrokeIconChoice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v);
-                Choice("対象", node.FrameAllCells ? "全マス" : "指定マス", ["全マス", "指定マス"], v =>
-                {
-                    if (v == "指定マス" && node.FrameAllCells) document.SetFrameCells(node, [], true);
-                    else if (v == "全マス") { node.FrameAllCells = true; node.FrameCells.Clear(); }
-                });
+                ColorField("外周線の色", node.Color, v => { node.RegionInnerColor = node.RegionInnerColor; node.Color = v; });
+                StrokeIconChoice("外周線", node.RegionOuterStyle, ["なし", "実線", "破線", "点線"], v => node.RegionOuterStyle = v);
+                Number("外周線の太さ（px）", node.Thickness, v => node.Thickness = v, 0, 64);
+                Number("外周線の引き込み（px）", node.RegionInset, v => node.RegionInset = v);
+                Label("＋で内側、−で外側。0はグリッド罫線上です。");
+                ColorField("内部線の色", node.RegionInnerColor, v => node.RegionInnerColor = v);
+                StrokeIconChoice("内部線", node.RegionInnerStyle, ["なし", "実線", "破線", "点線"], v => node.RegionInnerStyle = v);
+                Number("内部線の太さ（px）", node.RegionInnerThickness, v => node.RegionInnerThickness = v, 0, 64);
+                Label("空のマスからドラッグして領域を作成。対象マス間の辺をクリック・ドラッグすると結合を切り替えます。");
                  break;
             case ObjectKind.Image:
                 if (node.SnapToCell) { Pair("列（1から）", node.Column + 1, v => node.Column = (int)v - 1, "行（1から）", node.Row + 1, v => node.Row = (int)v - 1, integer: true); }
@@ -250,8 +252,9 @@ public partial class MainWindow : Window
         if (node.Kind == ObjectKind.Fill) Button("選択範囲の塗りを削除", () => Change(() => { RequireEditable(node); foreach (var cell in CellRange(node)) node.FilledCells.Remove(cell); }));
         if (node.Kind == ObjectKind.CellFrame)
         {
-            Button("選択範囲に枠を追加", () => Change(() => { RequireEditable(node); document.SetFrameCells(node, CellRange(node), true); }));
-            Button("選択範囲の枠を削除", () => Change(() => { RequireEditable(node); document.SetFrameCells(node, CellRange(node), false); }));
+            Button("選択範囲を結合して領域を作成", () => Change(() => { RequireEditable(node); document.JoinRegionCells(node, CellRange(node)); }));
+            Button("選択範囲の結合を解除", () => Change(() => { RequireEditable(node); var cells = CellRange(node).ToHashSet(); node.RegionLinks.RemoveWhere(e => { var (a, b) = SceneDocument.RegionNeighbors(e); return cells.Contains(a) && cells.Contains(b); }); }));
+            Button("選択範囲の領域を削除", () => Change(() => { RequireEditable(node); document.SetFrameCells(node, CellRange(node), false); }));
         }
         if (node.Kind == ObjectKind.CellSelection) Button("選択範囲を空にする", () => Change(() => { RequireEditable(node); var cells = CellRange(node).ToHashSet(); node.StateCells.RemoveAll(c => cells.Contains(new(c.Column, c.Row))); }));
         if (node.Kind == ObjectKind.Image) Button("画像を読み込み / 置換…", () => ReplaceImage(node));
@@ -449,6 +452,14 @@ public partial class MainWindow : Window
             if (!document.Shown(node)) { Status.Text = "表示してからマス・辺を編集してください。"; return; }
             RequireEditable(node); var grid = document.GridFor(node); if (grid is null) { Status.Text = "グリッド直下のレイヤーを選択してください。"; return; }
             var cell = Surface.CellAt(grid, p);
+            if (node.Kind == ObjectKind.CellFrame && !Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)
+                && Surface.EdgeAt(grid, p, Zoom.Value) is { } regionEdge)
+            {
+                var (first, second) = SceneDocument.RegionNeighbors(regionEdge);
+                var cells = SceneDocument.FramedCells(node, grid).ToHashSet();
+                if (cells.Contains(first) && cells.Contains(second))
+                { StartPaint(node, grid, p, regionEdge); e.Handled = true; return; }
+            }
             if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) && cell is { } rangeEnd && node.Kind is not (ObjectKind.Line or ObjectKind.EdgeSelection)) { Surface.ActiveCell ??= rangeEnd; Surface.RangeEnd = rangeEnd; Surface.InvalidateVisual(); return; }
             if (node.Kind is ObjectKind.Border or ObjectKind.EdgeSelection && Surface.EdgeAt(grid, p, Zoom.Value) is { } edge) { StartPaint(node, grid, p, edge); e.Handled = true; return; }
             if (node.Kind == ObjectKind.EdgeSelection || cell is not { } c) return;
@@ -499,7 +510,13 @@ public partial class MainWindow : Window
         }
         var handle = cellEditMode ? null : Surface.LineHandleAt(p);
         if (handle != Surface.HoveredLineHandle) { Surface.HoveredLineHandle = handle; Surface.Cursor = handle is null ? null : Cursors.SizeAll; Surface.InvalidateVisual(); }
-        var grid = document.GridFor(node); var edge = cellEditMode && node.Kind is ObjectKind.Border or ObjectKind.EdgeSelection && grid is not null && document.Shown(node) ? Surface.EdgeAt(grid, p, Zoom.Value) : null;
+        var grid = document.GridFor(node); var edge = cellEditMode && node.Kind is ObjectKind.Border or ObjectKind.EdgeSelection or ObjectKind.CellFrame && grid is not null && document.Shown(node) ? Surface.EdgeAt(grid, p, Zoom.Value) : null;
+        if (node.Kind == ObjectKind.CellFrame && edge is { } regionEdge)
+        {
+            var (first, second) = SceneDocument.RegionNeighbors(regionEdge);
+            var cells = SceneDocument.FramedCells(node, grid!).ToHashSet();
+            if (!cells.Contains(first) || !cells.Contains(second)) edge = null;
+        }
         if (edge != Surface.HoveredEdge) { Surface.HoveredEdge = edge; Surface.InvalidateVisual(); }
     }
     private void StartPaint(SceneObject node, SceneObject grid, Point point, GridEdge? edge = null)

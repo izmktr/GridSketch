@@ -82,7 +82,7 @@
     <Separator/>
     <MenuItem Header="罫線" Tag="Border" Click="AddClick"/>
     <MenuItem Header="中心罫線（マスの中心をつなぐ）" Tag="CenterBorder" Click="AddClick"/>
-    <MenuItem Header="マス枠" Tag="CellFrame" Click="AddClick"/>
+    <MenuItem Header="領域枠" Tag="CellFrame" Click="AddClick"/>
     <MenuItem Header="グリッド文字" Tag="GridText" Click="AddClick"/>
     <MenuItem Header="マス切り替え" Tag="CellSelection" Click="AddClick"/>
     <MenuItem Header="辺切り替え" Tag="EdgeSelection" Click="AddClick"/>

@@ -54,6 +54,7 @@ public sealed partial class SceneDocument
         if (node.Kind == ObjectKind.Fill) node.FilledCells = source.FilledCells.Select(c => new CellPosition(c.Column + dx, c.Row + dy)).ToHashSet();
         if (node.Kind == ObjectKind.CellFrame)
         {
+            node.RegionLinks = source.RegionLinks.Select(e => new GridEdge(e.Column + dx, e.Row + dy, e.Vertical)).ToHashSet();
             node.FrameAllCells = source.FrameAllCells && dx == 0 && dy == 0;
             node.FrameCells = (node.FrameAllCells ? source.FrameCells : FramedCells(source, grid))
                 .Select(c => new CellPosition(c.Column + dx, c.Row + dy)).ToHashSet();

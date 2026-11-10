@@ -6,17 +6,25 @@ namespace GridSketch;
 public sealed class GridPaintStroke
 {
     private readonly SceneObject node, grid;
+    private readonly SceneDocument document;
+    private CellPosition? lastRegionCell;
     private readonly bool adding;
     private readonly string? stateId;
     private Point? previous;
     private GridEdge? currentEdge;
     public GridPaintStroke(SceneDocument document, SceneObject node, SceneObject grid, Point start, GridEdge? edge = null)
     {
-        this.node = node; this.grid = grid;
+        this.node = node; this.grid = grid; this.document = document;
         if (node.Kind == ObjectKind.EdgeSelection)
         {
             currentEdge = edge ?? throw new ArgumentException("開始辺が必要です。");
             stateId = SceneDocument.NextEdgeState(node, edge.Value); PaintEdge(edge.Value);
+        }
+        else if (node.Kind == ObjectKind.CellFrame && edge is { } regionEdge)
+        {
+            currentEdge = regionEdge;
+            adding = !node.RegionLinks.Contains(regionEdge);
+            PaintEdge(regionEdge);
         }
         else if (node.Kind == ObjectKind.Border)
         {
@@ -42,12 +50,21 @@ public sealed class GridPaintStroke
     private static CellPosition Cell(Point p) => new((int)Math.Floor(p.X), (int)Math.Floor(p.Y));
     private void PaintCell(CellPosition cell)
     {
-        if (cell.Column < 0 || cell.Row < 0 || cell.Column >= grid.Columns || cell.Row >= grid.Rows) return;
+        if (cell.Column < 0 || cell.Row < 0 || cell.Column >= grid.Columns || cell.Row >= grid.Rows) { lastRegionCell = null; return; }
         if (node.Kind == ObjectKind.CellSelection) { SceneDocument.SetCellState(node, cell, stateId); return; }
+        if (node.Kind == ObjectKind.CellFrame)
+        {
+            document.SetFrameCells(node, [cell], adding);
+            if (adding && lastRegionCell is { } previousCell
+                && Math.Abs(previousCell.Column - cell.Column) + Math.Abs(previousCell.Row - cell.Row) == 1)
+                document.SetRegionLink(node, SceneDocument.RegionLink(previousCell, cell), true);
+            lastRegionCell = cell;
+            return;
+        }
         var cells = node.Kind == ObjectKind.CellFrame ? node.FrameCells : node.FilledCells;
         if (adding) cells.Add(cell); else cells.Remove(cell);
     }
-    private void PaintEdge(GridEdge edge) { if (node.Kind == ObjectKind.EdgeSelection) { if (SceneDocument.EdgeSelectable(node, edge)) SceneDocument.SetEdgeState(node, edge, stateId); return; } if (adding) node.Edges.Add(edge); else node.Edges.Remove(edge); }
+    private void PaintEdge(GridEdge edge) { if (node.Kind == ObjectKind.CellFrame) { document.SetRegionLink(node, edge, adding); return; } if (node.Kind == ObjectKind.EdgeSelection) { if (SceneDocument.EdgeSelectable(node, edge)) SceneDocument.SetEdgeState(node, edge, stateId); return; } if (adding) node.Edges.Add(edge); else node.Edges.Remove(edge); }
     public void Move(Point local)
     {
         var end = Normalize(local);

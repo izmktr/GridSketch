@@ -40,6 +40,12 @@ public partial class MainWindow
                 Segment(18, 16, 18, 56, 10, cap);
                 Segment(18, 16, 52, 16, 10, cap);
             }
+            else if (option == "なし")
+            {
+                var caption = new TextBlock { Text = "なし", Width = 68, TextAlignment = TextAlignment.Center };
+                caption.SetBinding(TextBlock.ForegroundProperty, new Binding(nameof(Control.Foreground)) { Source = button });
+                Canvas.SetTop(caption, 12); icon.Children.Add(caption);
+            }
             else Segment(8, 22, 60, 22, 4, PenLineCap.Flat,
                 option == "破線" ? new DoubleCollection { 3, 2 } : option == "点線" ? new DoubleCollection { 1, 1.5 } : null);
             button.Content = icon;

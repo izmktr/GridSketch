@@ -31,6 +31,9 @@ internal static class DragPaintChecks
         if (fill.FilledCells.Count != 0) throw new Exception("Fill erase failed");
         var frame = grid.Children.Single(n => n.Kind == ObjectKind.CellFrame);
         paint = new GridPaintStroke(scene, frame, grid, P(0.5, 0.5)); paint.Move(P(7.5, 0.5));
+        if (frame.FrameCells.Count != 8 || frame.RegionLinks.Count != 7) throw new Exception("Region drag did not join successive cells");
+        frame.FrameAllCells = true; frame.FrameCells.Clear(); frame.RegionLinks.Clear();
+        paint = new GridPaintStroke(scene, frame, grid, P(0.5, 0.5)); paint.Move(P(7.5, 0.5));
         if (frame.FrameAllCells || frame.FrameCells.Count != 40) throw new Exception("Frame preset erase failed");
         paint.Move(P(-2, 0.5)); paint.Move(P(7.5, 5.5));
         if (frame.FrameCells.Count != 39) throw new Exception("Reentry painted an unintended connecting path");

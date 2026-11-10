@@ -25,6 +25,8 @@ internal static class CellFrameChecks
         var image = new SceneObject { Kind = ObjectKind.Image, SnapToCell = true, Column = 1, ImageData = stream.ToArray() }; grid.Children.Insert(0, image);
         var imageBounds = new SceneRenderer(scene).Bounds[image.Id];
         if (imageBounds != new Rect(47, 7, 26, 26)) throw new Exception("Asymmetric image margins failed");
+        if (SceneDocument.FramedCells(frame, grid).Any()) throw new Exception("Region frame must start empty");
+        frame.FrameAllCells = true;
         scene.SetFrameCells(frame, [new(0, 0)], null);
         if (frame.FrameAllCells || frame.FrameCells.Count != 1 || !frame.FrameCells.Contains(new(1, 0))) throw new Exception("Frame materialization/toggle failed");
         grid.Children.Remove(image); fill.FilledCells.Clear(); scene.ResizeGrid(grid, 1, 1, 40, 3, 7);
