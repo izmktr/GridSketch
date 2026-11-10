@@ -30,6 +30,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Layers.PreviewMouseDown += LayerMouseDown;
+        Surface.MouseRightButtonDown += GridContextMenu;
         PreviewKeyDown += CancelLineHandle;
         TextCompositionManager.AddPreviewTextInputStartHandler(GridInput, (_, _) => gridComposing = true);
         GridInput.AddHandler(TextCompositionManager.PreviewTextInputEvent, new TextCompositionEventHandler(GridInputText), true);

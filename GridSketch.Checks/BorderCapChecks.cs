@@ -24,6 +24,21 @@ internal static class BorderCapChecks
             using (var output = File.Create(Path.Combine(directory, "border-cap-" + cap + ".png"))) encoder.Save(output);
             PdfExporter.Save(scene, Path.Combine(directory, "border-cap-" + cap + ".pdf"));
         }
+        border.Color = "#80000000";
+        border.Edges = [new(1, 1, false), new(2, 1, false), new(2, 0, true), new(2, 1, true)];
+        foreach (bool centers in new[] { false, true })
+        foreach (bool join in new[] { false, true })
+        foreach (var cap in new[] { "中央まで", "四角", "丸" })
+        {
+            border.ConnectCellCenters = centers; border.JoinSegments = join; border.BorderEndCap = cap;
+            var bitmap = new SceneRenderer(scene).Export();
+            var pixels = new byte[160 * 160 * 4]; bitmap.CopyPixels(pixels, 640, 0);
+            int offset = centers ? 20 : 0;
+            byte Alpha(int x, int y) => pixels[((y + offset) * 160 + x + offset) * 4 + 3];
+            if (Alpha(80, 40) != 128 || Alpha(60, 40) != 128)
+                throw new Exception("Translucent border intersection is darker than its straight segment");
+            PdfExporter.Save(scene, Path.Combine(directory, $"border-alpha-{centers}-{join}-{cap}.pdf"));
+        }
         border.BorderEndCap = null; border.SquareCaps = false;
         var legacy = SceneDocument.Restore(scene.Snapshot());
         if (legacy.Canvas.Children[0].Children[0].EffectiveBorderEndCap != "中央まで") throw new Exception("Legacy flat cap changed");

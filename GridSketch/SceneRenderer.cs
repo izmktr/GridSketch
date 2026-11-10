@@ -257,10 +257,14 @@ public sealed class SceneRenderer
         double width = grid.CellSize, height = grid.CellHeight;
         double offset = node.ConnectCellCenters ? 0.5 : 0;
         dc.PushTransform(new TranslateTransform(offset * width, offset * height));
+        var translucent = pen.Brush is SolidColorBrush brush && (brush.Color.A < 255 || brush.Opacity < 1);
+        var coverage = translucent ? new GeometryGroup { FillRule = FillRule.Nonzero } : null;
         void Run(bool vertical, int axis, int start, int end)
         {
-            dc.DrawLine(pen, vertical ? new Point(axis * width, start * height) : new Point(start * width, axis * height),
-                vertical ? new Point(axis * width, end * height) : new Point(end * width, axis * height));
+            var from = vertical ? new Point(axis * width, start * height) : new Point(start * width, axis * height);
+            var to = vertical ? new Point(axis * width, end * height) : new Point(end * width, axis * height);
+            if (coverage is null) dc.DrawLine(pen, from, to);
+            else coverage.Children.Add(new LineGeometry(from, to).GetWidenedPathGeometry(pen, 0.02, ToleranceType.Absolute));
         }
         foreach (var group in SceneDocument.BorderEdges(node, grid).GroupBy(e => (e.Vertical, Axis: e.Vertical ? e.Column : e.Row)))
         {
@@ -273,6 +277,8 @@ public sealed class SceneRenderer
             }
             Run(group.Key.Vertical, group.Key.Axis, start, end);
         }
+        // Fill all stroke outlines once so intersections share the layer's alpha in PNG and vector PDF.
+        if (coverage is not null) dc.DrawGeometry(pen.Brush, null, coverage);
         dc.Pop();
     }
     private static Geometry TextGeometry(string text, string font, double size) => new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, new Typeface(font), size, Brushes.Black, 1).BuildGeometry(new Point());
@@ -350,6 +356,7 @@ public sealed class SceneRenderer
 
 public sealed partial class SceneSurface : FrameworkElement
 {
+    public (SceneObject Grid, Rect Bounds)? GridStructurePreview { get; set; }
     public bool ShowSelectionBounds { get; set; }
     private double minimumWorkspaceWidth = 2400, minimumWorkspaceHeight = 1800;
     public const double Origin = 1024;
@@ -487,6 +494,12 @@ public sealed partial class SceneSurface : FrameworkElement
                 }
                 dc.Pop();
             }
+        }
+        if (GridStructurePreview is { } preview)
+        {
+            dc.PushTransform(new MatrixTransform(Renderer.Document.World(preview.Grid)));
+            dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(70, 220, 60, 40)), null, preview.Bounds);
+            dc.Pop();
         }
         DrawLineHandles(dc);
         dc.Pop();
