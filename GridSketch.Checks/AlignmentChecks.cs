@@ -26,6 +26,21 @@ internal static class AlignmentChecks
             if (i % 3 != 2) Check(boxes[i].X < boxes[i + 1].X, "Horizontal alignment order failed");
             if (i < 6) Check(boxes[i].Y < boxes[i + 3].Y, "Vertical alignment order failed");
         }
+        text.Glyphs[0].InCellText = true; text.Glyphs[0].Text = "12";
+        boxes.Clear();
+        foreach (var direction in directions)
+        {
+            text.Alignment = direction;
+            var restoredText = SceneDocument.Restore(doc.Snapshot());
+            boxes.Add(new SceneRenderer(restoredText).Bounds[text.Id]);
+        }
+        for (int i = 0; i < 9; i++)
+        {
+            if (i % 3 != 2) Check(boxes[i].X < boxes[i + 1].X, "In-cell text ignores horizontal alignment");
+            if (i < 6) Check(boxes[i].Y < boxes[i + 3].Y, "In-cell text ignores vertical alignment");
+            Check(Math.Abs(boxes[i].Width - boxes[0].Width) < 0.001 && Math.Abs(boxes[i].Height - boxes[0].Height) < 0.001,
+                "Aligning in-cell text changes its size");
+        }
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
         void Call(string name) => typeof(MainWindow).GetMethod(name, flags)!.Invoke(window, null);
         typeof(MainWindow).GetField("document", flags)!.SetValue(window, doc);
