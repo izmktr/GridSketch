@@ -20,10 +20,10 @@ public partial class MainWindow
         return values.Where(v => v >= minimum && v <= maximum).ToArray();
     }
 
-    private static FrameworkElement NumericEditor(string label, double value, out TextBox box, double? minimum = null, double maximum = 1000)
+    private static FrameworkElement NumericEditor(string label, double value, out TextBox box, double? minimum = null, double maximum = 1000, bool showLabel = true)
     {
         var panel = new StackPanel();
-        panel.Children.Add(new TextBlock { Text = label, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 2) });
+        if (showLabel) panel.Children.Add(new TextBlock { Text = label, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 2) });
         var row = new Grid(); panel.Children.Add(row);
         var input = new TextBox { Text = value.ToString(CultureInfo.CurrentCulture), MinWidth = 48, Margin = new Thickness(0, 3, 0, 8), Padding = new Thickness(4) };
         box = input; AutomationProperties.SetName(input, label);
@@ -83,5 +83,31 @@ public partial class MainWindow
         NumericPair(Properties, firstLabel, first, secondLabel, second, out var a, out var b, minimum, maximum);
         double Parse(string text) => integer ? int.Parse(text, CultureInfo.CurrentCulture) : double.Parse(text, CultureInfo.CurrentCulture);
         LiveText(a, () => setFirst(Parse(a.Text))); LiveText(b, () => setSecond(Parse(b.Text)));
+    }
+
+    private void GridCellSizeProperties(SceneObject grid)
+    {
+        const string label = "マスの大きさ（px）";
+        bool separate = grid.SeparateCellHeight.HasValue;
+        var header = new WrapPanel { Margin = new Thickness(0, 6, 0, 2) };
+        header.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+        var toggle = new CheckBox { Content = "個別設定", IsChecked = separate, Margin = new Thickness(8, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center, ToolTip = "横幅と縦幅を別々に設定します。オフにすると横幅で正方形に戻ります。" };
+        header.Children.Add(toggle);
+        Properties.Children.Add(header);
+        toggle.Click += (_, _) => Change(() =>
+        {
+            RequireEditable(grid);
+            document.ResizeGrid(grid, grid.Columns, grid.Rows, grid.CellSize, grid.Margin, grid.MarginY,
+                toggle.IsChecked == true ? grid.CellHeight : null);
+        });
+
+        if (separate)
+            Pair("横幅", grid.CellSize, v => grid.CellSize = v, "縦幅", grid.CellHeight, v => grid.SeparateCellHeight = v);
+        else
+        {
+            Properties.Children.Add(NumericEditor(label, grid.CellSize, out var size, 12, 256, showLabel: false));
+            LiveText(size, () => grid.CellSize = double.Parse(size.Text, CultureInfo.CurrentCulture));
+        }
     }
 }

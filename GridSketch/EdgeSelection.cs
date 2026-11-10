@@ -26,7 +26,7 @@ public sealed partial class SceneDocument
         node.StateEdges.RemoveAll(p => p.Edge == edge);
         if (state is not null) node.StateEdges.Add(new() { Edge = edge, StateId = state });
     }
-    public static Point EdgeCenter(SceneObject grid, GridEdge edge) => new((edge.Column + (edge.Vertical ? 0 : 0.5)) * grid.CellSize, (edge.Row + (edge.Vertical ? 0.5 : 0)) * grid.CellSize);
+    public static Point EdgeCenter(SceneObject grid, GridEdge edge) => new((edge.Column + (edge.Vertical ? 0 : 0.5)) * grid.CellSize, (edge.Row + (edge.Vertical ? 0.5 : 0)) * grid.CellHeight);
 }
 
 public partial class MainWindow

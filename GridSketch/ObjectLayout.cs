@@ -41,7 +41,7 @@ public sealed partial class SceneDocument
         {
             if (node.IsGridContent)
                 return CellRegions(parent, node.Kind == ObjectKind.Image ? new(node.Column, node.Row) : new(0, 0), "対象マスごとに渡される範囲（表示は1マス分）");
-            return new(new Rect(0, 0, parent.Columns * parent.CellSize, parent.Rows * parent.CellSize), null,
+            return new(new Rect(0, 0, parent.Columns * parent.CellSize, parent.Rows * parent.CellHeight), null,
                 "自由配置用のグリッド全体。マスごとの配置はマス切り替えを使用します。");
         }
         return new(null, null, "親は配置範囲を持ちません。");
@@ -63,7 +63,7 @@ public sealed partial class SceneDocument
 
     public static Rect OwnLayoutRect(SceneObject node)
     {
-        if (node.Kind == ObjectKind.Grid) return new(0, 0, node.Columns * node.CellSize, node.Rows * node.CellSize);
+        if (node.Kind == ObjectKind.Grid) return new(0, 0, node.Columns * node.CellSize, node.Rows * node.CellHeight);
         if (node.Kind == ObjectKind.Text)
         {
             var bounds = SceneRenderer.StyledText(node, node.Text, node.Font, node.FontSize).Bounds;

@@ -64,6 +64,9 @@ public sealed class SceneObject
     public int Columns { get; set; } = 16;
     public int Rows { get; set; } = 12;
     public double CellSize { get; set; } = 48;
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? SeparateCellHeight { get; set; }
+    [JsonIgnore] public double CellHeight => SeparateCellHeight ?? CellSize;
     public double Margin { get; set; } = 5;
     private double? marginY;
     public double MarginY { get => marginY ?? Margin; set => marginY = value; }
@@ -236,12 +239,12 @@ public sealed partial class SceneDocument
         if (!border.Edges.Remove(edge)) border.Edges.Add(edge);
     }
 
-    public void ResizeGrid(SceneObject grid, int columns, int rows, double cellSize, double margin, double? verticalMargin = null)
+    public void ResizeGrid(SceneObject grid, int columns, int rows, double cellSize, double margin, double? verticalMargin = null, double? separateCellHeight = null)
     {
-        double my = verticalMargin ?? margin;
-        if (!double.IsFinite(my) || my < 0 || my >= cellSize / 2) throw new InvalidOperationException("上下のマス内余白はマス寸法の半分未満にしてください。");
+        double my = verticalMargin ?? margin, height = separateCellHeight ?? cellSize;
+        if (!double.IsFinite(my) || my < 0 || my >= height / 2) throw new InvalidOperationException("上下のマス内余白はマス寸法の半分未満にしてください。");
         if (grid.Kind != ObjectKind.Grid) throw new InvalidOperationException("グリッドを選択してください。");
-        if (columns is < 1 or > 200 || rows is < 1 or > 200 || !double.IsFinite(cellSize) || cellSize < 12 || cellSize > 256 || !double.IsFinite(margin) || margin < 0 || margin >= cellSize / 2)
+        if (columns is < 1 or > 200 || rows is < 1 or > 200 || !double.IsFinite(cellSize) || cellSize < 12 || cellSize > 256 || !double.IsFinite(height) || height < 12 || height > 256 || !double.IsFinite(margin) || margin < 0 || margin >= cellSize / 2)
             throw new InvalidOperationException("マス数は1～200、マス寸法は12～256、左右のマス内余白はマス寸法の半分未満にしてください。");
         bool Outside(int c, int r) => c >= columns || r >= rows;
         foreach (var child in GridMembers(grid))
@@ -290,7 +293,7 @@ public sealed partial class SceneDocument
             }
         }
         foreach (var frame in GridMembers(grid).Where(n => n.Kind == ObjectKind.CellFrame)) frame.FrameCells.RemoveWhere(c => c.Column >= columns || c.Row >= rows);
-        grid.Columns = columns; grid.Rows = rows; grid.CellSize = cellSize; grid.Margin = margin; grid.MarginY = verticalMargin ?? margin;
+        grid.Columns = columns; grid.Rows = rows; grid.CellSize = cellSize; grid.SeparateCellHeight = separateCellHeight; grid.Margin = margin; grid.MarginY = verticalMargin ?? margin;
     }
 
     public List<Glyph> PlanText(SceneObject text, int column, int row, string input, bool vertical)
@@ -308,7 +311,7 @@ public sealed partial class SceneDocument
     }
 
     public static Rect CellRect(SceneObject grid, CellPosition cell, bool inset)
-        => new(cell.Column * grid.CellSize + (inset ? grid.Margin : 0), cell.Row * grid.CellSize + (inset ? grid.MarginY : 0), grid.CellSize - (inset ? grid.Margin * 2 : 0), grid.CellSize - (inset ? grid.MarginY * 2 : 0));
+        => new(cell.Column * grid.CellSize + (inset ? grid.Margin : 0), cell.Row * grid.CellHeight + (inset ? grid.MarginY : 0), grid.CellSize - (inset ? grid.Margin * 2 : 0), grid.CellHeight - (inset ? grid.MarginY * 2 : 0));
     public static IEnumerable<CellPosition> FramedCells(SceneObject frame, SceneObject grid)
         => frame.FrameAllCells ? Enumerable.Range(0, grid.Rows).SelectMany(row => Enumerable.Range(0, grid.Columns).Select(col => new CellPosition(col, row))) : frame.FrameCells;
     public void SetFrameCells(SceneObject frame, IEnumerable<CellPosition> cells, bool? enabled)
@@ -340,18 +343,18 @@ public sealed partial class SceneDocument
             _ = (Color)ColorConverter.ConvertFromString(node.Style.OutlineColor);
             if (parent is not null && (node.Kind == ObjectKind.Canvas || !parent.IsContainer)) throw new InvalidDataException("不正な親子構造です。");
             if (node.IsGridContent && (GridFor(node) is null || node.Angle != 0)) throw new InvalidDataException("マスに配置する内容はグリッド内で管理し、個別に回転できません。");
-            foreach (var value in new[] { node.X, node.Y, node.Angle, node.Width, node.Height, node.Dpi, node.Padding, node.CellSize, node.Margin, node.Thickness, node.FontSize, node.EndX, node.EndY, node.ControlX, node.ControlY, node.ArrowSize })
+            foreach (var value in new[] { node.X, node.Y, node.Angle, node.Width, node.Height, node.Dpi, node.Padding, node.CellSize, node.CellHeight, node.Margin, node.Thickness, node.FontSize, node.EndX, node.EndY, node.ControlX, node.ControlY, node.ArrowSize })
                 if (!double.IsFinite(value) || Math.Abs(value) > 100000) throw new InvalidDataException("数値が範囲外です。");
             if (node.Width < 1 || node.Height < 1 || node.Dpi < 1 || node.Dpi > 2400 || node.Padding < 0 || node.Padding > 1000 || node.Thickness < 0 || node.Thickness > 64 || node.FontSize < 1 || node.FontSize > 512 || node.ArrowSize < 1 || node.ArrowSize > 200) throw new InvalidDataException("サイズ・DPI・線幅が範囲外です。");
             foreach (var color in new[] { node.Color, node.FillColor, node.Background }) _ = (Color)ColorConverter.ConvertFromString(color);
             if (string.IsNullOrWhiteSpace(node.Font) || node.Text is null || node.Text.Length > 10000) throw new InvalidDataException("文字設定が不正です。");
             if (node.LineStyle is not ("実線" or "破線" or "点線") || node.Pattern is not ("個別" or "外枠" or "内側" or "すべて") || node.PathKind is not ("直線" or "折れ線" or "曲線") || node.Shape is not ("四角" or "角丸" or "楕円") || node.Alignment is not ("左上" or "上" or "右上" or "左" or "中央" or "右" or "左下" or "下" or "右下") || node.StartArrow is not ("なし" or "三角" or "開いた矢印") || node.EndArrow is not ("なし" or "三角" or "開いた矢印")) throw new InvalidDataException("種類の設定が不正です。");
-            if (node.Kind == ObjectKind.Grid && (node.Columns is < 1 or > 200 || node.Rows is < 1 or > 200 || node.CellSize < 12 || node.CellSize > 256 || node.Margin < 0 || node.Margin >= node.CellSize / 2 || node.MarginY < 0 || node.MarginY >= node.CellSize / 2)) throw new InvalidDataException("マス数は1～200、マス寸法は12～256、左右・上下のマス内余白はマス寸法の半分未満にしてください。");
+            if (node.Kind == ObjectKind.Grid && (node.Columns is < 1 or > 200 || node.Rows is < 1 or > 200 || node.CellSize < 12 || node.CellSize > 256 || node.CellHeight < 12 || node.CellHeight > 256 || node.Margin < 0 || node.Margin >= node.CellSize / 2 || node.MarginY < 0 || node.MarginY >= node.CellHeight / 2)) throw new InvalidDataException("マス数は1～200、マス寸法は12～256、左右・上下のマス内余白はマス寸法の半分未満にしてください。");
             if (node.IsGridContent && GridFor(node) is { } grid)
             {
                 var extent = GridContentExtent(node, grid);
                 if (!extent.IsEmpty && (extent.Left + node.X < -0.001 || extent.Top + node.Y < -0.001 ||
-                    extent.Right + node.X > grid.Columns * grid.CellSize + 0.001 || extent.Bottom + node.Y > grid.Rows * grid.CellSize + 0.001))
+                    extent.Right + node.X > grid.Columns * grid.CellSize + 0.001 || extent.Bottom + node.Y > grid.Rows * grid.CellHeight + 0.001))
                     throw new InvalidDataException("罫線・グリッド文字はグリッドの範囲外へ移動できません。");
                 bool In(int c, int r) => c >= 0 && r >= 0 && c < grid.Columns && r < grid.Rows;
                 if (node.FrameCells.Any(c => !In(c.Column, c.Row))) throw new InvalidDataException("マス枠の対象がグリッドの範囲外です。");
@@ -392,7 +395,7 @@ public sealed partial class SceneDocument
         double padding = Math.Ceiling(Math.Max(old.Strokes.Max(s => s.Width), old.WallStroke.Width) / 2) + 1;
         grid.X = grid.Y = padding;
         scene.Canvas.AutoSize = false; scene.Canvas.X = scene.Canvas.Y = 0;
-        scene.Canvas.Width = grid.Columns * grid.CellSize + padding * 2; scene.Canvas.Height = grid.Rows * grid.CellSize + padding * 2;
+        scene.Canvas.Width = grid.Columns * grid.CellSize + padding * 2; scene.Canvas.Height = grid.Rows * grid.CellHeight + padding * 2;
         scene.Canvas.Children.Add(grid);
         SceneObject Border(string name, Stroke stroke, IEnumerable<GridEdge> edges) => new() { Kind = ObjectKind.Border, Name = name, SquareCaps = false, Color = stroke.Color, Thickness = stroke.Width, LineStyle = stroke.Kind, Edges = edges.ToHashSet() };
         grid.Children.Add(Border("個別罫線", old.WallStroke, old.Walls));

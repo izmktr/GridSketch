@@ -57,13 +57,13 @@ public partial class MainWindow
         try
         {
             RequireEditable(node);
-            var old = (node.Columns, node.Rows, node.CellSize, node.Margin, node.MarginY);
+            var old = (node.Columns, node.Rows, node.CellSize, node.SeparateCellHeight, node.Margin, node.MarginY);
             setter();
             if (node.Kind == ObjectKind.Grid)
             {
-                var next = (node.Columns, node.Rows, node.CellSize, node.Margin, node.MarginY);
-                (node.Columns, node.Rows, node.CellSize, node.Margin, node.MarginY) = old;
-                document.ResizeGrid(node, next.Columns, next.Rows, next.CellSize, next.Margin, next.MarginY);
+                var next = (node.Columns, node.Rows, node.CellSize, node.SeparateCellHeight, node.Margin, node.MarginY);
+                (node.Columns, node.Rows, node.CellSize, node.SeparateCellHeight, node.Margin, node.MarginY) = old;
+                document.ResizeGrid(node, next.Columns, next.Rows, next.CellSize, next.Margin, next.MarginY, next.SeparateCellHeight);
             }
             document.PrepareGroupLayouts(); document.ClearMissingStateObjects(); document.Validate();
             RefreshSurface(); editor.ClearValue(Control.BorderBrushProperty); editor.ToolTip = null;

@@ -38,7 +38,7 @@ public sealed class GridPaintStroke
         }
         previous = Normalize(start);
     }
-    private Point Normalize(Point p) => new(p.X / grid.CellSize - (node.ConnectCellCenters ? 0.5 : 0), p.Y / grid.CellSize - (node.ConnectCellCenters ? 0.5 : 0));
+    private Point Normalize(Point p) => new(p.X / grid.CellSize - (node.ConnectCellCenters ? 0.5 : 0), p.Y / grid.CellHeight - (node.ConnectCellCenters ? 0.5 : 0));
     private static CellPosition Cell(Point p) => new((int)Math.Floor(p.X), (int)Math.Floor(p.Y));
     private void PaintCell(CellPosition cell)
     {

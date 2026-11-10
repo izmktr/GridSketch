@@ -46,6 +46,19 @@ internal static class SceneChecks
         var fresh = new SceneDocument(); var freshGrid = SceneDocument.CreateGrid("基本の方眼紙"); fresh.Canvas.Children.Add(freshGrid);
         fresh.ResizeGrid(freshGrid, 1, 1, 24, 5); fresh.Validate();
         Check(SceneDocument.BorderEdges(freshGrid.Children[0], freshGrid).Count() == 4, "Fresh default grid resizes immediately to one cell");
+        Check(SceneDocument.Restore(fresh.Snapshot()).Canvas.Children[0].CellHeight == 24, "Existing grids default to square cells");
+        fresh.ResizeGrid(freshGrid, 2, 2, 32, 5, separateCellHeight: 64);
+        var rectangular = SceneDocument.Restore(fresh.Snapshot());
+        var rectangularGrid = rectangular.Canvas.Children[0];
+        var rectangularSurface = new SceneSurface();
+        rectangularSurface.Refresh(rectangular);
+        var point = new Point(rectangularSurface.OriginX + 48, rectangularSurface.OriginY + 96);
+        Check(SceneDocument.CellRect(rectangularGrid, new(1, 1), false) == new Rect(32, 64, 32, 64) &&
+            rectangularSurface.CellAt(rectangularGrid, point) == new CellPosition(1, 1) &&
+            rectangularSurface.EdgeAt(rectangularGrid, new Point(point.X, rectangularSurface.OriginY + 64), 1) == new GridEdge(1, 1, false),
+            "Rectangular cells preserve both dimensions on save and use them for cell and edge hit testing");
+        rectangular.ResizeGrid(rectangularGrid, 2, 2, 32, 5);
+        Check(rectangularGrid.SeparateCellHeight is null && rectangularGrid.CellHeight == 32, "Square mode restores the horizontal size");
         var text = grid.Children.Single(n => n.Kind == ObjectKind.GridText); var fill = grid.Children.Single(n => n.Kind == ObjectKind.Fill);
         var plan = scene.PlanText(text, 0, 0, "さくら", false); text.Glyphs.AddRange(plan);
         Check(text.Glyphs.Count == 3 && text.Glyphs[2].Column == 2 && grid.Children.Count == 4, "Text input remains one layer");

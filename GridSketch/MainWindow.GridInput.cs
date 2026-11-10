@@ -33,11 +33,11 @@ public partial class MainWindow
     {
         if (!CanTypeInGrid) return;
         var grid = document.GridFor(Selected)!; var cell = Surface.ActiveCell!.Value;
-        var world = document.World(Selected).Transform(new Point(cell.Column * grid.CellSize, cell.Row * grid.CellSize));
+        var world = document.World(Selected).Transform(new Point(cell.Column * grid.CellSize, cell.Row * grid.CellHeight));
         var anchor = Surface.TranslatePoint(new Point(world.X + Surface.OriginX, world.Y + Surface.OriginY), InputOverlay);
         Canvas.SetLeft(GridInput, anchor.X); Canvas.SetTop(GridInput, anchor.Y);
-        GridInput.FontSize = Math.Max(8, Math.Min(Selected.FontSize, grid.CellSize * 0.7) * Zoom.Value);
-        GridInput.Height = Math.Max(24, grid.CellSize * Zoom.Value);
+        GridInput.FontSize = Math.Max(8, Math.Min(Selected.FontSize, Math.Min(grid.CellSize, grid.CellHeight) * 0.7) * Zoom.Value);
+        GridInput.Height = Math.Max(24, grid.CellHeight * Zoom.Value);
         GridInput.Visibility = Visibility.Visible;
         GridInput.Focus();
     }

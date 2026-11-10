@@ -13,8 +13,8 @@ public sealed partial class SceneDocument
             foreach (var edge in node.Kind == ObjectKind.EdgeSelection ? node.StateEdges.Select(e => e.Edge) : BorderEdges(node, grid))
             {
                 double offset = node.ConnectCellCenters ? 0.5 : 0;
-                var start = new Point((edge.Column + offset) * grid.CellSize, (edge.Row + offset) * grid.CellSize);
-                bounds.Union(new Rect(start, start + (edge.Vertical ? new Vector(0, grid.CellSize) : new Vector(grid.CellSize, 0))));
+                var start = new Point((edge.Column + offset) * grid.CellSize, (edge.Row + offset) * grid.CellHeight);
+                bounds.Union(new Rect(start, start + (edge.Vertical ? new Vector(0, grid.CellHeight) : new Vector(grid.CellSize, 0))));
             }
         return bounds;
     }
@@ -24,9 +24,9 @@ public sealed partial class SceneDocument
 
     public void MoveCellContents(SceneObject node, SceneObject source, SceneObject grid, Vector delta)
     {
-        double size = grid.CellSize;
-        int dx = (int)Math.Round((source.X + delta.X) / size, MidpointRounding.AwayFromZero);
-        int dy = (int)Math.Round((source.Y + delta.Y) / size, MidpointRounding.AwayFromZero);
+        double width = grid.CellSize, height = grid.CellHeight;
+        int dx = (int)Math.Round((source.X + delta.X) / width, MidpointRounding.AwayFromZero);
+        int dy = (int)Math.Round((source.Y + delta.Y) / height, MidpointRounding.AwayFromZero);
         var bounds = GridContentExtent(source, grid);
         IEnumerable<CellPosition> cells = source.Kind switch
         {
@@ -38,8 +38,8 @@ public sealed partial class SceneDocument
         foreach (var cell in cells) bounds.Union(CellRect(grid, cell, false));
         if (!bounds.IsEmpty)
         {
-            dx = Math.Clamp(dx, (int)Math.Ceiling(-bounds.Left / size), (int)Math.Floor(grid.Columns - bounds.Right / size));
-            dy = Math.Clamp(dy, (int)Math.Ceiling(-bounds.Top / size), (int)Math.Floor(grid.Rows - bounds.Bottom / size));
+            dx = Math.Clamp(dx, (int)Math.Ceiling(-bounds.Left / width), (int)Math.Floor(grid.Columns - bounds.Right / width));
+            dy = Math.Clamp(dy, (int)Math.Ceiling(-bounds.Top / height), (int)Math.Floor(grid.Rows - bounds.Bottom / height));
         }
         node.X = node.Y = 0;
         if (node.Kind == ObjectKind.Border)

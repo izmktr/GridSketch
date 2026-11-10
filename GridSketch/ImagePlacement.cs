@@ -23,7 +23,7 @@ public sealed partial class SceneDocument
             var inverse = World(grid); inverse.Invert(); center = inverse.Transform(center);
             PrepareGridGroups(Parent(node)!);
             node.Column = Math.Clamp((int)Math.Floor(center.X / grid.CellSize), 0, grid.Columns - 1);
-            node.Row = Math.Clamp((int)Math.Floor(center.Y / grid.CellSize), 0, grid.Rows - 1);
+            node.Row = Math.Clamp((int)Math.Floor(center.Y / grid.CellHeight), 0, grid.Rows - 1);
             node.SnapToCell = true; node.UseParentLayout = false;
             node.X = node.Y = node.Angle = 0; node.PreservedTransform = null;
         }

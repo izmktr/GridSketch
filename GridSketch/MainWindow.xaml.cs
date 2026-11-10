@@ -184,6 +184,7 @@ public partial class MainWindow : Window
         var node = Selected; Label(node.Kind == ObjectKind.Border && node.ConnectCellCenters ? "中心罫線" : SceneObject.KindName(node.Kind)); TextField("名前", node.Name, v => node.Name = v);
         UpdatePropertyToggles();
 
+        if (node.Kind == ObjectKind.Text) TextField("文章", node.Text, v => node.Text = v, true);
         ObjectLayoutProperties(node);
         TemplateProperties(node);
         if (node.Kind == ObjectKind.Image) ImagePlacementProperties(node);
@@ -202,7 +203,8 @@ public partial class MainWindow : Window
             case ObjectKind.CellSelection:
                 CellSelectionProperties(node); break;
             case ObjectKind.Grid:
-                Pair("列数", node.Columns, v => node.Columns = (int)v, "行数", node.Rows, v => node.Rows = (int)v, integer: true); Number("マスの大きさ（px）", node.CellSize, v => node.CellSize = v, 12, 256);
+                Pair("列数", node.Columns, v => node.Columns = (int)v, "行数", node.Rows, v => node.Rows = (int)v, integer: true);
+                GridCellSizeProperties(node);
                 Pair("マス内余白・左右（px）", node.Margin, v => node.Margin = v, "マス内余白・上下（px）", node.MarginY, v => node.MarginY = v);
                  break;
             case ObjectKind.Border:
@@ -214,7 +216,7 @@ public partial class MainWindow : Window
             case ObjectKind.Text:
                 FontField(node);
                 Number("文字サイズ（px）", node.FontSize, v => node.FontSize = v, 1, 512); ColorField("文字色", node.Color, v => node.Color = v);
-                if (node.Kind == ObjectKind.GridText) AlignmentIcons("配置", node.Alignment, v => node.Alignment = v); else TextField("文章", node.Text, v => node.Text = v, true);
+                if (node.Kind == ObjectKind.GridText) AlignmentIcons("配置", node.Alignment, v => node.Alignment = v);
                 Label("レイヤースタイル ― 縁取り");
                 Check("縁取りを有効にする", node.Style.OutlineEnabled, v => node.Style.OutlineEnabled = v);
                 ColorField("縁の色・不透明度", node.Style.OutlineColor, v => node.Style.OutlineColor = v);
@@ -454,7 +456,7 @@ public partial class MainWindow : Window
             else if (node.Kind == ObjectKind.Image && node.SnapToCell) Change(() => { node.Column = c.Column; node.Row = c.Row; });
             else if (node.Kind == ObjectKind.Line) Change(() =>
             {
-                var center = new Point((c.Column + 0.5) * grid.CellSize, (c.Row + 0.5) * grid.CellSize);
+                var center = new Point((c.Column + 0.5) * grid.CellSize, (c.Row + 0.5) * grid.CellHeight);
                 if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) { var inverse = document.EffectiveLocalMatrix(node); inverse.Invert(); var end = inverse.Transform(center); node.EndX = end.X; node.EndY = end.Y; }
                 else { node.X = center.X; node.Y = center.Y; }
             });

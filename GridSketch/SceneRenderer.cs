@@ -67,8 +67,8 @@ public sealed class SceneRenderer
                         dc.PushTransform(new TranslateTransform(center.X, center.Y));
                         double angle = placement.Edge.Vertical ? child.VerticalRotation switch { "右90°" => 90, "左90°" => -90, _ => 0 } : 0;
                         dc.PushTransform(new RotateTransform(angle));
-                        dc.PushTransform(new TranslateTransform(-grid.CellSize / 2, -grid.CellSize / 2));
-                        dc.PushClip(new RectangleGeometry(new Rect(0, 0, grid.CellSize, grid.CellSize)));
+                        dc.PushTransform(new TranslateTransform(-grid.CellSize / 2, -grid.CellHeight / 2));
+                        dc.PushClip(new RectangleGeometry(new Rect(0, 0, grid.CellSize, grid.CellHeight)));
                         dc.DrawDrawing(picture); dc.Pop(); dc.Pop(); dc.Pop(); dc.Pop();
                     }
                     break;
@@ -196,7 +196,7 @@ public sealed class SceneRenderer
         if (node.Kind == ObjectKind.Grid)
         {
             // Reserve the full grid and configured stroke overhang even when individual edges are empty.
-            var reservation = new Rect(0, 0, node.Columns * node.CellSize, node.Rows * node.CellSize);
+            var reservation = new Rect(0, 0, node.Columns * node.CellSize, node.Rows * node.CellHeight);
             var overhang = SceneDocument.GridMembers(node).Where(c => Document.Shown(c) && c.Kind == ObjectKind.Border).Select(c => c.Thickness / 2).DefaultIfEmpty(0).Max();
             reservation.Inflate(overhang, overhang); localBounds.Union(reservation);
         }
@@ -254,13 +254,13 @@ public sealed class SceneRenderer
     private static BitmapSource DocumentImage(byte[] bytes) => GridSketch.Document.DecodeImage(bytes);
     private static void DrawBorders(DrawingContext dc, SceneObject node, SceneObject grid, Pen pen)
     {
-        double offset = node.ConnectCellCenters ? grid.CellSize / 2 : 0;
-        dc.PushTransform(new TranslateTransform(offset, offset));
+        double width = grid.CellSize, height = grid.CellHeight;
+        double offset = node.ConnectCellCenters ? 0.5 : 0;
+        dc.PushTransform(new TranslateTransform(offset * width, offset * height));
         void Run(bool vertical, int axis, int start, int end)
         {
-            double s = grid.CellSize;
-            dc.DrawLine(pen, vertical ? new Point(axis * s, start * s) : new Point(start * s, axis * s),
-                vertical ? new Point(axis * s, end * s) : new Point(end * s, axis * s));
+            dc.DrawLine(pen, vertical ? new Point(axis * width, start * height) : new Point(start * width, axis * height),
+                vertical ? new Point(axis * width, end * height) : new Point(end * width, axis * height));
         }
         foreach (var group in SceneDocument.BorderEdges(node, grid).GroupBy(e => (e.Vertical, Axis: e.Vertical ? e.Column : e.Row)))
         {
@@ -322,7 +322,7 @@ public sealed class SceneRenderer
             var available = SceneDocument.CellRect(grid, new(node.Column, node.Row), true);
             var ratio = Math.Min(1, Math.Min(available.Width / bitmap.PixelWidth, available.Height / bitmap.PixelHeight));
             return new Rect(node.Column * grid.CellSize + (grid.CellSize - bitmap.PixelWidth * ratio) / 2,
-                node.Row * grid.CellSize + (grid.CellSize - bitmap.PixelHeight * ratio) / 2, bitmap.PixelWidth * ratio, bitmap.PixelHeight * ratio);
+                node.Row * grid.CellHeight + (grid.CellHeight - bitmap.PixelHeight * ratio) / 2, bitmap.PixelWidth * ratio, bitmap.PixelHeight * ratio);
         }
         var scale = Math.Min(node.Width / bitmap.PixelWidth, node.Height / bitmap.PixelHeight);
         return new Rect((node.Width - bitmap.PixelWidth * scale) / 2, (node.Height - bitmap.PixelHeight * scale) / 2,
@@ -393,22 +393,23 @@ public sealed partial class SceneSurface : FrameworkElement
         Selected is { IsGridContent: true } node && Renderer!.Document.GridFor(node) == grid ? node : grid, surfacePoint);
     public CellPosition? CellAt(SceneObject grid, Point surfacePoint)
     {
-        var p = EditLocal(grid, surfacePoint); int c = (int)Math.Floor(p.X / grid.CellSize), r = (int)Math.Floor(p.Y / grid.CellSize);
+        var p = EditLocal(grid, surfacePoint); int c = (int)Math.Floor(p.X / grid.CellSize), r = (int)Math.Floor(p.Y / grid.CellHeight);
         return c >= 0 && r >= 0 && c < grid.Columns && r < grid.Rows ? new(c, r) : null;
     }
     public GridEdge? EdgeAt(SceneObject grid, Point surfacePoint, double zoom)
     {
         var border = Selected is { Kind: ObjectKind.Border } selected ? selected : new SceneObject();
         var (columns, rows) = SceneDocument.BorderDimensions(border, grid);
-        var p = EditLocal(grid, surfacePoint); double size = grid.CellSize, tolerance = Math.Min(size * 0.22, 7 / zoom);
-        double offset = border.ConnectCellCenters ? size / 2 : 0;
-        p.Offset(-offset, -offset);
-        if (p.X < -tolerance || p.Y < -tolerance || p.X > columns * size + tolerance || p.Y > rows * size + tolerance) return null;
-        int c = (int)Math.Round(p.X / size), r = (int)Math.Round(p.Y / size);
-        double dx = Math.Abs(p.X - c * size), dy = Math.Abs(p.Y - r * size);
-        var vertical = new GridEdge(c, Math.Clamp((int)Math.Floor(p.Y / size), 0, Math.Max(0, rows - 1)), true);
-        var horizontal = new GridEdge(Math.Clamp((int)Math.Floor(p.X / size), 0, Math.Max(0, columns - 1)), r, false);
-        bool v = vertical.IsInside(columns, rows) && dx <= tolerance, h = horizontal.IsInside(columns, rows) && dy <= tolerance;
+        var p = EditLocal(grid, surfacePoint);
+        double width = grid.CellSize, height = grid.CellHeight;
+        double toleranceX = Math.Min(width * 0.22, 7 / zoom), toleranceY = Math.Min(height * 0.22, 7 / zoom);
+        if (border.ConnectCellCenters) p.Offset(-width / 2, -height / 2);
+        if (p.X < -toleranceX || p.Y < -toleranceY || p.X > columns * width + toleranceX || p.Y > rows * height + toleranceY) return null;
+        int c = (int)Math.Round(p.X / width), r = (int)Math.Round(p.Y / height);
+        double dx = Math.Abs(p.X - c * width), dy = Math.Abs(p.Y - r * height);
+        var vertical = new GridEdge(c, Math.Clamp((int)Math.Floor(p.Y / height), 0, Math.Max(0, rows - 1)), true);
+        var horizontal = new GridEdge(Math.Clamp((int)Math.Floor(p.X / width), 0, Math.Max(0, columns - 1)), r, false);
+        bool v = vertical.IsInside(columns, rows) && dx <= toleranceX, h = horizontal.IsInside(columns, rows) && dy <= toleranceY;
         if (Selected is { Kind: ObjectKind.EdgeSelection } selector)
         { v &= SceneDocument.EdgeSelectable(selector, vertical); h &= SceneDocument.EdgeSelectable(selector, horizontal); }
         if (v && (!h || dx <= dy)) return vertical;
@@ -455,14 +456,14 @@ public sealed partial class SceneSurface : FrameworkElement
                 if (ActiveCell is { } cell)
                 {
                     var end = RangeEnd ?? cell;
-                    dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(25, 30, 100, 220)), new Pen(Brushes.DodgerBlue, 1), new Rect(Math.Min(cell.Column, end.Column) * grid.CellSize, Math.Min(cell.Row, end.Row) * grid.CellSize, (Math.Abs(cell.Column - end.Column) + 1) * grid.CellSize, (Math.Abs(cell.Row - end.Row) + 1) * grid.CellSize));
+                    dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(25, 30, 100, 220)), new Pen(Brushes.DodgerBlue, 1), new Rect(Math.Min(cell.Column, end.Column) * grid.CellSize, Math.Min(cell.Row, end.Row) * grid.CellHeight, (Math.Abs(cell.Column - end.Column) + 1) * grid.CellSize, (Math.Abs(cell.Row - end.Row) + 1) * grid.CellHeight));
                     if (selected.Kind == ObjectKind.GridText && end == cell)
                     {
-                        var p = new Point((cell.Column + 0.76) * grid.CellSize, (cell.Row + 0.76) * grid.CellSize);
-                        var d = TextVertical ? new Vector(0, grid.CellSize * 0.17) : new Vector(grid.CellSize * 0.17, 0);
+                        var p = new Point((cell.Column + 0.76) * grid.CellSize, (cell.Row + 0.76) * grid.CellHeight);
+                        var d = TextVertical ? new Vector(0, grid.CellHeight * 0.17) : new Vector(grid.CellSize * 0.17, 0);
                         var side = new Vector(-d.Y, d.X) * 0.4;
                         var pen = new Pen(Brushes.DodgerBlue, 2);
-                        if (TextInCell) dc.DrawRectangle(null, pen, new Rect(p.X - grid.CellSize * 0.09, p.Y - grid.CellSize * 0.09, grid.CellSize * 0.18, grid.CellSize * 0.18));
+                        if (TextInCell) dc.DrawRectangle(null, pen, new Rect(p.X - grid.CellSize * 0.09, p.Y - grid.CellHeight * 0.09, grid.CellSize * 0.18, grid.CellHeight * 0.18));
                         else
                         {
                         dc.DrawLine(pen, p - d, p + d);
@@ -474,14 +475,14 @@ public sealed partial class SceneSurface : FrameworkElement
                 if (HoveredEdge is { } edge)
                 {
                     double offset = selected.ConnectCellCenters ? 0.5 : 0;
-                    var p = new Point((edge.Column + offset) * grid.CellSize, (edge.Row + offset) * grid.CellSize);
-                    dc.DrawLine(new Pen(Brushes.DodgerBlue, 3), p, new Point(p.X + (edge.Vertical ? 0 : grid.CellSize), p.Y + (edge.Vertical ? grid.CellSize : 0)));
+                    var p = new Point((edge.Column + offset) * grid.CellSize, (edge.Row + offset) * grid.CellHeight);
+                    dc.DrawLine(new Pen(Brushes.DodgerBlue, 3), p, new Point(p.X + (edge.Vertical ? 0 : grid.CellSize), p.Y + (edge.Vertical ? grid.CellHeight : 0)));
                 }
                 foreach (var glyph in Preview)
                 {
-                    var rect = new Rect(glyph.Column * grid.CellSize, glyph.Row * grid.CellSize, grid.CellSize, grid.CellSize);
+                    var rect = SceneDocument.CellRect(grid, new(glyph.Column, glyph.Row), false);
                     dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(100, 255, 220, 70)), new Pen(Brushes.DarkOrange, 1), rect);
-                    var text = new FormattedText(glyph.Text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, new Typeface(selected.Font), Math.Min(selected.FontSize, grid.CellSize * 0.7), Brushes.DarkOrange, 1);
+                    var text = new FormattedText(glyph.Text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, new Typeface(selected.Font), Math.Min(selected.FontSize, Math.Min(grid.CellSize, grid.CellHeight) * 0.7), Brushes.DarkOrange, 1);
                     dc.DrawText(text, new Point(rect.X + (rect.Width - text.Width) / 2, rect.Y + (rect.Height - text.Height) / 2));
                 }
                 dc.Pop();
