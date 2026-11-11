@@ -70,6 +70,29 @@ internal static class GridCoordinateChecks
         PropertyChecks.Find<TextBox>(panel, "ずらし量 X（px）").Text = "3";
         LivePropertyChecks.Commit(window);
         Check(line.GridColumn == 2.5 && line.PlacementOffsetX == 3, "Coordinate and placement editors change independent values");
+        var organizer = new SceneObject { Kind = ObjectKind.Group, OrganizeOnly = true };
+        var nestedOrganizer = new SceneObject { Kind = ObjectKind.Group, OrganizeOnly = true };
+        other.Children.Add(organizer); organizer.Children.Add(nestedOrganizer);
+        var child = new SceneObject { Kind = ObjectKind.Shape, Width = 10, Height = 20 };
+        nestedOrganizer.Children.Add(child); SceneDocument.InitializeGridCoordinates(child, 2, 3);
+        child.LayoutSizing = "固定"; child.LayoutAnchor = "左上"; child.PlacementOffsetX = 2;
+        Check(doc.UsesGridCoordinates(child) && doc.CoordinateGrid(nestedOrganizer) == other
+            && doc.ParentRegions(child).Outer == new Rect(80, 160, 80, 80)
+            && doc.World(child).Transform(new Point()) == new Point(587, 165), "Nested organizers must pass through the child's grid cell and placement");
+        doc.MoveOnGrid(child, new Point(2, 3), new Vector(40, 40));
+        Check(child.GridColumn == 2.5 && child.GridRow == 3.5, "Nested organizers must use grid dimensions for half-cell snapping");
+        doc.ReparentMany([child], grid);
+        Check(child.GridColumn == 2.5 && child.GridRow == 3.5, "Moving out of organizer must preserve cell coordinates");
+        doc.ReparentMany([child], nestedOrganizer);
+        var childWorld = doc.World(child);
+        doc.EnableGroupTransform(organizer);
+        Check(!doc.UsesGridCoordinates(child) && doc.World(child) == childWorld, "Transform groups must define their own coordinates while preserving appearance");
+        var oldNested = new SceneObject { Kind = ObjectKind.Shape, X = 17, Y = 23 };
+        var oldOrganizer = new SceneObject { Kind = ObjectKind.Group, OrganizeOnly = true, Children = [oldNested] };
+        grid.Children.Add(oldOrganizer);
+        doc.Save(file);
+        var reopened = SceneDocument.Load(file);
+        Check(reopened.UsesGridCoordinates(reopened.Find(oldNested.Id)!), "Loading legacy children of organizers must adopt grid coordinates");
         doc.Validate();
         Console.WriteLine("PASS: Grid coordinates, half-cell snapping, placement offsets, reparenting, legacy import, structural edits and line handles");
     }

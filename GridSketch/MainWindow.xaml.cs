@@ -242,7 +242,15 @@ public partial class MainWindow : Window
             case ObjectKind.Text:
                 FontField(node);
                 Number("文字サイズ（px）", node.FontSize, v => node.FontSize = v, 1, 512); ColorField("文字色", node.Color, v => node.Color = v);
-                if (node.Kind == ObjectKind.GridText) AlignmentIcons("配置", node.Alignment, v => node.Alignment = v);
+                if (node.Kind == ObjectKind.GridText)
+                {
+                    Section("マス内配置");
+                    RegionIcons("基準", node.UseCellMargin ? "余白の内側" : "マス全体", "マス全体", "余白の内側",
+                        v => node.UseCellMargin = v == "余白の内側");
+                    AlignmentIcons("位置合わせ", node.Alignment, v => node.Alignment = v);
+                    Pair("ずらし量 X（px）", node.PlacementOffsetX, v => node.PlacementOffsetX = v,
+                        "ずらし量 Y（px）", node.PlacementOffsetY, v => node.PlacementOffsetY = v);
+                }
                 Section("縁取り", node.Style.OutlineEnabled, () => node.Style.OutlineEnabled ? "有効" : "無効");
                 Check("縁取りを有効にする", node.Style.OutlineEnabled, v => node.Style.OutlineEnabled = v);
                 ColorField("縁の色・不透明度", node.Style.OutlineColor, v => node.Style.OutlineColor = v);
@@ -450,7 +458,7 @@ public partial class MainWindow : Window
         var group = new SceneObject { Kind = ObjectKind.Group, Name = "グループ" };
         InitializeWrappingFrame(group, nodes.FirstOrDefault(n => n.UseParentLayout) ?? nodes[0]);
         parent.Children.Insert(index, group);
-        if (parent.Kind == ObjectKind.Grid) document.AdoptGridCoordinates(group);
+        document.AdoptGridCoordinates(group);
         foreach (var node in nodes) document.Reparent(node, group);
         group.Children = nodes;
         if (parent.IsStateSelector)

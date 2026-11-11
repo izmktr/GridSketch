@@ -23,7 +23,7 @@ public sealed partial class SceneDocument
     private LayoutRegions RegionsForChild(SceneObject? parent, SceneObject node)
     {
         if (parent is null) return new(null, null, "親はありません。");
-        if (parent.Kind == ObjectKind.Group && parent.OrganizeOnly) return ParentRegions(parent);
+        if (parent.Kind == ObjectKind.Group && parent.OrganizeOnly) return RegionsForChild(Parent(parent), node);
         if (parent.Kind == ObjectKind.Canvas)
             return parent.AutoSize ? new(null, null, "自動サイズのキャンバス：内容から大きさを決めます。")
                 : new(new Rect(parent.X, parent.Y, parent.CanvasPixelWidth, parent.CanvasPixelHeight), null, "固定サイズのキャンバス");

@@ -50,6 +50,8 @@ public sealed partial class SceneDocument
             child.PreservedTransform = new() { M11 = matrix.M11, M12 = matrix.M12, M21 = matrix.M21, M22 = matrix.M22 };
         }
         foreach (var group in groups) group.OrganizeOnly = true;
+        foreach (var group in groups)
+            foreach (var child in GridMembers(group)) AdoptGridCoordinates(child);
     }
     public void PrepareGroupLayouts()
     {
@@ -59,6 +61,16 @@ public sealed partial class SceneDocument
     {
         if (group.Kind != ObjectKind.Group || !Editable(group)) throw new InvalidOperationException("編集可能なグループを選択してください。");
         if (RequiresGrid(group)) throw new InvalidOperationException("罫線やグリッド文字などが含まれているため、一括変形用には戻せません。");
+        var placements = GridMembers(group).Where(UsesGridCoordinates)
+            .ToDictionary(node => node, EffectiveLocalMatrix);
         group.OrganizeOnly = false;
+        foreach (var (child, matrix) in placements)
+        {
+            child.GridColumn = child.GridRow = null;
+            child.PlacementOffsetX = child.PlacementOffsetY = 0;
+            child.UseParentLayout = false; child.Angle = 0;
+            child.X = matrix.OffsetX; child.Y = matrix.OffsetY;
+            child.PreservedTransform = new() { M11 = matrix.M11, M12 = matrix.M12, M21 = matrix.M21, M22 = matrix.M22 };
+        }
     }
 }

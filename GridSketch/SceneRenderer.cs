@@ -108,8 +108,8 @@ public sealed class SceneRenderer
                 case ObjectKind.GridText when grid is not null:
                     foreach (var glyph in node.Glyphs)
                     {
-                        var box = SceneDocument.CellRect(grid, new(glyph.Column, glyph.Row), false);
-                        if (!glyph.InCellText) dc.PushClip(new RectangleGeometry(box));
+                        var box = SceneDocument.CellRect(grid, new(glyph.Column, glyph.Row), node.UseCellMargin);
+                        if (!glyph.InCellText) dc.PushClip(new RectangleGeometry(SceneDocument.CellRect(grid, new(glyph.Column, glyph.Row), false)));
                         var text = StyledText(node, glyph.Text, glyph.Font ?? node.Font, glyph.Size ?? node.FontSize);
                         var bounds = text.Bounds;
                         if (!bounds.IsEmpty)
@@ -120,8 +120,8 @@ public sealed class SceneRenderer
                             if (glyph.InCellText) scale = 1;
                             double ax = node.Alignment.Contains('左') ? 0 : node.Alignment.Contains('右') ? 1 : 0.5;
                             double ay = node.Alignment.Contains('上') ? 0 : node.Alignment.Contains('下') ? 1 : 0.5;
-                            var x = box.X + insetX + (box.Width - insetX * 2 - bounds.Width * scale) * ax;
-                            var y = box.Y + insetY + (box.Height - insetY * 2 - bounds.Height * scale) * ay;
+                            var x = box.X + insetX + (box.Width - insetX * 2 - bounds.Width * scale) * ax + node.PlacementOffsetX;
+                            var y = box.Y + insetY + (box.Height - insetY * 2 - bounds.Height * scale) * ay + node.PlacementOffsetY;
                             dc.PushTransform(new TranslateTransform(x, y)); dc.PushTransform(new ScaleTransform(scale, scale)); dc.PushTransform(new TranslateTransform(-bounds.X, -bounds.Y));
                             dc.DrawDrawing(text); dc.Pop(); dc.Pop(); dc.Pop();
                         }

@@ -42,11 +42,21 @@ internal static class AlignmentChecks
                 "Aligning in-cell text changes its size");
         }
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        text.Alignment = "左上";
+        var initialBounds = new SceneRenderer(doc).Bounds[text.Id];
+        grid.Margin = 7; grid.MarginY = 9;
+        text.UseCellMargin = true; text.PlacementOffsetX = 2; text.PlacementOffsetY = -3;
+        var offsetBounds = new SceneRenderer(doc).Bounds[text.Id];
+        Check(Math.Abs(offsetBounds.X - initialBounds.X - 9) < 0.001
+            && Math.Abs(offsetBounds.Y - initialBounds.Y - 6) < 0.001, "Grid text must combine cell margin and pixel placement offsets");
+        var savedPlacement = SceneDocument.Restore(doc.Snapshot()).Find(text.Id)!;
+        Check(savedPlacement.UseCellMargin && savedPlacement.PlacementOffsetX == 2 && savedPlacement.PlacementOffsetY == -3,
+            "Grid text placement settings must persist");
         void Call(string name) => typeof(MainWindow).GetMethod(name, flags)!.Invoke(window, null);
         typeof(MainWindow).GetField("document", flags)!.SetValue(window, doc);
         typeof(MainWindow).GetField("selectedId", flags)!.SetValue(window, text.Id); text.Alignment = "中央"; Call("RefreshAll");
         var panel = (StackPanel)window.FindName("Properties");
-        var button = PropertyChecks.Find<ToggleButton>(panel, "配置：右下");
+        var button = PropertyChecks.Find<ToggleButton>(panel, "位置合わせ：右下");
         button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
         Check(text.Alignment == "右下" && ((UniformGrid)button.Parent).Children.OfType<ToggleButton>().Count(b => b.IsChecked == true) == 1, "Alignment selection is not exclusive/immediate");
         var row = (UniformGrid)button.Parent;

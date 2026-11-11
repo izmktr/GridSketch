@@ -22,6 +22,8 @@ public sealed partial class SceneDocument
             var center = World(node).Transform(new Point(box.X + box.Width / 2, box.Y + box.Height / 2));
             var inverse = World(grid); inverse.Invert(); center = inverse.Transform(center);
             PrepareGridGroups(Parent(node)!);
+            node.GridColumn = node.GridRow = null;
+            node.PlacementOffsetX = node.PlacementOffsetY = 0;
             node.Column = Math.Clamp((int)Math.Floor(center.X / grid.CellSize), 0, grid.Columns - 1);
             node.Row = Math.Clamp((int)Math.Floor(center.Y / grid.CellHeight), 0, grid.Rows - 1);
             node.SnapToCell = true; node.UseParentLayout = false;

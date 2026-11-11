@@ -86,7 +86,7 @@ public sealed partial class SceneDocument
         int stateCount = parent.States.Count;
         try
         {
-            if (parent.Kind == ObjectKind.Grid) AdoptGridCoordinates(copy);
+            foreach (var child in Walk(copy)) AdoptGridCoordinates(child);
             if (parent.IsStateSelector) AssignNewState(parent, copy);
             Validate(); return copy;
         }

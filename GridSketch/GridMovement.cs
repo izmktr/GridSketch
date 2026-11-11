@@ -73,7 +73,7 @@ public sealed partial class SceneDocument
         }
         if (UsesGridCoordinates(node))
         {
-            var grid = Parent(node)!;
+            var grid = CoordinateGrid(Parent(node))!;
             node.GridColumn = Math.Round((origin.X + delta.X / grid.CellSize) * 2, MidpointRounding.AwayFromZero) / 2;
             node.GridRow = Math.Round((origin.Y + delta.Y / grid.CellHeight) * 2, MidpointRounding.AwayFromZero) / 2;
             node.X = node.Y = 0;

@@ -8,8 +8,14 @@ public sealed partial class SceneDocument
     public static bool CanUseGridCoordinates(SceneObject node) => node.Kind is ObjectKind.Image or ObjectKind.Text
         or ObjectKind.Shape or ObjectKind.Line || node.Kind == ObjectKind.Group && !node.OrganizeOnly && !RequiresGrid(node);
 
+    public SceneObject? CoordinateGrid(SceneObject? parent)
+    {
+        while (parent is { Kind: ObjectKind.Group, OrganizeOnly: true }) parent = Parent(parent);
+        return parent?.Kind == ObjectKind.Grid ? parent : null;
+    }
+
     public bool UsesGridCoordinates(SceneObject node) => node.GridColumn.HasValue && node.GridRow.HasValue
-        && Parent(node)?.Kind == ObjectKind.Grid && CanUseGridCoordinates(node);
+        && CoordinateGrid(Parent(node)) is not null && CanUseGridCoordinates(node);
 
     public static void InitializeGridCoordinates(SceneObject node, double column = 1, double row = 1)
     {
@@ -23,7 +29,7 @@ public sealed partial class SceneDocument
     // Import legacy pixel placements without changing their rendered position or size.
     public void AdoptGridCoordinates(SceneObject node)
     {
-        if (UsesGridCoordinates(node) || !CanUseGridCoordinates(node) || Parent(node) is not { Kind: ObjectKind.Grid } grid) return;
+        if (UsesGridCoordinates(node) || !CanUseGridCoordinates(node) || CoordinateGrid(Parent(node)) is not { } grid) return;
         var matrix = EffectiveLocalMatrix(node);
         var rect = node.Kind == ObjectKind.Image ? SceneRenderer.ImagePlacementRect(node, grid) : OwnLayoutRect(node);
         var placed = System.Windows.Rect.Transform(rect, matrix);

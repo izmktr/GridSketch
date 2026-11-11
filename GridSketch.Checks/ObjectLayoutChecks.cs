@@ -76,8 +76,8 @@ internal static class ObjectLayoutChecks
         void Call(string name) => typeof(MainWindow).GetMethod(name, flags)!.Invoke(window, null);
         Set("document", scene); Set("selectedId", group.Id); Call("RefreshAll");
         var panel = (StackPanel)window.FindName("Properties");
-        PropertyChecks.Find<ComboBox>(panel, "配置先").SelectedItem = "親の外側";
-        PropertyChecks.Find<ComboBox>(panel, "サイズの扱い").SelectedItem = "広げる";
+        PropertyChecks.Find<System.Windows.Controls.Primitives.ToggleButton>(panel, "配置先：親の外側").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+        PropertyChecks.Find<System.Windows.Controls.Primitives.ToggleButton>(panel, "サイズの扱い：広げて最大").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
         LivePropertyChecks.Commit(window);
         Check(group.LayoutRegion == "親の外側" && group.LayoutSizing == "広げる", "Parent layout controls apply together");
         Call("Undo"); Call("Undo"); var restored = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;

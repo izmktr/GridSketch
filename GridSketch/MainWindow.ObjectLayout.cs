@@ -8,9 +8,9 @@ public partial class MainWindow
     {
         if (document.UsesGridCoordinates(node))
         {
-            Choice("基準", node.LayoutRegion == "親の内側" ? "余白の内側" : "マス全体", ["マス全体", "余白の内側"],
+            RegionIcons("基準", node.LayoutRegion == "親の内側" ? "余白の内側" : "マス全体", "マス全体", "余白の内側",
                 v => node.LayoutRegion = v == "余白の内側" ? "親の内側" : "親の外側");
-            Choice("サイズの扱い", node.LayoutSizing, ["固定", "収める", "広げる"], v => node.LayoutSizing = v);
+            SizeIcons("サイズの扱い", node.LayoutSizing, v => node.LayoutSizing = v);
             AlignmentIcons("位置合わせ", node.LayoutAnchor, v => node.LayoutAnchor = v);
             Pair("ずらし量 X（px）", node.PlacementOffsetX, v => node.PlacementOffsetX = v,
                 "ずらし量 Y（px）", node.PlacementOffsetY, v => node.PlacementOffsetY = v);
@@ -43,8 +43,8 @@ public partial class MainWindow
             node.UseParentLayout = v;
             if (v && node.Kind == ObjectKind.Group) node.HasLayoutFrame = true;
         });
-        Choice("配置先", node.LayoutRegion, regions.Inner is null ? ["親の外側"] : ["親の外側", "親の内側"], v => node.LayoutRegion = v);
-        Choice("サイズの扱い", node.LayoutSizing, ["固定", "収める", "広げる"], v => node.LayoutSizing = v);
+        RegionIcons("配置先", node.LayoutRegion, "親の外側", "親の内側", v => node.LayoutRegion = v, regions.Inner is not null);
+        SizeIcons("サイズの扱い", node.LayoutSizing, v => node.LayoutSizing = v);
         if (node.Kind == ObjectKind.Text) AlignmentIcons("位置合わせ", node.LayoutAnchor, v => node.LayoutAnchor = v);
         else Choice("位置合わせ", node.LayoutAnchor, ["左上", "上", "右上", "左", "中央", "右", "左下", "下", "右下"], v => node.LayoutAnchor = v);
     }
@@ -53,7 +53,7 @@ public partial class MainWindow
         if (node.Kind is ObjectKind.Image or ObjectKind.Shape)
             node.Width = node.Height = document.InitialSquareSize(parent);
         if (node.Kind == ObjectKind.Group) { node.HasLayoutFrame = true; node.Width = node.Height = 100; }
-        if (parent.Kind == ObjectKind.Grid && SceneDocument.CanUseGridCoordinates(node))
+        if (document.CoordinateGrid(parent) is not null && SceneDocument.CanUseGridCoordinates(node))
             SceneDocument.InitializeGridCoordinates(node, (Surface.ActiveCell?.Column ?? 0) + 1, (Surface.ActiveCell?.Row ?? 0) + 1);
         if (parent.IsStateSelector && parent.UseObjectLayout)
         {

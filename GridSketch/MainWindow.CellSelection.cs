@@ -148,8 +148,8 @@ public partial class MainWindow
         if (document.SelectionOwner(node) is not { } owner) return;
         if (node.Kind != ObjectKind.Group && !owner.UseObjectLayout)
         {
-            Choice("配置領域", node.TemplateRegion, ["マス全体", "余白の内側"], v => node.TemplateRegion = v);
-            Choice("領域への収め方", node.TemplateSizing, ["固定サイズ", "収める", "親いっぱい"], v => node.TemplateSizing = v);
+            RegionIcons("配置領域", node.TemplateRegion, "マス全体", "余白の内側", v => node.TemplateRegion = v);
+            SizeIcons("領域への収め方", node.TemplateSizing, v => node.TemplateSizing = v, template: true);
             Choice("配置基準", node.TemplateAnchor, ["左上", "上", "右上", "左", "中央", "右", "左下", "下", "右下"], v => node.TemplateAnchor = v);
         }
         var grid = document.GridFor(owner)!;
