@@ -82,6 +82,7 @@ public partial class MainWindow : Window
     private void LayerSelected(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
         if (refreshing || selectingLayers || e.NewValue is not TreeViewItem item) return;
+        if (!Equals(item.Tag, selectedId)) commitLayerNameEdit?.Invoke();
         if (!Equals(item.Tag, selectedId)) { CommitPropertyEdit(); BreakUndoMerge(); }
         layerSelection.Clear(); layerSelection.Add((string)item.Tag); layerAnchor = (string)item.Tag; PaintLayerSelection();
         selectedId = (string)item.Tag; Surface.Selected = Selected; Surface.ActiveCell = null; Surface.RangeEnd = null; Surface.Preview = []; Surface.HoveredEdge = null; Surface.InvalidateVisual(); BuildProperties();

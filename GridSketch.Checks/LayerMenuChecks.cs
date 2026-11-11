@@ -93,6 +93,12 @@ internal static class LayerMenuChecks
         string oldName = grid.Name;
         Call("BeginLayerNameEdit", gridItem);
         var nameEditor = gridItem.Header as TextBox ?? throw new Exception("Inline layer editor did not open");
+        window.Activate(); window.UpdateLayout();
+        var renameFrame = new DispatcherFrame();
+        window.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() => renameFrame.Continue = false));
+        Dispatcher.PushFrame(renameFrame);
+        Check(nameEditor.IsKeyboardFocused && ReferenceEquals(Keyboard.FocusedElement, nameEditor),
+            $"Inline layer editor must receive keyboard focus after appearing: loaded={nameEditor.IsLoaded}, header={gridItem.Header.GetType().Name}, focused={Keyboard.FocusedElement?.GetType().Name}, selected={gridItem.IsSelected}, window={window.IsActive}");
         Check(nameEditor.Text == oldName && nameEditor.SelectionLength == oldName.Length, "Inline editor must select the layer name");
         void PressKey(TextBox editor, Key key) => editor.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice,
             PresentationSource.FromVisual(window)!, 0, key) { RoutedEvent = Keyboard.PreviewKeyDownEvent });
@@ -106,6 +112,16 @@ internal static class LayerMenuChecks
         Check(grid.Name == "新しい名前", "Empty inline names must preserve the original");
         Call("Undo"); scene = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;
         Check(scene.Find(grid.Id)!.Name == oldName, "Inline rename must undo in one step");
+        grid = scene.Find(grid.Id)!; Menu(grid);
+        gridItem = ((TreeViewItem)layers.Items[0]).Items.OfType<TreeViewItem>().Single(i => Equals(i.Tag, grid.Id));
+        Call("BeginLayerNameEdit", gridItem);
+        ((TextBox)gridItem.Header).Text = "選択変更で確定";
+        Call("ChooseLayer", (TreeViewItem)layers.Items[0], false, false, false);
+        Check(grid.Name == "選択変更で確定" && gridItem.Header is not TextBox
+            && Equals(typeof(MainWindow).GetField("selectedId", flags)!.GetValue(window), scene.Canvas.Id),
+            "Selecting another layer must commit the name and remove the inline editor");
+        Call("Undo"); scene = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;
+        Check(scene.Find(grid.Id)!.Name == oldName, "Selection-committed rename must remain undoable");
         scene.Validate(); Set("savedState", scene.Snapshot());
         Console.WriteLine("PASS: Layer context menu selection, duplication, state remapping, move, visibility, locks, deletion, restrictions and undo");
     }

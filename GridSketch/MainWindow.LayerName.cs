@@ -7,6 +7,8 @@ namespace GridSketch;
 
 public partial class MainWindow
 {
+    private Action? commitLayerNameEdit;
+
     private void BeginLayerNameEdit(TreeViewItem item)
     {
         if (SelectedLayers().Count != 1 || !Equals(item.Tag, selectedId) || !document.Editable(Selected)
@@ -22,6 +24,7 @@ public partial class MainWindow
         {
             if (finished) return;
             finished = true;
+            commitLayerNameEdit = null;
             string name = editor.Text.Trim();
             item.Header = node.Label;
             if (!commit || refreshing || document != scene || scene.Find(node.Id) != node
@@ -38,7 +41,21 @@ public partial class MainWindow
             item.Focus();
         };
         editor.LostKeyboardFocus += (_, _) => Finish(true);
+        commitLayerNameEdit = () => Finish(true);
+        editor.Loaded += (_, _) => editor.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, new Action(() =>
+        {
+            if (finished || !ReferenceEquals(item.Header, editor) || !editor.IsLoaded) return;
+            bool previousSelection = selectingLayers;
+            selectingLayers = true;
+            try
+            {
+                editor.Focus();
+                Keyboard.Focus(editor);
+                editor.SelectAll();
+            }
+            finally { selectingLayers = previousSelection; }
+        }));
         item.Header = editor;
-        editor.Focus(); editor.SelectAll();
+        editor.SelectAll();
     }
 }
