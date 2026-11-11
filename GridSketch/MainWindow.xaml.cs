@@ -191,18 +191,27 @@ public partial class MainWindow : Window
         var sections = new List<PropertySection>();
         void Section(string title, bool initial = true, Func<string>? summary = null)
             => sections.Add(new(title, Properties.Children.Count, initial, summary));
-        Section("親に合わせる配置", node.UseParentLayout, () => node.UseParentLayout ? "有効" : "無効");
+        bool gridCoordinates = document.UsesGridCoordinates(node);
+        if (gridCoordinates)
+        {
+            Section("マス座標");
+            Pair("列（マス座標）", node.GridColumn!.Value, v => node.GridColumn = v,
+                "行（マス座標）", node.GridRow!.Value, v => node.GridRow = v);
+            Number("回転（度）", node.Angle, v => node.Angle = v);
+        }
+        Section(gridCoordinates ? "マス内配置" : "親に合わせる配置", gridCoordinates || node.UseParentLayout,
+            () => gridCoordinates ? node.LayoutAnchor : node.UseParentLayout ? "有効" : "無効");
         ObjectLayoutProperties(node);
-        Section("マス内の配置");
+        Section("見本の配置");
         TemplateProperties(node);
         Section("画像の配置");
-        if (node.Kind == ObjectKind.Image) ImagePlacementProperties(node);
+        if (node.Kind == ObjectKind.Image && !gridCoordinates) ImagePlacementProperties(node);
         if (node.Kind == ObjectKind.Canvas)
         {
             Section("キャンバス");
             CanvasSettings(Properties, node, Surface.Renderer!.OutputBounds);
         }
-        else if (!node.IsGridContent && !(node.Kind == ObjectKind.Group && node.OrganizeOnly)) { Section("位置・回転"); Pair(document.SelectionOwner(node)?.UseCellLayout == true ? "位置 X（ずらし量）" : "位置 X", node.X, v => node.X = v, document.SelectionOwner(node)?.UseCellLayout == true ? "位置 Y（ずらし量）" : "位置 Y", node.Y, v => node.Y = v); Number(node.Kind == ObjectKind.Image ? "回転（度 / 画像中央）" : "回転（度 / 左上中心）", node.Angle, v => node.Angle = v); }
+        else if (!gridCoordinates && !node.IsGridContent && !(node.Kind == ObjectKind.Group && node.OrganizeOnly)) { Section("位置・回転"); Pair(document.SelectionOwner(node)?.UseCellLayout == true ? "位置 X（ずらし量）" : "位置 X（px）", node.X, v => node.X = v, document.SelectionOwner(node)?.UseCellLayout == true ? "位置 Y（ずらし量）" : "位置 Y（px）", node.Y, v => node.Y = v); Number(node.Kind == ObjectKind.Image ? "回転（度 / 画像中央）" : "回転（度 / 左上中心）", node.Angle, v => node.Angle = v); }
         Section(node.Kind switch
         {
             ObjectKind.Group => "グループ", ObjectKind.Grid => "グリッド", ObjectKind.Border => "線の見た目",
@@ -375,7 +384,7 @@ public partial class MainWindow : Window
             var (parent, index) = AddPlacement(kind is ObjectKind.Border or ObjectKind.GridText or ObjectKind.Fill or ObjectKind.CellFrame or ObjectKind.CellSelection or ObjectKind.EdgeSelection); RequireEditable(parent);
             var node = new SceneObject { Kind = kind, Name = centerBorder ? "中心罫線" : SceneObject.KindName(kind), ConnectCellCenters = centerBorder, UseCellLayout = kind is ObjectKind.CellSelection or ObjectKind.EdgeSelection, UseObjectLayout = kind is ObjectKind.CellSelection or ObjectKind.EdgeSelection, ImageData = image };
             InitializeObjectLayout(node, parent);
-            if (kind == ObjectKind.Image && parent.Kind == ObjectKind.Grid) { node.SnapToCell = true; node.Column = Surface.ActiveCell?.Column ?? 0; node.Row = Surface.ActiveCell?.Row ?? 0; }
+            if (kind == ObjectKind.Image && parent.Kind == ObjectKind.Grid && !node.GridColumn.HasValue) { node.SnapToCell = true; node.Column = Surface.ActiveCell?.Column ?? 0; node.Row = Surface.ActiveCell?.Row ?? 0; }
             if (kind == ObjectKind.Fill) node.Color = "#000000";
             InsertAddedObject(parent, index, node);
             if (parent.IsStateSelector)
@@ -441,6 +450,7 @@ public partial class MainWindow : Window
         var group = new SceneObject { Kind = ObjectKind.Group, Name = "グループ" };
         InitializeWrappingFrame(group, nodes.FirstOrDefault(n => n.UseParentLayout) ?? nodes[0]);
         parent.Children.Insert(index, group);
+        if (parent.Kind == ObjectKind.Grid) document.AdoptGridCoordinates(group);
         foreach (var node in nodes) document.Reparent(node, group);
         group.Children = nodes;
         if (parent.IsStateSelector)
@@ -493,6 +503,7 @@ public partial class MainWindow : Window
             {
                 var center = new Point((c.Column + 0.5) * grid.CellSize, (c.Row + 0.5) * grid.CellHeight);
                 if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) { var inverse = document.EffectiveLocalMatrix(node); inverse.Invert(); var end = inverse.Transform(center); node.EndX = end.X; node.EndY = end.Y; }
+                else if (document.UsesGridCoordinates(node)) { node.GridColumn = c.Column + 1; node.GridRow = c.Row + 1; }
                 else { node.X = center.X; node.Y = center.Y; }
             });
             Surface.InvalidateVisual(); Status.Text = $"{c.Column + 1}列・{c.Row + 1}行を選択。Shift+クリックで範囲選択。"; return;
@@ -514,7 +525,8 @@ public partial class MainWindow : Window
         }
         if (node == document.Canvas || node.Kind == ObjectKind.Group && node.OrganizeOnly || !document.Editable(node)) return;
         dragSnapshot = document.Snapshot(); dragContentOrigin = SceneDocument.MovesCellContents(node) ? SceneDocument.Restore(dragSnapshot).Find(node.Id) : null;
-        dragStart = world; dragPosition = new Point(node.X, node.Y); Surface.CaptureMouse();
+        dragStart = world; dragPosition = document.UsesGridCoordinates(node)
+            ? new Point(node.GridColumn!.Value, node.GridRow!.Value) : new Point(node.X, node.Y); Surface.CaptureMouse();
     });
     private void SurfaceMove(object sender, MouseEventArgs e)
     {

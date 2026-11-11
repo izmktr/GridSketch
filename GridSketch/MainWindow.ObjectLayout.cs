@@ -6,6 +6,16 @@ public partial class MainWindow
 {
     private void ObjectLayoutProperties(SceneObject node)
     {
+        if (document.UsesGridCoordinates(node))
+        {
+            Choice("基準", node.LayoutRegion == "親の内側" ? "余白の内側" : "マス全体", ["マス全体", "余白の内側"],
+                v => node.LayoutRegion = v == "余白の内側" ? "親の内側" : "親の外側");
+            Choice("サイズの扱い", node.LayoutSizing, ["固定", "収める", "広げる"], v => node.LayoutSizing = v);
+            AlignmentIcons("位置合わせ", node.LayoutAnchor, v => node.LayoutAnchor = v);
+            Pair("ずらし量 X（px）", node.PlacementOffsetX, v => node.PlacementOffsetX = v,
+                "ずらし量 Y（px）", node.PlacementOffsetY, v => node.PlacementOffsetY = v);
+            return;
+        }
         var regions = document.ParentRegions(node);
         string Describe(Rect r) => $"X {r.X:0.##}, Y {r.Y:0.##} / {r.Width:0.##} × {r.Height:0.##}";
         if (regions.Outer is not null || regions.Inner is not null) Label("親の配置範囲");
@@ -43,6 +53,8 @@ public partial class MainWindow
         if (node.Kind is ObjectKind.Image or ObjectKind.Shape)
             node.Width = node.Height = document.InitialSquareSize(parent);
         if (node.Kind == ObjectKind.Group) { node.HasLayoutFrame = true; node.Width = node.Height = 100; }
+        if (parent.Kind == ObjectKind.Grid && SceneDocument.CanUseGridCoordinates(node))
+            SceneDocument.InitializeGridCoordinates(node, (Surface.ActiveCell?.Column ?? 0) + 1, (Surface.ActiveCell?.Row ?? 0) + 1);
         if (parent.IsStateSelector && parent.UseObjectLayout)
         {
             node.UseParentLayout = true; node.LayoutRegion = "親の内側"; node.LayoutSizing = "収める"; node.LayoutAnchor = "中央";

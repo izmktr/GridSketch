@@ -8,11 +8,12 @@ public enum LineHandle { Start, End, Control }
 public sealed class LineHandleDrag
 {
     private readonly SceneObject node, source;
+    private readonly SceneDocument document;
     private readonly Matrix local, world;
     public LineHandle Handle { get; }
     public LineHandleDrag(SceneDocument document, SceneObject node, LineHandle handle)
     {
-        this.node = node; Handle = handle;
+        this.node = node; this.document = document; Handle = handle;
         source = SceneDocument.Restore(document.Snapshot()).Find(node.Id)!;
         local = document.EffectiveLocalMatrix(node); world = document.World(node);
     }
@@ -32,11 +33,16 @@ public sealed class LineHandleDrag
         if (point == original)
         {
             node.X = source.X; node.Y = source.Y; node.Angle = source.Angle;
+            node.GridColumn = source.GridColumn; node.GridRow = source.GridRow;
+            node.PlacementOffsetX = source.PlacementOffsetX; node.PlacementOffsetY = source.PlacementOffsetY;
+            node.LayoutRegion = source.LayoutRegion; node.LayoutAnchor = source.LayoutAnchor; node.LayoutSizing = source.LayoutSizing;
             node.UseParentLayout = source.UseParentLayout; node.PreservedTransform = source.PreservedTransform; return;
         }
         // Freeze the current placement while editing geometry, so automatic fitting
         // does not move the untouched points as the line's bounds change.
         node.UseParentLayout = false; node.Angle = 0;
+        node.GridColumn = node.GridRow = null;
+        node.PlacementOffsetX = node.PlacementOffsetY = 0;
         node.PreservedTransform = new() { M11 = local.M11, M12 = local.M12, M21 = local.M21, M22 = local.M22 };
         node.X = local.OffsetX; node.Y = local.OffsetY;
         if (Handle == LineHandle.Start)
@@ -46,6 +52,7 @@ public sealed class LineHandleDrag
         }
         else if (Handle == LineHandle.End) { node.EndX = point.X; node.EndY = point.Y; }
         else { node.ControlX = point.X; node.ControlY = point.Y; }
+        if (source.GridColumn.HasValue) document.AdoptGridCoordinates(node);
     }
 }
 

@@ -50,6 +50,10 @@ public sealed class SceneObject
     public LayerStyle Style { get; set; } = new();
     public double X { get; set; }
     public double Y { get; set; }
+    public double? GridColumn { get; set; }
+    public double? GridRow { get; set; }
+    public double PlacementOffsetX { get; set; }
+    public double PlacementOffsetY { get; set; }
     public double Angle { get; set; }
     public List<SceneObject> Children { get; set; } = [];
     public double Width { get; set; } = 160;
@@ -172,6 +176,11 @@ public sealed partial class SceneDocument
     public void Reparent(SceneObject node, SceneObject target)
     {
         if (node == Canvas || !target.IsContainer || node == target || Walk(node).Contains(target)) throw new InvalidOperationException("この親には移動できません。");
+        if (UsesGridCoordinates(node) && target.Kind == ObjectKind.Grid)
+        {
+            if (!Editable(node) || !Editable(target)) throw new InvalidOperationException("ロックされています。");
+            Parent(node)!.Children.Remove(node); target.Children.Insert(0, node); return;
+        }
         if (RequiresGrid(node))
         {
             if (GridFor(node) != GridContainer(target)) throw new InvalidOperationException("グリッド依存の内容は所属グリッドの外へ移動できません。");
@@ -182,6 +191,8 @@ public sealed partial class SceneDocument
         if (!Editable(node) || !Editable(target)) throw new InvalidOperationException("ロックされています。");
         var world = World(node); var inverse = World(target); inverse.Invert(); world.Append(inverse);
         Parent(node)!.Children.Remove(node); target.Children.Insert(0, node);
+        node.GridColumn = node.GridRow = null;
+        node.PlacementOffsetX = node.PlacementOffsetY = 0;
         if (target.IsStateSelector) AssignNewState(target, node);
         node.UseParentLayout = false;
         node.PreservedTransform = null;
@@ -190,12 +201,15 @@ public sealed partial class SceneDocument
         if (Math.Abs(sx - 1) > 1e-8 || Math.Abs(sy - 1) > 1e-8 || Math.Abs(world.M11 * world.M21 + world.M12 * world.M22) > 1e-8)
         {
             node.PreservedTransform = new() { M11 = world.M11, M12 = world.M12, M21 = world.M21, M22 = world.M22 };
-            node.Angle = 0; node.X = world.OffsetX; node.Y = world.OffsetY; return;
+            node.Angle = 0; node.X = world.OffsetX; node.Y = world.OffsetY;
+            if (target.Kind == ObjectKind.Grid) AdoptGridCoordinates(node);
+            return;
         }
         node.Angle = Math.Atan2(world.M12, world.M11) * 180 / Math.PI;
         node.X = node.Y = 0;
         var rotation = LocalMatrix(node);
         node.X = world.OffsetX - rotation.OffsetX; node.Y = world.OffsetY - rotation.OffsetY;
+        if (target.Kind == ObjectKind.Grid) AdoptGridCoordinates(node);
     }
 
     public static SceneObject CreateGrid(string preset, int columns = 16, int rows = 12, double cellSize = 48)
@@ -399,6 +413,8 @@ public sealed partial class SceneDocument
         var json = File.ReadAllText(path); using var parsed = JsonDocument.Parse(json);
         var version = parsed.RootElement.TryGetProperty("Version", out var v) ? v.GetInt32() : 1;
         var scene = version is 1 or 2 ? Migrate(Document.Load(path)) : Restore(json);
+        scene.Validate();
+        foreach (var node in scene.All().ToList()) scene.AdoptGridCoordinates(node);
         scene.Validate(); return scene;
     }
     public static SceneDocument Migrate(Document old)

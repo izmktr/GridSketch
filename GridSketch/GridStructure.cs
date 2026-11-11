@@ -54,6 +54,17 @@ public sealed partial class SceneDocument
 
         foreach (var node in GridMembers(grid).ToList())
         {
+            if (UsesGridCoordinates(node))
+            {
+                double coordinate = (rows ? node.GridRow : node.GridColumn)!.Value - 1;
+                if (delete && coordinate >= start && coordinate < start + count)
+                { Parent(node)!.Children.Remove(node); continue; }
+                if (coordinate >= start)
+                {
+                    if (rows) node.GridRow += delete ? -count : count;
+                    else node.GridColumn += delete ? -count : count;
+                }
+            }
             node.Glyphs.RemoveAll(g => Removed(rows ? g.Row : g.Column));
             foreach (var glyph in node.Glyphs)
             {

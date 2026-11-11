@@ -39,6 +39,14 @@ public sealed partial class SceneDocument
             return CellRegions(cells, new(0, 0), "マス切り替えから渡される1マスの範囲");
         if (parent.Kind == ObjectKind.Grid)
         {
+            if (UsesGridCoordinates(node))
+            {
+                double x = (node.GridColumn!.Value - 1) * parent.CellSize;
+                double y = (node.GridRow!.Value - 1) * parent.CellHeight;
+                return new(new Rect(x, y, parent.CellSize, parent.CellHeight),
+                    new Rect(x + parent.Margin, y + parent.MarginY, parent.CellSize - parent.Margin * 2, parent.CellHeight - parent.MarginY * 2),
+                    "マス座標で指定した1マスの範囲");
+            }
             if (node.IsGridContent)
                 return CellRegions(parent, node.Kind == ObjectKind.Image ? new(node.Column, node.Row) : new(0, 0), "対象マスごとに渡される範囲（表示は1マス分）");
             return new(new Rect(0, 0, parent.Columns * parent.CellSize, parent.Rows * parent.CellHeight), null,
@@ -78,7 +86,7 @@ public sealed partial class SceneDocument
         }
         return new Rect(0, 0, node.Width, node.Height);
     }
-    public bool ObjectLayoutActive(SceneObject node) => node.UseParentLayout && !node.IsGridContent &&
+    public bool ObjectLayoutActive(SceneObject node) => (UsesGridCoordinates(node) || node.UseParentLayout) && !node.IsGridContent &&
         node.Kind != ObjectKind.Canvas && !(node.Kind == ObjectKind.Group && node.OrganizeOnly) &&
         (SelectionOwner(node) is not { } owner || owner.UseObjectLayout);
 
@@ -98,12 +106,15 @@ public sealed partial class SceneDocument
         double ax = node.LayoutAnchor.Contains('左') ? 0 : node.LayoutAnchor.Contains('右') ? 1 : 0.5;
         double ay = node.LayoutAnchor.Contains('上') ? 0 : node.LayoutAnchor.Contains('下') ? 1 : 0.5;
         matrix.Scale(sx, sy);
-        matrix.Translate(box.X + (box.Width - bounds.Width * sx) * ax - bounds.X * sx + node.X,
-            box.Y + (box.Height - bounds.Height * sy) * ay - bounds.Y * sy + node.Y);
+        double offsetX = UsesGridCoordinates(node) ? node.PlacementOffsetX : node.X;
+        double offsetY = UsesGridCoordinates(node) ? node.PlacementOffsetY : node.Y;
+        matrix.Translate(box.X + (box.Width - bounds.Width * sx) * ax - bounds.X * sx + offsetX,
+            box.Y + (box.Height - bounds.Height * sy) * ay - bounds.Y * sy + offsetY);
         return matrix;
     }
     private void ValidateObjectLayout(SceneObject node)
     {
+        ValidateGridCoordinates(node);
         if (node.PreservedTransform is { } p && (!double.IsFinite(p.M11) || !double.IsFinite(p.M12) || !double.IsFinite(p.M21) || !double.IsFinite(p.M22) || !p.Matrix.HasInverse))
             throw new InvalidDataException("親変更時の変形が不正です。");
         if (node.LayoutRegion is not ("親の外側" or "親の内側") || node.LayoutSizing is not ("固定" or "収める" or "広げる") ||

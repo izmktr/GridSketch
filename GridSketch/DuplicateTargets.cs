@@ -53,6 +53,7 @@ public sealed partial class SceneDocument
             }
             // Preserve source coordinates relative to the parent, including cell template offsets.
             target.Children.Add(copy);
+            if (target.Kind == ObjectKind.Grid) AdoptGridCoordinates(copy);
             if (target.IsStateSelector) AssignNewState(target, copy);
         }
         target.LayerExpanded = true;

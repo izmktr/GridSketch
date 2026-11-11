@@ -71,6 +71,14 @@ public sealed partial class SceneDocument
         {
             MoveCellContents(node, contentOrigin ?? Restore(Snapshot()).Find(node.Id)!, contentGrid, delta); return;
         }
+        if (UsesGridCoordinates(node))
+        {
+            var grid = Parent(node)!;
+            node.GridColumn = Math.Round((origin.X + delta.X / grid.CellSize) * 2, MidpointRounding.AwayFromZero) / 2;
+            node.GridRow = Math.Round((origin.Y + delta.Y / grid.CellHeight) * 2, MidpointRounding.AwayFromZero) / 2;
+            node.X = node.Y = 0;
+            return;
+        }
         var parentMatrix = Parent(node) is { } parent ? World(parent) : System.Windows.Media.Matrix.Identity;
         double Step(double scale)
         {

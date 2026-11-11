@@ -149,6 +149,7 @@ internal static class Program
             ReparentDialogChecks.Run(window, Path.GetDirectoryName(temp)!);
             DuplicateTargetChecks.Run(window);
             TabChecks.Run(window, Path.GetDirectoryName(temp)!);
+            GridCoordinateChecks.Run(window, Path.GetDirectoryName(temp)!);
             PropertySectionChecks.Run(window, Path.GetDirectoryName(temp)!);
             window.Close(); app.Shutdown();
             Console.WriteLine("All checks passed.");
