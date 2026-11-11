@@ -69,8 +69,8 @@ internal static class CellLayoutChecks
         void Call(string name) => typeof(MainWindow).GetMethod(name, flags)!.Invoke(window, null);
         Set("document", scene); Set("selectedId", image.Id); Call("RefreshAll");
         var panel = (StackPanel)window.FindName("Properties");
-        PropertyChecks.Find<ComboBox>(panel, "配置領域").SelectedItem = "マス全体";
-        PropertyChecks.Find<ComboBox>(panel, "領域への収め方").SelectedItem = "固定サイズ";
+        PropertyChecks.Find<System.Windows.Controls.Primitives.ToggleButton>(panel, "配置領域：マス全体").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+        PropertyChecks.Find<System.Windows.Controls.Primitives.ToggleButton>(panel, "領域への収め方：原寸").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
         LivePropertyChecks.Commit(window);
         Expect(image.TemplateRegion == "マス全体" && image.TemplateSizing == "固定サイズ", "Layout properties apply from UI");
         Call("Undo"); Call("Undo");
