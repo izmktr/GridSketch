@@ -46,7 +46,7 @@ internal static class CenterBorderChecks
         Set("document", scene); Set("selectedId", border.Id); Call("RefreshAll");
         var live = (SceneSurface)window.FindName("Surface"); live.ActiveCell = new(0, 0); live.RangeEnd = new(1, 1);
         var panel = (StackPanel)window.FindName("Properties");
-        panel.Children.OfType<Button>().Single(b => Equals(b.Content, "チェックした辺を追加")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        PropertyChecks.Section(panel, "範囲の操作").Children.OfType<Button>().Single(b => Equals(b.Content, "チェックした辺を追加")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         if (border.Edges.Count != 4) throw new Exception("Selected center border bulk operation failed");
         Call("Undo");
         scene = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;

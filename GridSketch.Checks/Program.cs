@@ -109,6 +109,8 @@ internal static class Program
             GridMovementChecks.Run(Path.GetDirectoryName(temp)!);
             // Construct only the test window; App.InitializeComponent queues a second StartupUri window.
             var app = new App(); var window = new MainWindow(); window.Show(); window.UpdateLayout();
+            typeof(MainWindow).GetField("propertySectionState", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                .SetValue(window, new PropertySectionState(Path.Combine(Path.GetDirectoryName(temp)!, Guid.NewGuid() + "-sections.json")));
             Check(window.IsVisible && window.ActualWidth > 0, "WPF window initialization and layout");
             StartScreenChecks.Run(window, Path.GetDirectoryName(temp)!);
             WindowChecks.Run(window, Path.GetDirectoryName(temp)!);
@@ -147,6 +149,7 @@ internal static class Program
             ReparentDialogChecks.Run(window, Path.GetDirectoryName(temp)!);
             DuplicateTargetChecks.Run(window);
             TabChecks.Run(window, Path.GetDirectoryName(temp)!);
+            PropertySectionChecks.Run(window, Path.GetDirectoryName(temp)!);
             window.Close(); app.Shutdown();
             Console.WriteLine("All checks passed.");
         }

@@ -50,7 +50,7 @@ internal static class AlignmentChecks
         button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
         Check(text.Alignment == "右下" && ((UniformGrid)button.Parent).Children.OfType<ToggleButton>().Count(b => b.IsChecked == true) == 1, "Alignment selection is not exclusive/immediate");
         var row = (UniformGrid)button.Parent;
-        panel.Children.Remove(row);
+        ((Panel)row.Parent).Children.Remove(row);
         var preview = new Window { Owner = window, Width = 160, Height = 180, Content = row, ShowInTaskbar = false };
         preview.Show(); preview.UpdateLayout();
         Check(Math.Abs(row.ActualWidth - 120) < 0.1 && row.Rows == 3 && row.Columns == 3, $"Alignment buttons do not fit compact grid: {row.ActualWidth}, {row.Rows}, {row.Columns}, {row.Visibility}");

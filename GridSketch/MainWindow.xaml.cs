@@ -96,6 +96,7 @@ public partial class MainWindow : Window
     }
     private void RefreshSurface()
     {
+        foreach (var update in propertySectionSummaries) update();
         double oldX = Surface.OriginX, oldY = Surface.OriginY;
         double scrollX = Viewport.HorizontalOffset, scrollY = Viewport.VerticalOffset;
         Surface.ShowSelectionBounds = !cellEditMode;
@@ -174,7 +175,7 @@ public partial class MainWindow : Window
     private void BuildProperties()
     {
         UpdatePropertyHelp();
-        CommitPropertyEdit(); Properties.Children.Clear();
+        CommitPropertyEdit(); propertySectionSummaries.Clear(); Properties.Children.Clear();
         if (SelectedLayers().Count > 1)
         {
             VisibilityToggle.Visibility = LockToggle.Visibility = Visibility.Collapsed; PropertyLockNotice.Visibility = Visibility.Collapsed;
@@ -187,14 +188,28 @@ public partial class MainWindow : Window
         UpdatePropertyToggles();
 
         if (node.Kind == ObjectKind.Text) TextField("文章", node.Text, v => node.Text = v, true);
+        var sections = new List<PropertySection>();
+        void Section(string title, bool initial = true, Func<string>? summary = null)
+            => sections.Add(new(title, Properties.Children.Count, initial, summary));
+        Section("親に合わせる配置", node.UseParentLayout, () => node.UseParentLayout ? "有効" : "無効");
         ObjectLayoutProperties(node);
+        Section("マス内の配置");
         TemplateProperties(node);
+        Section("画像の配置");
         if (node.Kind == ObjectKind.Image) ImagePlacementProperties(node);
         if (node.Kind == ObjectKind.Canvas)
         {
+            Section("キャンバス");
             CanvasSettings(Properties, node, Surface.Renderer!.OutputBounds);
         }
-        else if (!node.IsGridContent && !(node.Kind == ObjectKind.Group && node.OrganizeOnly)) { Pair(document.SelectionOwner(node)?.UseCellLayout == true ? "位置 X（ずらし量）" : "位置 X", node.X, v => node.X = v, document.SelectionOwner(node)?.UseCellLayout == true ? "位置 Y（ずらし量）" : "位置 Y", node.Y, v => node.Y = v); Number(node.Kind == ObjectKind.Image ? "回転（度 / 画像中央）" : "回転（度 / 左上中心）", node.Angle, v => node.Angle = v); }
+        else if (!node.IsGridContent && !(node.Kind == ObjectKind.Group && node.OrganizeOnly)) { Section("位置・回転"); Pair(document.SelectionOwner(node)?.UseCellLayout == true ? "位置 X（ずらし量）" : "位置 X", node.X, v => node.X = v, document.SelectionOwner(node)?.UseCellLayout == true ? "位置 Y（ずらし量）" : "位置 Y", node.Y, v => node.Y = v); Number(node.Kind == ObjectKind.Image ? "回転（度 / 画像中央）" : "回転（度 / 左上中心）", node.Angle, v => node.Angle = v); }
+        Section(node.Kind switch
+        {
+            ObjectKind.Group => "グループ", ObjectKind.Grid => "グリッド", ObjectKind.Border => "線の見た目",
+            ObjectKind.GridText or ObjectKind.Text => "文字", ObjectKind.CellSelection or ObjectKind.EdgeSelection => "状態",
+            ObjectKind.Image => "サイズ・配置", ObjectKind.Shape => "図形", ObjectKind.Line => "経路",
+            ObjectKind.Fill => "塗り", _ => "設定"
+        });
         switch (node.Kind)
         {
             case ObjectKind.Group:
@@ -219,17 +234,19 @@ public partial class MainWindow : Window
                 FontField(node);
                 Number("文字サイズ（px）", node.FontSize, v => node.FontSize = v, 1, 512); ColorField("文字色", node.Color, v => node.Color = v);
                 if (node.Kind == ObjectKind.GridText) AlignmentIcons("配置", node.Alignment, v => node.Alignment = v);
-                Label("レイヤースタイル ― 縁取り");
+                Section("縁取り", node.Style.OutlineEnabled, () => node.Style.OutlineEnabled ? "有効" : "無効");
                 Check("縁取りを有効にする", node.Style.OutlineEnabled, v => node.Style.OutlineEnabled = v);
                 ColorField("縁の色・不透明度", node.Style.OutlineColor, v => node.Style.OutlineColor = v);
                 Number("縁の太さ（外側 / 0～64px）", node.Style.OutlineWidth, v => node.Style.OutlineWidth = v, 0, 64);
                 break;
             case ObjectKind.CellFrame:
+                Section("外周線", summary: () => node.RegionOuterStyle);
                 ColorField("外周線の色", node.Color, v => { node.RegionInnerColor = node.RegionInnerColor; node.Color = v; });
                 StrokeIconChoice("外周線", node.RegionOuterStyle, ["なし", "実線", "破線", "点線"], v => node.RegionOuterStyle = v);
                 Number("外周線の太さ（px）", node.Thickness, v => node.Thickness = v, 0, 64);
                 Number("外周線の引き込み（px）", node.RegionInset, v => node.RegionInset = v);
                 Label("＋で内側、−で外側。0はグリッド罫線上です。");
+                Section("内部線", summary: () => node.RegionInnerStyle);
                 ColorField("内部線の色", node.RegionInnerColor, v => node.RegionInnerColor = v);
                 StrokeIconChoice("内部線", node.RegionInnerStyle, ["なし", "実線", "破線", "点線"], v => node.RegionInnerStyle = v);
                 Number("内部線の太さ（px）", node.RegionInnerThickness, v => node.RegionInnerThickness = v, 0, 64);
@@ -245,9 +262,11 @@ public partial class MainWindow : Window
                 Choice("経路", node.PathKind, ["直線", "折れ線", "曲線"], v => node.PathKind = v);
                 Pair("終点 X（始点から）", node.EndX, v => node.EndX = v, "終点 Y（始点から）", node.EndY, v => node.EndY = v);
                 Pair("制御点 X（始点から）", node.ControlX, v => node.ControlX = v, "制御点 Y（始点から）", node.ControlY, v => node.ControlY = v);
+                Section("矢印");
                 Choice("始点の矢印", node.StartArrow, ["なし", "三角", "開いた矢印"], v => node.StartArrow = v); Choice("終点の矢印", node.EndArrow, ["なし", "三角", "開いた矢印"], v => node.EndArrow = v);
-                Number("矢印の大きさ", node.ArrowSize, v => node.ArrowSize = v, 1, 200); ColorField("線の色", node.Color, v => node.Color = v); Number("線の太さ", node.Thickness, v => node.Thickness = v, 0, 64); StrokeIconChoice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v); break;
+                Number("矢印の大きさ", node.ArrowSize, v => node.ArrowSize = v, 1, 200); Section("線の見た目"); ColorField("線の色", node.Color, v => node.Color = v); Number("線の太さ", node.Thickness, v => node.Thickness = v, 0, 64); StrokeIconChoice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v); break;
         }
+        Section("範囲の操作");
         if (node.Kind == ObjectKind.Border) BorderTools(node);
         if (node.Kind == ObjectKind.GridText) TextTools(node);
         if (node.Kind == ObjectKind.Fill) Button("選択範囲の塗りを削除", () => Change(() => { RequireEditable(node); foreach (var cell in CellRange(node)) node.FilledCells.Remove(cell); }));
@@ -261,10 +280,12 @@ public partial class MainWindow : Window
         if (node.Kind == ObjectKind.Image) Button("画像を読み込み / 置換…", () => ReplaceImage(node));
         if (node != document.Canvas)
         {
+            Section("レイヤーの操作");
             Button("親を変更…", () => ChooseParent(node));
             ((Button)Properties.Children[Properties.Children.Count - 1]).IsEnabled = document.Editable(node);
         }
 
+        WrapPropertySections(node, sections);
     }
     private IEnumerable<SceneObject> Descendants(SceneObject node) => node.Children.SelectMany(c => new[] { c }.Concat(Descendants(c)));
     private IEnumerable<CellPosition> CellRange(SceneObject node)

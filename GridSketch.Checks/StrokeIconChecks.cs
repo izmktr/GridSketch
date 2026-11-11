@@ -25,7 +25,7 @@ internal static class StrokeIconChecks
         round.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
         if (round.IsChecked != true || square.IsChecked == true || border.BorderEndCap != "丸") throw new Exception("Exclusive draft selection failed");
         window.UpdateLayout();
-        var rows = panel.Children.OfType<WrapPanel>().Where(p => p.Children.OfType<ToggleButton>().Any()).ToList();
+        var rows = PropertyChecks.Section(panel, "線の見た目").Children.OfType<WrapPanel>().Where(p => p.Children.OfType<ToggleButton>().Any()).ToList();
         var visual = new DrawingVisual();
         using (var dc = visual.RenderOpen())
         {

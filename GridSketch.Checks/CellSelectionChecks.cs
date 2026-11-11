@@ -98,7 +98,7 @@ internal static class CellSelectionChecks
         panel = (StackPanel)window.FindName("Properties");
         var currentSelector = loaded.Find(selector.Id)!;
         window.UpdateLayout();
-        var destination = panel.Children.OfType<Border>().ElementAt(1);
+        var destination = PropertyChecks.Section(panel, "状態").Children.OfType<Border>().ElementAt(1);
         var destinationCombo = PropertyChecks.Find<ComboBox>(destination, "状態2の表示オブジェクト");
         var dragData = new DataObject("GridSketch.State", currentSelector.States[0].Id);
         // WPF constructs these args internally during native drag/drop. Raise the
@@ -134,7 +134,7 @@ internal static class CellSelectionChecks
             throw new Exception("Top insertion marker changes row geometry");
         // Cross rows without relying on DragLeave ordering, including a late leave
         // from the old row after the new insertion position has already appeared.
-        var otherRow = panel.Children.OfType<Border>().Last();
+        var otherRow = PropertyChecks.Section(panel, "状態").Children.OfType<Border>().Last();
         var otherMarker = (Border)otherRow.Tag;
         for (int repeat = 0; repeat < 4; repeat++)
         {

@@ -18,7 +18,7 @@ public partial class MainWindow
         undo.Clear(); redo.Clear(); BreakUndoMerge(); layerSelection.Clear(); layerAnchor = null;
         Surface.Selected = null; Surface.ActiveCell = Surface.RangeEnd = null; Surface.Preview = [];
         clearingGridInput = true; GridInput.Clear(); clearingGridInput = false; GridInput.Visibility = Visibility.Collapsed;
-        Layers.Items.Clear(); Properties.Children.Clear();
+        Layers.Items.Clear(); propertySectionSummaries.Clear(); Properties.Children.Clear();
         BuildStartScreen(); UpdateTabHeaders(); Title = "GridSketch";
         Status.Text = "新しく作成するか、プロジェクトを開いてください。";
         CommandManager.InvalidateRequerySuggested();

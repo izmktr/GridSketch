@@ -9,6 +9,8 @@ using GridSketch;
 
 internal static class PropertyChecks
 {
+    public static StackPanel Section(DependencyObject root, string title) =>
+        (StackPanel)((StackPanel)Find<System.Windows.Controls.Primitives.ToggleButton>(root, title + "の開閉").Parent).Children[1];
     public static T Find<T>(DependencyObject root, string name) where T : DependencyObject
     {
         IEnumerable<DependencyObject> Walk(DependencyObject node)

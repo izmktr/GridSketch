@@ -47,7 +47,7 @@ internal static class LivePropertyChecks
         var canvas = Current().Canvas; canvas.AutoSize = false; canvas.Width = 500; canvas.Height = 400;
         Set("selectedId", canvas.Id); Call("RefreshAll");
         panel = (StackPanel)window.FindName("Properties");
-        var fixedPanel = panel.Children.OfType<StackPanel>().Last();
+        var fixedPanel = PropertyChecks.Section(panel, "キャンバス").Children.OfType<StackPanel>().Last();
         fixedPanel.Children.OfType<ComboBox>().Last().SelectedItem = "A4";
         if (canvas.CanvasUnit != "mm" || canvas.Width != 210 || canvas.Height != 297) throw new Exception("Live paper preset failed");
         Call("Undo");
