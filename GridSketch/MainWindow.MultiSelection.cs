@@ -11,6 +11,7 @@ public partial class MainWindow
     private readonly HashSet<string> layerSelection = [];
     private string? layerAnchor;
     private bool selectingLayers;
+    private bool renameClickEligible;
     private List<SceneObject> SelectedLayers() => layerSelection.Contains(Selected.Id)
         ? document.All().Where(n => layerSelection.Contains(n.Id)).ToList() : [Selected];
     private void SyncLayerSelection()
@@ -65,12 +66,21 @@ public partial class MainWindow
     {
         if (e.ChangedButton != MouseButton.Left) return;
         var current = e.OriginalSource as DependencyObject;
+        bool onLabel = false;
         while (current is not null && current is not TreeViewItem)
         {
+            if (current is TextBoxBase) return;
+            if (current is TextBlock) onLabel = true;
             if (current is ToggleButton) return; // Keep expand/collapse independent of selection.
             current = VisualTreeHelper.GetParent(current);
         }
         if (current is not TreeViewItem item) return;
+        if (e.ClickCount == 1)
+            renameClickEligible = onLabel && Equals(item.Tag, selectedId) && SelectedLayers().Count == 1 && Keyboard.Modifiers == ModifierKeys.None;
+        if (e.ClickCount == 2 && renameClickEligible && onLabel && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            BeginLayerNameEdit(item); e.Handled = true; return;
+        }
         ChooseLayer(item, Keyboard.Modifiers.HasFlag(ModifierKeys.Control), Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
         e.Handled = true;
     }

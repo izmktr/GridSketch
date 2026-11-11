@@ -88,6 +88,24 @@ internal static class LayerMenuChecks
             "Template restrictions and part registration reflected in menu");
         menu = Menu(scene.Canvas);
         Check(!Entry(menu, "複製").IsEnabled && !Entry(menu, "削除").IsEnabled && !Entry(menu, "ロック").IsEnabled, "Canvas restrictions reflected in menu");
+        Menu(grid);
+        var gridItem = ((TreeViewItem)layers.Items[0]).Items.OfType<TreeViewItem>().Single(i => Equals(i.Tag, grid.Id));
+        string oldName = grid.Name;
+        Call("BeginLayerNameEdit", gridItem);
+        var nameEditor = gridItem.Header as TextBox ?? throw new Exception("Inline layer editor did not open");
+        Check(nameEditor.Text == oldName && nameEditor.SelectionLength == oldName.Length, "Inline editor must select the layer name");
+        void PressKey(TextBox editor, Key key) => editor.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice,
+            PresentationSource.FromVisual(window)!, 0, key) { RoutedEvent = Keyboard.PreviewKeyDownEvent });
+        nameEditor.Text = "新しい名前"; PressKey(nameEditor, System.Windows.Input.Key.Enter);
+        Check(grid.Name == "新しい名前" && Equals(gridItem.Header, grid.Label), "Enter must commit inline layer name");
+        Call("BeginLayerNameEdit", gridItem); nameEditor = (TextBox)gridItem.Header;
+        nameEditor.Text = "取り消す名前"; PressKey(nameEditor, System.Windows.Input.Key.Escape);
+        Check(grid.Name == "新しい名前", "Escape must discard inline changes");
+        Call("BeginLayerNameEdit", gridItem); nameEditor = (TextBox)gridItem.Header;
+        nameEditor.Text = " "; PressKey(nameEditor, System.Windows.Input.Key.Enter);
+        Check(grid.Name == "新しい名前", "Empty inline names must preserve the original");
+        Call("Undo"); scene = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;
+        Check(scene.Find(grid.Id)!.Name == oldName, "Inline rename must undo in one step");
         scene.Validate(); Set("savedState", scene.Snapshot());
         Console.WriteLine("PASS: Layer context menu selection, duplication, state remapping, move, visibility, locks, deletion, restrictions and undo");
     }
