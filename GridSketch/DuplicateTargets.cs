@@ -4,10 +4,17 @@ namespace GridSketch;
 
 public sealed partial class SceneDocument
 {
+    public string? DuplicateSelectionError(IReadOnlyList<SceneObject> nodes)
+    {
+        if (nodes.Count == 0 || nodes.Any(n => n == Canvas || Find(n.Id) != n)) return "キャンバスは複製できません。";
+        if (nodes.Any(n => Parent(n) != Parent(nodes[0]))) return "同じ親を持つレイヤーを選択してください。";
+        return null;
+    }
+
     public IReadOnlyList<SceneObject> DuplicateTargets(IReadOnlyList<SceneObject> nodes, SceneDocument? sourceDocument = null)
     {
         sourceDocument ??= this;
-        if (sourceDocument.ReparentSelectionError(nodes) is not null) return [];
+        if (sourceDocument.DuplicateSelectionError(nodes) is not null) return [];
         var snapshot = Snapshot();
         var targets = new List<SceneObject>();
         foreach (var target in All().Where(n => n.IsContainer && Editable(n)))
@@ -26,7 +33,7 @@ public sealed partial class SceneDocument
     public IReadOnlyList<SceneObject> DuplicateInto(IReadOnlyList<SceneObject> nodes, SceneObject target, SceneDocument? sourceDocument = null)
     {
         sourceDocument ??= this;
-        if (sourceDocument.ReparentSelectionError(nodes) is { } error) throw new InvalidOperationException(error);
+        if (sourceDocument.DuplicateSelectionError(nodes) is { } error) throw new InvalidOperationException(error);
         if (Find(target.Id) != target || !target.IsContainer || !Editable(target)) throw new InvalidOperationException("この親には複製できません。");
         var trial = Restore(Snapshot());
         trial.DuplicateIntoCore(nodes, trial.Find(target.Id)!, sourceDocument, sourceDocument == this);

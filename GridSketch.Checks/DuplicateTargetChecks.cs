@@ -10,7 +10,7 @@ internal static class DuplicateTargetChecks
         void Check(bool ok, string message) { if (!ok) throw new Exception(message); }
         var scene = new SceneDocument();
         var parent = new SceneObject { Kind = ObjectKind.Group, X = 30, Angle = 25 };
-        var a = new SceneObject { Kind = ObjectKind.Shape, Name = "A", X = 10 };
+        var a = new SceneObject { Kind = ObjectKind.Shape, Name = "A", X = 10, Locked = true };
         var b = new SceneObject { Kind = ObjectKind.Text, Name = "B", Y = 20 };
         var target = new SceneObject { Kind = ObjectKind.Group, X = 80, Angle = -15, Children = [new() { Kind = ObjectKind.Shape }] };
         parent.Children = [a, b]; scene.Canvas.Children = [parent, target];
@@ -38,6 +38,7 @@ internal static class DuplicateTargetChecks
         window.Dispatcher.BeginInvoke(new Action(() => Answer(true))); Call("ChooseDuplicateParent");
         Check(parent.Children.SequenceEqual(new[] { a, b }) && target.Children.Count == 3, $"Duplicate must retain originals and append copies: parent={parent.Children.Count}, target={target.Children.Count}, selected={selection.Count}");
         var ca = target.Children[1]; var cb = target.Children[2];
+        Check(ca.Locked && a.Locked, "Locked sources must duplicate and preserve the lock");
         Check(ca.Name == "A" && cb.Name == "B" && ca.Id != a.Id && cb.Id != b.Id, "Copy identities, names and order failed");
         Check(ca.X == a.X && ca.Y == a.Y && ca.Angle == a.Angle && cb.X == b.X && cb.Y == b.Y,
             "Duplicate must preserve parent-relative coordinates");
@@ -76,6 +77,18 @@ internal static class DuplicateTargetChecks
                 pair.First.X == pair.Second.X && pair.First.Y == pair.Second.Y && pair.First.Children[0].X == pair.Second.Children[0].X)
             && otherSelector.States.Select(s => s.ObjectId).SequenceEqual(copies.Select(c => c.Id))
             && template.X == 7 && template.Y == -4, "Copying cell templates across grids preserves each source offset, including zero");
-        Console.WriteLine("PASS: Duplicate target dialog, cancel, batch order, relative placement, naming, layout, undo and state remapping");
+        var lockedSource = new SceneObject { Kind = ObjectKind.Shape, X = 16, Y = 24, Locked = true };
+        var lockedParent = new SceneObject { Kind = ObjectKind.Group, Locked = true, Children = [lockedSource] };
+        scene.Canvas.Children.Add(lockedParent);
+        Check(scene.DuplicateTargets([lockedSource]).Contains(otherGrid), "Inherited source locks must allow copying to an editable destination");
+        var lockedCopy = scene.DuplicateInto([lockedSource], otherGrid).Single();
+        Check(lockedCopy.Locked && scene.UsesGridCoordinates(lockedCopy) && lockedCopy.X == 0 && lockedCopy.Y == 0
+            && lockedSource.X == 16 && lockedSource.Y == 24, "Destination coordinate conversion must run on locked copies without changing the source");
+        otherGrid.Locked = true;
+        Check(!scene.DuplicateTargets([lockedSource]).Contains(otherGrid), "Locked destinations remain protected");
+        Set("document", scene); Set("selectedId", lockedParent.Id); Call("RefreshAll");
+        Call("DuplicateLayer");
+        Check(scene.Canvas.Children.Last().Locked && scene.Canvas.Children.Last().Id != lockedParent.Id, "Same-parent duplication must accept locked layers");
+        Console.WriteLine("PASS: Duplicate target dialog, cancel, batch order, relative placement, naming, layout, undo, locks and state remapping");
     }
 }

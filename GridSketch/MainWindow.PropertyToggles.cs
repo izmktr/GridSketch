@@ -11,6 +11,7 @@ public partial class MainWindow
     private void UpdatePropertyToggles()
     {
         var node = Selected;
+        Properties.IsEnabled = document.Editable(node);
         bool available = node != document.Canvas;
         bool parentLocked = document.Parent(node) is { } parent && !document.Editable(parent);
         VisibilityToggle.Visibility = LockToggle.Visibility = available ? Visibility.Visible : Visibility.Collapsed;

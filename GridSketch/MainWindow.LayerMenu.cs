@@ -49,8 +49,8 @@ public partial class MainWindow
             entry.Click += (_, _) => { if (enabled && document.Find(node.Id) is not null) { selectedId = node.Id; Try(action); } };
             menu.Items.Add(entry);
         }
-        Item("複製", !root && editable, DuplicateLayer);
-        Item("複製先を選択…", document.ReparentSelectionError(SelectedLayers()) is null, ChooseDuplicateParent);
+        Item("複製", !root && parentEditable, DuplicateLayer);
+        Item("複製先を選択…", document.DuplicateSelectionError(SelectedLayers()) is null, ChooseDuplicateParent);
         Item("削除", !root && editable, () => DeleteClick(this, new RoutedEventArgs()));
         Item("親の変更…", document.ReparentSelectionError(SelectedLayers()) is null, ChooseSelectedParents);
         menu.Items.Add(new Separator());
@@ -67,8 +67,9 @@ public partial class MainWindow
 
     private void DuplicateLayer() => Change(() =>
     {
-        var node = Selected; RequireEditable(node);
+        var node = Selected;
         var parent = document.Parent(node) ?? throw new InvalidOperationException("キャンバスは複製できません。");
+        RequireEditable(parent);
         var copy = LibraryPart.Clone(node);
         var stem = node.Name.Length > 180 ? node.Name[..180] : node.Name;
         copy.Name = stem + " のコピー";

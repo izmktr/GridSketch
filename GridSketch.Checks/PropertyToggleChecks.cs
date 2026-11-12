@@ -21,7 +21,9 @@ internal static class PropertyToggleChecks
         if (shape.Visible || width.Text != "234.5" || !ReferenceEquals(width, PropertyChecks.Find<TextBox>(panel, "幅（px）"))) throw new Exception("Visibility toggle lost pending edits or was not immediate");
         locked.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
         if (!shape.Locked || locked.IsChecked != true || width.Text != "234.5") throw new Exception("Immediate lock failed");
+        if (panel.IsEnabled || width.IsEnabled || !locked.IsEnabled) throw new Exception("Locked properties must be disabled while unlock remains available");
         locked.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        if (!panel.IsEnabled || !width.IsEnabled) throw new Exception("Unlock must re-enable property editors");
         LivePropertyChecks.Commit(window);
         if (shape.Width != 234.5 || shape.Visible || shape.Locked) throw new Exception("Apply reset toggle flags or lost pending size");
         Call("Undo");
@@ -31,9 +33,10 @@ internal static class PropertyToggleChecks
         scene = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;
         if (scene.Find(shape.Id)!.Locked) throw new Exception("Toggle redo failed");
         scene.Find(group.Id)!.Locked = true; Call("RefreshAll");
-        if (visible.IsEnabled || locked.IsEnabled) throw new Exception("Locked parent allowed child flags to change");
+        if (visible.IsEnabled || locked.IsEnabled || panel.IsEnabled) throw new Exception("Locked parent allowed child properties to change");
         Set("selectedId", scene.Canvas.Id); Call("RefreshAll");
         if (visible.Visibility != Visibility.Collapsed || locked.Visibility != Visibility.Collapsed) throw new Exception("Canvas unexpectedly exposes visibility or lock");
+        if (!panel.IsEnabled) throw new Exception("Selecting an unlocked object must restore property editing");
         Set("savedState", scene.Snapshot());
         Console.WriteLine("PASS: Immediate property icons, pending editor preservation, apply, undo/redo, parent lock and canvas behavior");
     }

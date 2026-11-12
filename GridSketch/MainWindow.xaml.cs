@@ -178,6 +178,7 @@ public partial class MainWindow : Window
         CommitPropertyEdit(); propertySectionSummaries.Clear(); Properties.Children.Clear();
         if (SelectedLayers().Count > 1)
         {
+            Properties.IsEnabled = SelectedLayers().All(document.Editable);
             VisibilityToggle.Visibility = LockToggle.Visibility = Visibility.Collapsed; PropertyLockNotice.Visibility = Visibility.Collapsed;
             Label($"{SelectedLayers().Count}個のレイヤーを選択中");
             if (GroupSelectionError() is { } error) Label(error);

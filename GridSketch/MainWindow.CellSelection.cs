@@ -9,18 +9,6 @@ public partial class MainWindow
     private sealed record StateTarget(string? Id, string Name);
     private void CellSelectionProperties(SceneObject node)
     {
-        if (node.Kind == ObjectKind.CellSelection) Choice("見本の配置方式", node.UseObjectLayout ? "親の配置範囲を使う" : node.UseCellLayout ? "子ごとにマスへ配置" : "全体を収める",
-            ["親の配置範囲を使う", "子ごとにマスへ配置", "全体を収める"], v =>
-            {
-                bool activate = v == "親の配置範囲を使う" && !node.UseObjectLayout;
-                node.UseObjectLayout = v == "親の配置範囲を使う";
-                node.UseCellLayout = v == "子ごとにマスへ配置";
-                if (activate) foreach (var child in node.Children)
-                {
-                    child.UseParentLayout = true; child.LayoutRegion = "親の内側"; child.LayoutSizing = "収める"; child.LayoutAnchor = "中央";
-                    if (child.Kind == ObjectKind.Group && !child.OrganizeOnly) child.HasLayoutFrame = true;
-                }
-            });
         Label("状態");
         var targets = new List<StateTarget> { new(null, "未割り当て") };
         targets.AddRange(node.Children.Select(c => new StateTarget(c.Id, c.Name + " [" + SceneObject.KindName(c.Kind) + "]")));

@@ -12,7 +12,7 @@ public partial class MainWindow
     private void ChooseDuplicateParent()
     {
         CommitPropertyEdit(); var nodes = SelectedLayers();
-        if (document.ReparentSelectionError(nodes) is { } error) throw new InvalidOperationException(error);
+        if (document.DuplicateSelectionError(nodes) is { } error) throw new InvalidOperationException(error);
         var sourceDocument = document;
         CaptureTab();
         var destinations = editorTabs.Select((tab, index) => (
