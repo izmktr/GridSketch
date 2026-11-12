@@ -67,7 +67,7 @@
     <Separator/>
     <MenuItem x:Name="SaveDocumentMenu" Header="保存(_S)" InputGestureText="Ctrl+S" Click="SaveClick"/>
     <MenuItem x:Name="SaveAsDocumentMenu" Header="名前を付けて保存(_A)…" Click="SaveAsClick"/>
-    <MenuItem x:Name="ExportDocumentMenu" Header="エクスポート(_E)"><MenuItem Header="PNG(_P)…" Click="ExportClick"/><MenuItem Header="PDF(_D)…" Click="ExportPdfClick"/></MenuItem>
+    <MenuItem x:Name="ExportDocumentMenu" Header="エクスポート(_E)"><MenuItem Header="PNG(_P)…" Click="ExportClick"/><MenuItem Header="PDF(_D)…" Click="ExportPdfClick"/><Separator/><MenuItem Header="一括エクスポート…" Click="BatchExportClick"/></MenuItem>
     <MenuItem x:Name="ExportSettingsMenu" Header="エクスポート設定…" Click="ExportSettingsClick"/>
     <Separator/><MenuItem Header="終了(_X)" InputGestureText="Alt+F4" Click="ExitClick"/>
    </MenuItem>

@@ -6,6 +6,19 @@ namespace GridSketch;
 
 public partial class MainWindow
 {
+    private void BatchExportClick(object sender, RoutedEventArgs e) => Try(() =>
+    {
+        CommitPropertyEdit(); FinishDrag();
+        if (!gridComposing && GridInput.Text.Length > 0 && CanTypeInGrid) CommitGridInput(GridInput.Text);
+        CaptureTab();
+        var items = editorTabs.Select(tab => new BatchExportItem(tab.Owner is not null ? "部品_" + tab.Name
+            : tab.Path is null ? "無題" : System.IO.Path.GetFileNameWithoutExtension(tab.Path), tab.Document)).ToList();
+        var dialog = new BatchExportDialog(items, path is null ? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
+            : System.IO.Path.GetDirectoryName(path)!) { Owner = this };
+        dialog.ShowDialog();
+        if (dialog.Results.Count > 0) Status.Text = $"一括エクスポート：{dialog.Results.Count(r => r.Error is null)}件を出力しました。";
+    });
+
     private void ExportPdfClick(object sender, RoutedEventArgs e) => Try(() =>
     {
         var dialog = new SaveFileDialog { Filter = "PDF文書|*.pdf", DefaultExt = ".pdf", FileName = System.IO.Path.GetFileNameWithoutExtension(path ?? "無題") + ".pdf" };

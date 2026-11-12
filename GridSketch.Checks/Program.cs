@@ -142,6 +142,7 @@ internal static class Program
             LayerInsertionChecks.Run(window);
             ObjectLayoutChecks.Run(window, Path.GetDirectoryName(temp)!);
             AlwaysLayoutChecks.Run(window, Path.GetDirectoryName(temp)!);
+            BatchExportChecks.Run(window, Path.GetDirectoryName(temp)!);
             LayerMenuChecks.Run(window);
             VisibilityPresetChecks.Run(window, Path.GetDirectoryName(temp)!);
             GridStructureChecks.Run(window);
