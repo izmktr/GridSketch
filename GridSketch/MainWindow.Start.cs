@@ -96,9 +96,23 @@ public partial class MainWindow
     }
 
     private static string[] DroppedProjects(IDataObject data) => data.GetData(DataFormats.FileDrop) is string[] files
-        ? files.Where(f => string.Equals(System.IO.Path.GetExtension(f), ".gridsketch", StringComparison.OrdinalIgnoreCase)).ToArray() : [];
-    private void StartDragOver(object sender, DragEventArgs e)
-    { e.Effects = DroppedProjects(e.Data).Length > 0 ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; }
-    private void StartDrop(object sender, DragEventArgs e)
-    { foreach (var file in DroppedProjects(e.Data)) Try(() => OpenProject(file)); e.Handled = true; }
+        ? files.Where(f => string.Equals(System.IO.Path.GetExtension(f), ".gridsketch", StringComparison.OrdinalIgnoreCase)
+            && !Directory.Exists(f)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray() : [];
+    private void ProjectFilesDragOver(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
+        e.Effects = DroppedProjects(e.Data).Length > 0 ? e.AllowedEffects & DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+    private void OpenDroppedProjects(IDataObject data)
+    {
+        CommitPropertyEdit(); FinishDrag();
+        foreach (var file in DroppedProjects(data)) Try(() => OpenProject(file));
+    }
+    private void ProjectFilesDrop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
+        e.Handled = true;
+        OpenDroppedProjects(e.Data);
+    }
 }

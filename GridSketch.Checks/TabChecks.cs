@@ -3,6 +3,7 @@ using System.IO;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using GridSketch;
@@ -22,6 +23,24 @@ internal static class TabChecks
         first.Canvas.Children.Add(group); first.Parts.Add(LibraryPart.FromGroup(group, "見本"));
         var file = Path.Combine(directory, "tab-first.gridsketch"); first.Save(file);
         Call("OpenProject", file); var a = Field("activeTab")!;
+        void CheckOpenShortcut()
+        {
+            var focused = Keyboard.FocusedElement;
+            Check(focused is DependencyObject target && Window.GetWindow(target) == window,
+                "Opening a file must leave keyboard focus in the editor");
+            Check(ApplicationCommands.Open.CanExecute(null, focused), "Open command must remain available after opening a file");
+            int calls = 0;
+            ExecutedRoutedEventHandler handler = (_, e) =>
+            {
+                if (e.Command != ApplicationCommands.Open) return;
+                calls++; e.Handled = true;
+            };
+            CommandManager.AddPreviewExecutedHandler(window, handler);
+            try { ApplicationCommands.Open.Execute(null, focused); ApplicationCommands.Open.Execute(null, focused); }
+            finally { CommandManager.RemovePreviewExecutedHandler(window, handler); }
+            Check(calls == 2, "Consecutive open commands must route from the focused editor to the window");
+        }
+        CheckOpenShortcut();
         Set("selectedId", Current().Canvas.Children[0].Id); Call("RefreshAll"); Call("DuplicateLayer");
         var firstSelection = Field("selectedId");
         var zoom = (Slider)window.FindName("Zoom"); zoom.Value = 1.5;
@@ -29,8 +48,10 @@ internal static class TabChecks
         Call("CaptureTab"); var center = (Point)TabField(a, "Center")!;
         var second = new SceneDocument(); second.Canvas.Children.Add(new() { Kind = ObjectKind.Text, Text = "第二文書" });
         Call("AddProjectTab", second, null); var b = Field("activeTab")!;
+        CheckOpenShortcut();
         Check(Current() == second && ((Stack<string>)Field("undo")!).Count == 0, "New tab has independent document and undo stack");
         Call("OpenProject", file);
+        CheckOpenShortcut();
         Check(ReferenceEquals(Field("activeTab"), a) && Current().Canvas.Children.Count == 2 && Equals(Field("selectedId"), firstSelection), "Opening same path reuses tab and preserves unsaved work and selection");
         Call("CaptureTab"); var restoredCenter = (Point)TabField(a, "Center")!;
         Check(zoom.Value == 1.5 && (center - restoredCenter).Length < 2, "Tab restores zoom and viewport center");
@@ -72,6 +93,23 @@ internal static class TabChecks
         Call("EditPartTab", Current().Parts[0]); Check(ReferenceEquals(Field("activeTab"), partTab), "Reopening part selects existing editor");
         Call("CloseEditorTab", partTab); Call("SwitchTab", a);
         Call("Undo"); Check(Current().Parts[0].Template.Children[0].Width == originalCopyWidth, "Library apply is undoable in owner project");
+        Set("savedState", Current().Snapshot()); Call("CaptureTab");
+        var dropFirst = Path.Combine(directory, "drop-first.gridsketch");
+        var dropSecond = Path.Combine(directory, "drop-second.gridsketch");
+        new SceneDocument().Save(dropFirst); new SceneDocument().Save(dropSecond);
+        int beforeDrop = ((IList)Field("editorTabs")!).Count;
+        var dropData = new DataObject(DataFormats.FileDrop, new[] { dropFirst, dropSecond, dropFirst, Path.Combine(directory, "ignored.png") });
+        Call("OpenDroppedProjects", dropData);
+        Check(window.AllowDrop && ((IList)Field("editorTabs")!).Count == beforeDrop + 2
+            && Equals(Field("path"), dropSecond), "Dropping multiple projects must open distinct tabs and ignore unrelated files");
+        var droppedScene = Current(); droppedScene.Canvas.Background = "#123456";
+        Call("OpenDroppedProjects", dropData);
+        Check(((IList)Field("editorTabs")!).Count == beforeDrop + 2 && ReferenceEquals(Current(), droppedScene)
+            && Current().Canvas.Background == "#123456", "Repeated drops must reuse tabs without replacing unsaved content");
+        CheckOpenShortcut();
+        var stateData = new DataObject("GridSketch.State", "state");
+        var projects = (string[])typeof(MainWindow).GetMethod("DroppedProjects", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [stateData])!;
+        Check(projects.Length == 0, "Internal state dragging must not be treated as file dropping");
         Set("savedState", Current().Snapshot()); Call("CaptureTab");
         // Tests deliberately replace window documents elsewhere. Mark all test-only sessions clean before closing.
         foreach (var tab in (IEnumerable)Field("editorTabs")!) tab.GetType().GetField("Saved")!.SetValue(tab, ((SceneDocument)TabField(tab, "Document")!).Snapshot());

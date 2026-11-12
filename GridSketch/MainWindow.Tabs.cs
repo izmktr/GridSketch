@@ -73,6 +73,8 @@ public partial class MainWindow
         }
         else CenterClick(this, new RoutedEventArgs());
         Viewport.UpdateLayout(); Surface.InvalidateVisual(); UpdateTabHeaders();
+        // Tab headers are rebuilt above, so restore focus only after the old controls are gone.
+        Viewport.Focus();
     }
     private void UpdateTabHeaders()
     {
