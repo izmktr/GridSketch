@@ -28,7 +28,7 @@ public sealed partial class SceneDocument
         foreach (var group in groups)
         {
             if (group.X != 0 || group.Y != 0 || group.Angle != 0 || !EffectiveLocalMatrix(group).IsIdentity)
-                throw new InvalidOperationException($"「{group.Name}」には移動・回転・拡縮が設定されているため、整理用に変更できません。位置と回転を0にし、親に合わせる配置や保持した拡縮を解除してください。");
+                throw new InvalidOperationException($"「{group.Name}」には移動・回転・拡縮が設定されているため、整理用に変更できません。整理用グループには移動・回転・拡縮のないグループを使用してください。");
             if (!group.OrganizeOnly && !Editable(group)) throw new InvalidOperationException("ロックされたグループを整理用に変更できません。");
         }
         // Capture placements before any ancestor starts passing through a different frame.

@@ -32,6 +32,17 @@ internal static class GridCoordinateChecks
         Check(doc.UsesGridCoordinates(piece) && doc.World(piece).Transform(new Point()) == world.Transform(new Point()),
             "Entering grid adopts coordinates without a positional jump");
         var legacy = new SceneObject { Kind = ObjectKind.Text, Text = "駒", X = 35, Y = 71, Angle = 20 };
+        var freeText = new SceneObject { Kind = ObjectKind.Text, Text = "文字", FontSize = 12, Angle = 15 };
+        grid.Children.Add(freeText); SceneDocument.InitializeGridCoordinates(freeText, 2, 3);
+        freeText.LayoutSizing = "広げる";
+        var textOrigin = doc.World(freeText).Transform(new Point());
+        doc.ReparentMany([freeText], doc.Canvas);
+        Check(freeText.PreservedTransform is null && freeText.FontSize == 12 && !freeText.UseParentLayout
+            && (doc.World(freeText).Transform(new Point()) - textOrigin).Length < 1e-8,
+            "Text leaving a grid must retain editable font size and position without hidden scaling");
+        var textMatrix = doc.World(freeText);
+        Check(Math.Abs(textMatrix.M11 * textMatrix.M11 + textMatrix.M12 * textMatrix.M12 - 1) < 1e-8,
+            "Reparented text must render at its actual font size");
         grid.Children.Add(legacy);
         var before = new SceneRenderer(doc).Bounds[legacy.Id];
         var bitmap = System.Windows.Media.Imaging.BitmapSource.Create(100, 50, 96, 96, System.Windows.Media.PixelFormats.Bgra32,

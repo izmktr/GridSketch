@@ -21,11 +21,6 @@ public partial class MainWindow
         if (regions.Outer is not null || regions.Inner is not null) Label("親の配置範囲");
         if (regions.Outer is { } outer) Label("外側：" + Describe(outer));
         if (regions.Inner is { } inner) Label("内側：" + Describe(inner));
-        if (node.PreservedTransform is { } p)
-        {
-            Label($"親変更時の拡縮を保持：横 {Math.Sqrt(p.M11 * p.M11 + p.M12 * p.M12):0.###} 倍 / 縦 {Math.Sqrt(p.M21 * p.M21 + p.M22 * p.M22):0.###} 倍");
-            Button("保持した拡縮を解除", () => Change(() => { RequireEditable(node); node.PreservedTransform = null; }));
-        }
         if (node.Kind == ObjectKind.Canvas) return;
         if (node.IsGridContent) return;
         if (node.Kind == ObjectKind.Group && node.OrganizeOnly) return;

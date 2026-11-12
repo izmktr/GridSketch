@@ -198,7 +198,8 @@ public sealed partial class SceneDocument
         node.PreservedTransform = null;
         double sx = Math.Sqrt(world.M11 * world.M11 + world.M12 * world.M12);
         double sy = Math.Sqrt(world.M21 * world.M21 + world.M22 * world.M22);
-        if (Math.Abs(sx - 1) > 1e-8 || Math.Abs(sy - 1) > 1e-8 || Math.Abs(world.M11 * world.M21 + world.M12 * world.M22) > 1e-8)
+        // Text uses its editable font size after reparenting, never an implicit scale.
+        if (node.Kind != ObjectKind.Text && (Math.Abs(sx - 1) > 1e-8 || Math.Abs(sy - 1) > 1e-8 || Math.Abs(world.M11 * world.M21 + world.M12 * world.M22) > 1e-8))
         {
             node.PreservedTransform = new() { M11 = world.M11, M12 = world.M12, M21 = world.M21, M22 = world.M22 };
             node.Angle = 0; node.X = world.OffsetX; node.Y = world.OffsetY;
