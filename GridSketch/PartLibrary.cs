@@ -81,7 +81,7 @@ public sealed partial class SceneDocument
         var copy = part.CreateCopy(); parent.Children.Insert(0, copy);
         if (parent.IsStateSelector && parent.UseObjectLayout && !copy.UseParentLayout && copy.HasLayoutFrame)
         {
-            copy.UseParentLayout = true; copy.LayoutRegion = "親の内側"; copy.LayoutSizing = "収める"; copy.LayoutAnchor = "中央";
+            copy.UseParentLayout = true; copy.LayoutRegion = "親の内側"; copy.LayoutSizing = "固定"; copy.LayoutAnchor = "中央";
         }
         int stateCount = parent.States.Count;
         try

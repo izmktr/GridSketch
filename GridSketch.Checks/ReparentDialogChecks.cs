@@ -25,6 +25,7 @@ internal static class ReparentDialogChecks
         for (int i = 0; i < 128; i++) selector.States.Add(new() { Name = "状態" });
         grid.Children = [text, group, transformed, selector];
         scene.Canvas.Children = [source, target, locked, grid, secondGrid]; scene.Validate();
+        scene.EnableParentLayouts();
         string before = scene.Snapshot();
         var candidates = scene.ReparentTargets(source);
         Check(candidates.Contains(target) && !candidates.Contains(source) && !candidates.Contains(source.Children[0]) && !candidates.Contains(scene.Canvas)
@@ -86,6 +87,7 @@ internal static class ReparentDialogChecks
         Check(batch.ReparentTargets(new[] { a, existing }).Count == 0 && batch.ReparentTargets(new[] { origin, a }).Count == 0,
             "Different parents and ancestor/descendant selection must be rejected");
         b.Locked = true; Check(batch.ReparentTargets(new[] { a, b }).Count == 0, "Locked member must block batch"); b.Locked = false;
+        batch.EnableParentLayouts();
         var batchBefore = batch.Snapshot();
         Set("document", batch); Set("selectedId", a.Id); Call("RefreshAll");
         window.Dispatcher.BeginInvoke(new Action(() =>
@@ -111,6 +113,7 @@ internal static class ReparentDialogChecks
         owner.Children = [firstTemplate, secondTemplate];
         SceneDocument.AssignNewState(owner, firstTemplate); SceneDocument.AssignNewState(owner, secondTemplate);
         SceneDocument.SetCellState(owner, new(0, 0), owner.States[0].Id); templatesScene.Validate();
+        templatesScene.EnableParentLayouts();
         var templatesBefore = templatesScene.Snapshot();
         Check(templatesScene.ReparentTargets(new[] { secondTemplate, firstTemplate }).Contains(templatesGrid),
             "Multiple templates must be able to move to their enclosing grid");

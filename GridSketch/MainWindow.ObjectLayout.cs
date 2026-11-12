@@ -30,21 +30,20 @@ public partial class MainWindow
         }
         if (regions.Outer is null)
         {
-            if (node.UseParentLayout) Label("親合わせ：停止中（親の配置範囲なし）");
+            Label("親の配置範囲がないため、通常の座標で配置します。");
             return;
         }
-        Check("親の範囲に合わせて配置", node.UseParentLayout, v =>
-        {
-            node.UseParentLayout = v;
-            if (v && node.Kind == ObjectKind.Group) node.HasLayoutFrame = true;
-        });
         RegionIcons("配置先", node.LayoutRegion, "親の外側", "親の内側", v => node.LayoutRegion = v, regions.Inner is not null);
         SizeIcons("サイズの扱い", node.LayoutSizing, v => node.LayoutSizing = v);
-        if (node.Kind == ObjectKind.Text) AlignmentIcons("位置合わせ", node.LayoutAnchor, v => node.LayoutAnchor = v);
-        else Choice("位置合わせ", node.LayoutAnchor, ["左上", "上", "右上", "左", "中央", "右", "左下", "下", "右下"], v => node.LayoutAnchor = v);
+        AlignmentIcons("位置合わせ", node.LayoutAnchor, v => node.LayoutAnchor = v);
     }
     private void InitializeObjectLayout(SceneObject node, SceneObject parent)
     {
+        if (node.Kind != ObjectKind.Canvas && !node.IsGridContent && !(node.Kind == ObjectKind.Group && node.OrganizeOnly))
+        {
+            node.UseParentLayout = true; node.LayoutSizing = "固定";
+            node.LayoutRegion = parent.Kind == ObjectKind.Group && parent.LayoutHasInner ? "親の内側" : "親の外側";
+        }
         if (node.Kind == ObjectKind.Image && node.ImageData is { } data)
         {
             var bitmap = Document.DecodeImage(data);
@@ -57,7 +56,7 @@ public partial class MainWindow
             SceneDocument.InitializeGridCoordinates(node, (Surface.ActiveCell?.Column ?? 0) + 1, (Surface.ActiveCell?.Row ?? 0) + 1);
         if (parent.IsStateSelector && parent.UseObjectLayout)
         {
-            node.UseParentLayout = true; node.LayoutRegion = "親の内側"; node.LayoutSizing = "収める"; node.LayoutAnchor = "中央";
+            node.UseParentLayout = true; node.LayoutRegion = "親の内側"; node.LayoutSizing = "固定"; node.LayoutAnchor = "中央";
         }
     }
     private void InitializeWrappingFrame(SceneObject group, SceneObject node)

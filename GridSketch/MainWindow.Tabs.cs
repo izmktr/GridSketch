@@ -41,6 +41,7 @@ public partial class MainWindow
     }
     private void AddProjectTab(SceneDocument scene, string? file = null)
     {
+        scene.EnableParentLayouts();
         var tab = new EditorTab { Document = scene, Path = file, SelectedId = scene.Canvas.Id, Saved = scene.Snapshot() };
         editorTabs.Add(tab); SwitchTab(tab);
     }
@@ -135,6 +136,7 @@ public partial class MainWindow
         var existing = editorTabs.FirstOrDefault(t => t.Owner == owner && t.PartId == part.Id);
         if (existing is not null) { SwitchTab(existing); return; }
         var scene = new SceneDocument(); var root = part.CreateCopy(); scene.Canvas.Children.Add(root);
+        scene.EnableParentLayouts();
         var tab = new EditorTab { Document = scene, SelectedId = root.Id, Saved = scene.Snapshot(), Owner = owner,
             PartId = part.Id, PartVersion = PartVersion(part), Name = part.Name };
         editorTabs.Add(tab); SwitchTab(tab);

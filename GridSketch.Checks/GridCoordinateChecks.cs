@@ -37,7 +37,7 @@ internal static class GridCoordinateChecks
         freeText.LayoutSizing = "広げる";
         var textOrigin = doc.World(freeText).Transform(new Point());
         doc.ReparentMany([freeText], doc.Canvas);
-        Check(freeText.PreservedTransform is null && freeText.FontSize == 12 && !freeText.UseParentLayout
+        Check(freeText.PreservedTransform is null && freeText.FontSize == 12 && freeText.UseParentLayout
             && (doc.World(freeText).Transform(new Point()) - textOrigin).Length < 1e-8,
             "Text leaving a grid must retain editable font size and position without hidden scaling");
         var textMatrix = doc.World(freeText);

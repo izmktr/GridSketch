@@ -54,7 +54,7 @@ public partial class MainWindow : Window
     {
         CommitPropertyEdit();
         var before = document.Snapshot();
-        try { action(); document.PrepareGroupLayouts(); document.ClearMissingStateObjects(); document.Validate(); }
+        try { action(); document.PrepareGroupLayouts(); document.ClearMissingStateObjects(); document.EnableParentLayouts(); document.Validate(); }
         catch { document = SceneDocument.Restore(before); RefreshAll(); throw; }
         if (document.Snapshot() != before) RememberUndo(before);
         Surface.Preview = []; Surface.HoveredEdge = null; RefreshAll(); Status.Text = "変更しました。Ctrl+Sで保存できます。";
@@ -63,7 +63,7 @@ public partial class MainWindow : Window
     private void Redo() { CommitPropertyEdit(); BreakUndoMerge(); if (redo.Count == 0) return; undo.Push(document.Snapshot()); document = SceneDocument.Restore(redo.Pop()); RefreshAll(); }
     private void RefreshAll()
     {
-        CommitPropertyEdit(); refreshing = true; SyncLayerSelection();
+        CommitPropertyEdit(); document.EnableParentLayouts(); refreshing = true; SyncLayerSelection();
         if (Surface.Selected?.Id != Selected.Id) { Surface.ActiveCell = null; Surface.RangeEnd = null; }
         var selectedGrid = document.GridFor(Selected);
         if (!document.Shown(Selected) || selectedGrid is null || Surface.ActiveCell is { } cell && (cell.Column >= selectedGrid.Columns || cell.Row >= selectedGrid.Rows)) { Surface.ActiveCell = null; Surface.RangeEnd = null; }
@@ -200,13 +200,10 @@ public partial class MainWindow : Window
                 "行（マス座標）", node.GridRow!.Value, v => node.GridRow = v);
             Number("回転（度）", node.Angle, v => node.Angle = v);
         }
-        Section(gridCoordinates ? "マス内配置" : "親に合わせる配置", gridCoordinates || node.UseParentLayout,
-            () => gridCoordinates ? node.LayoutAnchor : node.UseParentLayout ? "有効" : "無効");
+        Section(gridCoordinates ? "マス内配置" : "配置", true, () => node.LayoutAnchor);
         ObjectLayoutProperties(node);
         Section("見本の配置");
         TemplateProperties(node);
-        Section("画像の配置");
-        if (node.Kind == ObjectKind.Image && !gridCoordinates) ImagePlacementProperties(node);
         if (node.Kind == ObjectKind.Canvas)
         {
             Section("キャンバス");
@@ -591,7 +588,7 @@ public partial class MainWindow : Window
     {
         string? mergeKey = lineHandleDrag is not null ? "line-handle:" + Selected.Id + ":" + lineHandleDrag.Handle : dragStart is not null ? "move:" + Selected.Id : null;
         if (dragStart is null && paintStroke is null) return; dragStart = null; paintStroke = null; paintGrid = null;
-        if (dragSnapshot is { } snapshot) { try { document.Validate(); if (snapshot != document.Snapshot()) RecordUndo(snapshot, mergeKey); } catch { document = SceneDocument.Restore(snapshot); BreakUndoMerge(); } }
+        if (dragSnapshot is { } snapshot) { try { document.EnableParentLayouts(); document.Validate(); if (snapshot != document.Snapshot()) RecordUndo(snapshot, mergeKey); } catch { document = SceneDocument.Restore(snapshot); BreakUndoMerge(); } }
         dragSnapshot = null; dragContentOrigin = null; lineHandleDrag = null; Surface.Cursor = null; RefreshAll();
     }
     private void SurfaceUp(object sender, MouseButtonEventArgs e) { if (paintStroke is not null) paintStroke.Move(Surface.EditLocal(paintGrid!, e.GetPosition(Surface))); FinishDrag(); Surface.ReleaseMouseCapture(); }

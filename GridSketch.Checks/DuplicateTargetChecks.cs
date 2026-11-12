@@ -14,6 +14,7 @@ internal static class DuplicateTargetChecks
         var b = new SceneObject { Kind = ObjectKind.Text, Name = "B", Y = 20 };
         var target = new SceneObject { Kind = ObjectKind.Group, X = 80, Angle = -15, Children = [new() { Kind = ObjectKind.Shape }] };
         parent.Children = [a, b]; scene.Canvas.Children = [parent, target];
+        scene.EnableParentLayouts();
         string before = scene.Snapshot();
         var targets = scene.DuplicateTargets(new[] { b, a });
         Check(targets.Contains(parent) && targets.Contains(target) && scene.Snapshot() == before, "Duplicate target filtering must include current parent without mutating sources");

@@ -22,7 +22,7 @@ public sealed partial class SceneDocument
         node.GridColumn = column; node.GridRow = row;
         node.X = node.Y = 0; node.SnapToCell = false;
         node.UseParentLayout = true;
-        node.LayoutRegion = "親の内側"; node.LayoutAnchor = "中央"; node.LayoutSizing = "収める";
+        node.LayoutRegion = "親の内側"; node.LayoutAnchor = "中央"; node.LayoutSizing = "固定";
         if (node.Kind == ObjectKind.Group) node.HasLayoutFrame = true;
     }
 

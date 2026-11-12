@@ -206,6 +206,7 @@ public sealed partial class SceneDocument
             node.PreservedTransform = new() { M11 = world.M11, M12 = world.M12, M21 = world.M21, M22 = world.M22 };
             node.Angle = 0; node.X = world.OffsetX; node.Y = world.OffsetY;
             AdoptGridCoordinates(node);
+            EnableParentLayout(node);
             return;
         }
         node.Angle = Math.Atan2(world.M12, world.M11) * 180 / Math.PI;
@@ -213,6 +214,7 @@ public sealed partial class SceneDocument
         var rotation = LocalMatrix(node);
         node.X = world.OffsetX - rotation.OffsetX; node.Y = world.OffsetY - rotation.OffsetY;
         AdoptGridCoordinates(node);
+        EnableParentLayout(node);
     }
 
     public static SceneObject CreateGrid(string preset, int columns = 16, int rows = 12, double cellSize = 48)
@@ -409,7 +411,7 @@ public sealed partial class SceneDocument
 
     public void Save(string path)
     {
-        Validate(); var bytes = JsonSerializer.SerializeToUtf8Bytes(this, JsonOptions);
+        EnableParentLayouts(); Validate(); var bytes = JsonSerializer.SerializeToUtf8Bytes(this, JsonOptions);
         if (bytes.Length > 100_000_000) throw new InvalidDataException("プロジェクトは100MB以下にしてください。");
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try { File.WriteAllBytes(temporary, bytes); File.Move(temporary, path, true); }
@@ -423,6 +425,7 @@ public sealed partial class SceneDocument
         var scene = version is 1 or 2 ? Migrate(Document.Load(path)) : Restore(json);
         scene.Validate();
         foreach (var node in scene.All().ToList()) scene.AdoptGridCoordinates(node);
+        scene.EnableParentLayouts();
         scene.Validate(); return scene;
     }
     public static SceneDocument Migrate(Document old)

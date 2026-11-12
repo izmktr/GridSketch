@@ -30,13 +30,14 @@ internal static class ImagePlacementChecks
         typeof(MainWindow).GetField("selectedId", flags)!.SetValue(window, node.Id);
         typeof(MainWindow).GetMethod("RefreshAll", flags)!.Invoke(window, null);
         var panel = (StackPanel)window.FindName("Properties");
-        var free = PropertyChecks.Find<ToggleButton>(panel, "配置方式：自由配置");
-        var cell = PropertyChecks.Find<ToggleButton>(panel, "配置方式：マス配置");
-        Check(free.IsEnabled && cell.IsChecked == true, "Placement toggle is available inside a group");
-        free.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent)); Check(!node.SnapToCell, "Placement toggle applies immediately");
-        typeof(MainWindow).GetMethod("Undo", flags)!.Invoke(window, null);
-        var restored = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;
-        Check(restored.Find(node.Id)!.SnapToCell, "Placement conversion supports undo");
-        Console.WriteLine("PASS: Image placement conversion, visual preservation, nearest cell, group transforms, toggle and undo");
+        IEnumerable<DependencyObject> Walk(DependencyObject root)
+        {
+            yield return root;
+            foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
+                foreach (var descendant in Walk(child)) yield return descendant;
+        }
+        Check(!Walk(panel).Any(n => System.Windows.Automation.AutomationProperties.GetName(n).StartsWith("配置方式：")),
+            "Properties must not expose the obsolete placement switch");
+        Console.WriteLine("PASS: Image placement conversion, visual preservation, nearest cell, group transforms and removal of placement switch");
     }
 }

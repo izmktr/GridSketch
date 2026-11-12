@@ -17,6 +17,27 @@ public sealed class PreservedTransform
 
 public sealed partial class SceneDocument
 {
+    public void EnableParentLayout(SceneObject node, Matrix? previous = null)
+    {
+        if (node.UseParentLayout || node.Kind == ObjectKind.Canvas || node.IsGridContent
+            || node.Kind == ObjectKind.Group && node.OrganizeOnly || SelectionOwner(node) is { UseObjectLayout: false }) return;
+        if (UsesGridCoordinates(node)) { node.UseParentLayout = true; return; }
+        var before = previous ?? EffectiveLocalMatrix(node);
+        node.UseParentLayout = true;
+        node.LayoutSizing = "固定"; node.LayoutRegion = "親の外側"; node.LayoutAnchor = "左上";
+        if (node.Kind == ObjectKind.Group) node.HasLayoutFrame = true;
+        node.X = node.Y = 0;
+        var origin = EffectiveLocalMatrix(node);
+        node.X = before.OffsetX - origin.OffsetX; node.Y = before.OffsetY - origin.OffsetY;
+    }
+
+    public void EnableParentLayouts()
+    {
+        // Capture every local placement before group frames change their children's regions.
+        var placements = All().ToDictionary(n => n, EffectiveLocalMatrix);
+        foreach (var (node, matrix) in placements) EnableParentLayout(node, matrix);
+    }
+
     public LayoutRegions ParentRegions(SceneObject node)
         => RegionsForChild(Parent(node), node);
 

@@ -95,6 +95,10 @@ public partial class MainWindow
         dpi.TextChanged += (_, _) => Estimate(); Estimate();
         apply = () =>
         {
+            var scene = new SceneDocument { Canvas = canvas };
+            var placements = canvas.AutoSize != (mode.SelectedIndex == 0)
+                ? scene.All().Where(n => n.UseParentLayout && n.LayoutSizing == "固定").ToDictionary(n => n, scene.EffectiveLocalMatrix)
+                : null;
             canvas.AutoSize = mode.SelectedIndex == 0; canvas.Dpi = double.Parse(dpi.Text); canvas.Background = background.Text;
             if (canvas.AutoSize) canvas.Padding = double.Parse(padding.Text);
             else
@@ -102,6 +106,12 @@ public partial class MainWindow
                 canvas.CanvasUnit = (string)unit.SelectedItem; canvas.Width = double.Parse(width.Text); canvas.Height = double.Parse(height.Text);
                 canvas.X = double.Parse(x.Text); canvas.Y = double.Parse(y.Text);
             }
+            if (placements is not null)
+                foreach (var (node, before) in placements)
+                {
+                    var after = scene.EffectiveLocalMatrix(node);
+                    node.X += before.OffsetX - after.OffsetX; node.Y += before.OffsetY - after.OffsetY;
+                }
         };
         if (panel == Properties)
         {
