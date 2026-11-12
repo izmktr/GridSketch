@@ -32,6 +32,8 @@ public partial class MainWindow : Window
         Layers.PreviewMouseDown += LayerMouseDown;
         Surface.MouseRightButtonDown += GridContextMenu;
         PreviewKeyDown += CancelLineHandle;
+        PreviewKeyDown += GuidePreviewKeyDown; PreviewKeyUp += GuidePreviewKeyUp;
+        Deactivated += (_, _) => SetCleanPreview(false);
         TextCompositionManager.AddPreviewTextInputStartHandler(GridInput, (_, _) => gridComposing = true);
         GridInput.AddHandler(TextCompositionManager.PreviewTextInputEvent, new TextCompositionEventHandler(GridInputText), true);
         GridInput.AddHandler(TextCompositionManager.TextInputEvent, new TextCompositionEventHandler(GridInputText), true);
@@ -500,6 +502,7 @@ public partial class MainWindow : Window
     }
     private void SurfaceDown(object sender, MouseButtonEventArgs e) => Try(() =>
     {
+        if (Surface.CleanPreview) { e.Handled = true; return; }
         var p = e.GetPosition(Surface); var node = Selected;
         if (cellEditMode)
         {
@@ -573,6 +576,8 @@ public partial class MainWindow : Window
             var cells = SceneDocument.FramedCells(node, grid!).ToHashSet();
             if (!cells.Contains(first) || !cells.Contains(second)) edge = null;
         }
+        var hoverCell = cellEditMode && node.Kind == ObjectKind.GridText && grid is not null ? Surface.CellAt(grid, p) : null;
+        if (hoverCell != Surface.HoveredCell) { Surface.HoveredCell = hoverCell; Surface.InvalidateVisual(); }
         if (edge != Surface.HoveredEdge) { Surface.HoveredEdge = edge; Surface.InvalidateVisual(); }
     }
     private void StartPaint(SceneObject node, SceneObject grid, Point point, GridEdge? edge = null)
@@ -593,7 +598,7 @@ public partial class MainWindow : Window
     }
     private void SurfaceUp(object sender, MouseButtonEventArgs e) { if (paintStroke is not null) paintStroke.Move(Surface.EditLocal(paintGrid!, e.GetPosition(Surface))); FinishDrag(); Surface.ReleaseMouseCapture(); }
     private void SurfaceLostCapture(object sender, MouseEventArgs e) => FinishDrag();
-    private void SurfaceLeave(object sender, MouseEventArgs e) { Surface.HoveredEdge = null; if (lineHandleDrag is null) { Surface.HoveredLineHandle = null; Surface.Cursor = null; } Surface.InvalidateVisual(); }
+    private void SurfaceLeave(object sender, MouseEventArgs e) { Surface.HoveredCell = null; Surface.HoveredEdge = null; if (lineHandleDrag is null) { Surface.HoveredLineHandle = null; Surface.Cursor = null; } Surface.InvalidateVisual(); }
     private void ZoomChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (Surface is null || Viewport is null) return;

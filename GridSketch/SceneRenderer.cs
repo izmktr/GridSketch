@@ -384,6 +384,7 @@ public sealed partial class SceneSurface : FrameworkElement
     public List<Glyph> Preview { get; set; } = [];
     public void Refresh(SceneDocument document)
     {
+        HoveredCell = null;
         Renderer = new SceneRenderer(document);
         var extents = Renderer.OutputBounds; extents.Union(Renderer.ContentBounds);
         OriginX = Math.Max(OriginX, Math.Ceiling(-extents.Left) + 128);
@@ -449,7 +450,10 @@ public sealed partial class SceneSurface : FrameworkElement
         }
         var brush = new DrawingBrush(checker) { TileMode = TileMode.Tile, Viewport = new Rect(0, 0, 16, 16), ViewportUnits = BrushMappingMode.Absolute };
         dc.DrawRectangle(brush, null, bounds); dc.DrawRectangle(SceneRenderer.Brush(Renderer.Document.Canvas.Background), null, bounds);
-        dc.DrawDrawing(Renderer.Drawing); dc.DrawRectangle(null, new Pen(Brushes.DimGray, 1), bounds);
+        dc.DrawDrawing(Renderer.Drawing);
+        if (CleanPreview) { dc.Pop(); return; }
+        dc.DrawRectangle(null, new Pen(Brushes.DimGray, 1), bounds);
+        DrawGridGuides(dc);
         if (Selected is { } selected && Renderer.Document.Shown(selected))
         {
             if (ShowSelectionBounds && Renderer.Bounds.TryGetValue(selected.Id, out var selectedBounds))

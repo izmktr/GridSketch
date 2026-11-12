@@ -132,6 +132,7 @@ internal static class Program
             PropertyToggleChecks.Run(window);
             ImageRotationChecks.Run();
             CenterRotationChecks.Run();
+            GridGuideChecks.Run(window, Path.GetDirectoryName(temp)!);
             PartLibraryChecks.Run(window, Path.GetDirectoryName(temp)!);
             BorderCapChecks.Run(Path.GetDirectoryName(temp)!);
             CenterBorderChecks.Run(window, Path.GetDirectoryName(temp)!);

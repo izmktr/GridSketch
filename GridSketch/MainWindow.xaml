@@ -123,6 +123,11 @@
     </ToggleButton>
     <TextBlock Text="表示" VerticalAlignment="Center"/><Slider x:Name="Zoom" IsTabStop="False" KeyboardNavigation.TabNavigation="None" VerticalAlignment="Center" Width="110" Minimum="0.25" Maximum="3" Value="1" TickFrequency="0.25" IsSnapToTickEnabled="True" ValueChanged="ZoomChanged" Margin="8,0"/>
     <Button Content="キャンバスへ" Click="CenterClick"/>
+    <TextBlock Text="ガイド" VerticalAlignment="Center" Margin="12,0,4,0"/>
+    <ComboBox Width="100" SelectedIndex="0" SelectionChanged="GuideModeChanged" AutomationProperties.Name="グリッドガイド" ToolTip="編集用の補助線です。PNG・PDFには出力されません。">
+     <ComboBoxItem Content="自動"/><ComboBoxItem Content="常に表示"/><ComboBoxItem Content="非表示"/>
+    </ComboBox>
+    <TextBlock Text="F8長押し：完成プレビュー" VerticalAlignment="Center" Foreground="Gray" Margin="12,0,0,0"/>
    </WrapPanel>
   </Border>
   <StatusBar DockPanel.Dock="Bottom"><TextBlock x:Name="Status" Text="レイヤーを選択して編集します。"/></StatusBar>
