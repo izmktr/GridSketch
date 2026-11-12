@@ -135,6 +135,7 @@ internal static class Program
             BorderCapChecks.Run(Path.GetDirectoryName(temp)!);
             CenterBorderChecks.Run(window, Path.GetDirectoryName(temp)!);
             DiagonalBorderChecks.Run(window, Path.GetDirectoryName(temp)!);
+            ImageSizeChecks.Run(window);
             ZoomChecks.Run(window);
             NavigationChecks.Run(window);
             CellLayoutChecks.Run(window, Path.GetDirectoryName(temp)!);

@@ -109,6 +109,7 @@ public sealed class SceneObject
     public string Text { get; set; } = "テキスト";
     public string Alignment { get; set; } = "中央";
     public byte[]? ImageData { get; set; }
+    public bool KeepImageAspectRatio { get; set; } = true;
     public bool SnapToCell { get; set; }
     public int Column { get; set; }
     public int Row { get; set; }

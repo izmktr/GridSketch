@@ -273,7 +273,8 @@ public partial class MainWindow : Window
                  break;
             case ObjectKind.Image:
                 if (node.SnapToCell) { Pair("列（1から）", node.Column + 1, v => node.Column = (int)v - 1, "行（1から）", node.Row + 1, v => node.Row = (int)v - 1, integer: true); }
-                else { Pair("幅（px）", node.Width, v => node.Width = v, "高さ（px）", node.Height, v => node.Height = v, 1, 1000); } break;
+                else ImageSizeProperties(node);
+                break;
             case ObjectKind.Shape:
                 Choice("形", node.Shape, ["四角", "角丸", "楕円"], v => node.Shape = v); Pair("幅（px）", node.Width, v => node.Width = v, "高さ（px）", node.Height, v => node.Height = v, 1, 1000);
                 ColorField("塗り色", node.FillColor, v => node.FillColor = v); ColorField("線の色", node.Color, v => node.Color = v); Number("線の太さ", node.Thickness, v => node.Thickness = v, 0, 64); break;

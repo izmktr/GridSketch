@@ -344,9 +344,7 @@ public sealed class SceneRenderer
             return new Rect(node.Column * grid.CellSize + (grid.CellSize - bitmap.PixelWidth * ratio) / 2,
                 node.Row * grid.CellHeight + (grid.CellHeight - bitmap.PixelHeight * ratio) / 2, bitmap.PixelWidth * ratio, bitmap.PixelHeight * ratio);
         }
-        var scale = Math.Min(node.Width / bitmap.PixelWidth, node.Height / bitmap.PixelHeight);
-        return new Rect((node.Width - bitmap.PixelWidth * scale) / 2, (node.Height - bitmap.PixelHeight * scale) / 2,
-            bitmap.PixelWidth * scale, bitmap.PixelHeight * scale);
+        return new Rect(0, 0, node.Width, node.Height);
     }
     public BitmapSource Export(int scale = 1)
     {

@@ -25,12 +25,12 @@ internal static class LayerInsertionChecks
         var group = new SceneObject { Kind = ObjectKind.Group, Children = [new() { Kind = ObjectKind.Shape }] };
         grid.Children = [first, group];
         Set("document", scene);
-        foreach (var kind in new[] { ObjectKind.Image, ObjectKind.Shape })
+        foreach (var kind in new[] { ObjectKind.Shape })
         {
             var node = new SceneObject { Kind = kind };
             Call("InitializeObjectLayout", node, grid);
             double side = Math.Min(grid.CellSize - grid.Margin * 2, grid.CellSize - grid.MarginY * 2);
-            if (node.Width != side || node.Height != side) throw new Exception("New image/shape must use one inset cell, not the full grid");
+            if (node.Width != side || node.Height != side) throw new Exception("New shapes must use one inset cell, not the full grid");
             double initial = node.Width; grid.CellSize += 10;
             if (node.Width != initial) throw new Exception("Initial size must not track later parent edits");
             grid.CellSize -= 10;

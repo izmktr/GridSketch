@@ -42,7 +42,7 @@ internal static class ObjectLayoutChecks
         using var memory = new MemoryStream(); encoder.Save(memory);
         var image = new SceneObject { Kind = ObjectKind.Image, ImageData = memory.ToArray(), Width = 60, Height = 60, X = 20, Y = 10 };
         group.Children.Insert(0, image);
-        Check(new SceneRenderer(scene).ObjectTemplate(image).Bounds == new Rect(20, 25, 60, 30), "Image preserves its aspect inside its own logical rectangle");
+        Check(new SceneRenderer(scene).ObjectTemplate(image).Bounds == new Rect(20, 10, 60, 60), "Image dimensions specify the actual image rectangle");
         var file = Path.Combine(directory, "object-layout.gridsketch"); scene.Save(file);
         Check(SceneDocument.Load(file).Snapshot() == scene.Snapshot(), "Object frames and layout survive project round trip");
         var partFile = Path.Combine(directory, "object-layout.gspart"); PartFile.Export(LibraryPart.FromGroup(group, "固定範囲"), partFile);

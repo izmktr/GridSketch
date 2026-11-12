@@ -45,7 +45,12 @@ public partial class MainWindow
     }
     private void InitializeObjectLayout(SceneObject node, SceneObject parent)
     {
-        if (node.Kind is ObjectKind.Image or ObjectKind.Shape)
+        if (node.Kind == ObjectKind.Image && node.ImageData is { } data)
+        {
+            var bitmap = Document.DecodeImage(data);
+            node.Width = bitmap.PixelWidth; node.Height = bitmap.PixelHeight;
+        }
+        if (node.Kind == ObjectKind.Shape)
             node.Width = node.Height = document.InitialSquareSize(parent);
         if (node.Kind == ObjectKind.Group) { node.HasLayoutFrame = true; node.Width = node.Height = 100; }
         if (document.CoordinateGrid(parent) is not null && SceneDocument.CanUseGridCoordinates(node))
