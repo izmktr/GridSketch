@@ -101,7 +101,17 @@ public sealed partial class SceneDocument
         if (node.Kind == ObjectKind.Line)
         {
             var bounds = new Rect(new Point(0, 0), new Point(node.EndX, node.EndY));
-            if (node.PathKind != "直線") bounds.Union(new Point(node.ControlX, node.ControlY));
+            if (node.PathKind == "折れ線") bounds.Union(new Point(node.ControlX, node.ControlY));
+            else if (node.PathKind == "曲線")
+            {
+                var curve = new StreamGeometry();
+                using (var context = curve.Open())
+                {
+                    context.BeginFigure(new Point(), false, false);
+                    context.QuadraticBezierTo(new Point(node.ControlX, node.ControlY), new Point(node.EndX, node.EndY), true, false);
+                }
+                bounds = curve.Bounds;
+            }
             bounds.Inflate(Math.Max(0.5, node.Thickness / 2), Math.Max(0.5, node.Thickness / 2));
             return bounds;
         }
@@ -113,12 +123,12 @@ public sealed partial class SceneDocument
 
     public Matrix EffectiveLocalMatrix(SceneObject node)
     {
-        var matrix = LocalMatrix(node);
-        if (!ObjectLayoutActive(node)) return matrix;
+        if (!ObjectLayoutActive(node)) return LocalMatrix(node);
         var regions = ParentRegions(node);
         var target = node.LayoutRegion == "親の内側" ? regions.Inner : regions.Outer;
         // Auto-size canvases cannot depend on their children fitting their own result.
-        if (target is not { Width: > 0, Height: > 0 } box) return matrix;
+        if (target is not { Width: > 0, Height: > 0 } box) return LocalMatrix(node);
+        var matrix = LocalMatrix(node, false);
         matrix.Translate(-node.X, -node.Y);
         var bounds = new MatrixTransform(matrix).TransformBounds(OwnLayoutRect(node));
         double sx = 1, sy = 1;
@@ -131,6 +141,7 @@ public sealed partial class SceneDocument
         double offsetY = UsesGridCoordinates(node) ? node.PlacementOffsetY : node.Y;
         matrix.Translate(box.X + (box.Width - bounds.Width * sx) * ax - bounds.X * sx + offsetX,
             box.Y + (box.Height - bounds.Height * sy) * ay - bounds.Y * sy + offsetY);
+        RotateAroundCenter(ref matrix, node);
         return matrix;
     }
     private void ValidateObjectLayout(SceneObject node)

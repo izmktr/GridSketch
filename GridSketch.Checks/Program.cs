@@ -131,6 +131,7 @@ internal static class Program
             CellSelectionChecks.Run(window, Path.GetDirectoryName(temp)!);
             PropertyToggleChecks.Run(window);
             ImageRotationChecks.Run();
+            CenterRotationChecks.Run();
             PartLibraryChecks.Run(window, Path.GetDirectoryName(temp)!);
             BorderCapChecks.Run(Path.GetDirectoryName(temp)!);
             CenterBorderChecks.Run(window, Path.GetDirectoryName(temp)!);

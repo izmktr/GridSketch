@@ -209,7 +209,7 @@ public partial class MainWindow : Window
             Section("キャンバス");
             CanvasSettings(Properties, node, Surface.Renderer!.OutputBounds);
         }
-        else if (!gridCoordinates && !node.IsGridContent && !(node.Kind == ObjectKind.Group && node.OrganizeOnly)) { Section("位置・回転"); Pair(document.SelectionOwner(node)?.UseCellLayout == true ? "位置 X（ずらし量）" : "位置 X（px）", node.X, v => node.X = v, document.SelectionOwner(node)?.UseCellLayout == true ? "位置 Y（ずらし量）" : "位置 Y（px）", node.Y, v => node.Y = v); Number(node.Kind == ObjectKind.Image ? "回転（度 / 画像中央）" : "回転（度 / 左上中心）", node.Angle, v => node.Angle = v); }
+        else if (!gridCoordinates && !node.IsGridContent && !(node.Kind == ObjectKind.Group && node.OrganizeOnly)) { Section("位置・回転"); Pair(document.SelectionOwner(node)?.UseCellLayout == true ? "位置 X（ずらし量）" : "位置 X（px）", node.X, v => node.X = v, document.SelectionOwner(node)?.UseCellLayout == true ? "位置 Y（ずらし量）" : "位置 Y（px）", node.Y, v => node.Y = v); Number("回転（度 / オブジェクト中央）", node.Angle, v => node.Angle = v); }
         Section(node.Kind switch
         {
             ObjectKind.Group => "グループ", ObjectKind.Grid => "グリッド", ObjectKind.Border => "線の見た目",

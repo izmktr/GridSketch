@@ -31,7 +31,13 @@ public sealed partial class SceneDocument
     {
         if (UsesGridCoordinates(node) || !CanUseGridCoordinates(node) || CoordinateGrid(Parent(node)) is not { } grid) return;
         var matrix = EffectiveLocalMatrix(node);
+        var original = matrix;
         var rect = node.Kind == ObjectKind.Image ? SceneRenderer.ImagePlacementRect(node, grid) : OwnLayoutRect(node);
+        if (node.Kind == ObjectKind.Image)
+        {
+            var imageOrigin = matrix.Transform(rect.TopLeft);
+            original.OffsetX = imageOrigin.X; original.OffsetY = imageOrigin.Y;
+        }
         var placed = System.Windows.Rect.Transform(rect, matrix);
         if (node.Kind == ObjectKind.Image) { node.Width = Math.Max(1, rect.Width); node.Height = Math.Max(1, rect.Height); }
         InitializeGridCoordinates(node, 1 + placed.Left / grid.CellSize, 1 + placed.Top / grid.CellHeight);
@@ -40,6 +46,9 @@ public sealed partial class SceneDocument
         matrix.Rotate(-node.Angle);
         node.PreservedTransform = matrix.IsIdentity ? null
             : new() { M11 = matrix.M11, M12 = matrix.M12, M21 = matrix.M21, M22 = matrix.M22 };
+        var adopted = EffectiveLocalMatrix(node);
+        node.PlacementOffsetX += original.OffsetX - adopted.OffsetX;
+        node.PlacementOffsetY += original.OffsetY - adopted.OffsetY;
     }
 
     private void ValidateGridCoordinates(SceneObject node)

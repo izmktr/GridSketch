@@ -158,15 +158,22 @@ public sealed partial class SceneDocument
     public SceneObject? GridFor(SceneObject node) => node.Kind == ObjectKind.Grid ? node : GridContainer(Parent(node));
     public bool Editable(SceneObject node) => !node.Locked && (Parent(node) is not { } p || Editable(p));
     public bool Shown(SceneObject node) => node.Visible && (Parent(node) is not { } p || Shown(p));
-    public static Matrix LocalMatrix(SceneObject node)
+    public static Matrix LocalMatrix(SceneObject node) => LocalMatrix(node, true);
+    private static Matrix LocalMatrix(SceneObject node, bool rotate)
     {
         var matrix = Matrix.Identity;
         if (node.Kind == ObjectKind.Canvas || node.Kind == ObjectKind.Group && node.OrganizeOnly) return matrix;
         if (node.PreservedTransform is { } preserved) matrix = preserved.Matrix;
-        if (node.Kind == ObjectKind.Image) matrix.RotateAt(node.Angle, node.Width / 2, node.Height / 2);
-        else matrix.Rotate(node.Angle);
+        if (rotate) RotateAroundCenter(ref matrix, node);
         matrix.Translate(node.X, node.Y);
         return matrix;
+    }
+    private static void RotateAroundCenter(ref Matrix matrix, SceneObject node)
+    {
+        if (node.Angle == 0) return;
+        var rect = OwnLayoutRect(node);
+        var center = matrix.Transform(new Point(rect.X + rect.Width / 2, rect.Y + rect.Height / 2));
+        matrix.RotateAt(node.Angle, center.X, center.Y);
     }
     public Matrix World(SceneObject node)
     {
