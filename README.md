@@ -4,7 +4,7 @@ GridSketch は、方眼紙やクロスワード、将棋盤などのマス目を
 
 ## ダウンロードと起動
 
-**[GridSketch v1.1.0 をダウンロード（Windows x64・ZIP）](https://github.com/izmktr/GridSketch/releases/download/v1.1.0/GridSketch-v1.1.0-win-x64.zip)**
+**[GridSketch v1.2.0 をダウンロード（Windows x64・ZIP）](https://github.com/izmktr/GridSketch/releases/download/v1.2.0/GridSketch-v1.2.0-win-x64.zip)**
 
 1. ダウンロードした ZIP を右クリックして「すべて展開」を選びます。
 2. 展開したフォルダにある `GridSketch\GridSketch.exe` を起動します。
