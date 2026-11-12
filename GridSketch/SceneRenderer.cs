@@ -259,7 +259,28 @@ public sealed class SceneRenderer
             if (coverage is null) dc.DrawLine(pen, from, to);
             else coverage.Children.Add(new LineGeometry(from, to).GetWidenedPathGeometry(pen, 0.02, ToleranceType.Absolute));
         }
-        foreach (var group in SceneDocument.BorderEdges(node, grid).GroupBy(e => (e.Vertical, Axis: e.Vertical ? e.Column : e.Row)))
+        var edges = SceneDocument.BorderEdges(node, grid).ToList();
+        foreach (var group in edges.Where(e => e.Diagonal != 0).GroupBy(e => (e.Diagonal, Axis: e.Diagonal == 1 ? e.Row - e.Column : e.Row + e.Column)))
+        {
+            var ordered = group.OrderBy(e => e.Column).ToList();
+            void DrawDiagonal(GridEdge first, GridEdge last)
+            {
+                var a = first.Start;
+                var b = last.End;
+                var from = new Point(a.X * width, a.Y * height);
+                var to = new Point(b.X * width, b.Y * height);
+                if (coverage is null) dc.DrawLine(pen, from, to);
+                else coverage.Children.Add(new LineGeometry(from, to).GetWidenedPathGeometry(pen, 0.02, ToleranceType.Absolute));
+            }
+            var first = ordered[0]; var last = first;
+            foreach (var edge in ordered.Skip(1))
+            {
+                if (!node.JoinSegments || edge.Column != last.Column + 1) { DrawDiagonal(first, last); first = edge; }
+                last = edge;
+            }
+            DrawDiagonal(first, last);
+        }
+        foreach (var group in edges.Where(e => e.Diagonal == 0).GroupBy(e => (e.Vertical, Axis: e.Vertical ? e.Column : e.Row)))
         {
             var indices = group.Select(e => e.Vertical ? e.Row : e.Column).OrderBy(i => i).ToList();
             int start = indices[0], end = start + 1;
@@ -401,6 +422,7 @@ public sealed partial class SceneSurface : FrameworkElement
         var border = Selected is { Kind: ObjectKind.Border } selected ? selected : new SceneObject();
         var (columns, rows) = SceneDocument.BorderDimensions(border, grid);
         var p = EditLocal(grid, surfacePoint);
+        if (border.ConnectCellCenters) return SceneDocument.CenterEdgeAt(border, grid, p, zoom);
         double width = grid.CellSize, height = grid.CellHeight;
         double toleranceX = Math.Min(width * 0.22, 7 / zoom), toleranceY = Math.Min(height * 0.22, 7 / zoom);
         if (border.ConnectCellCenters) p.Offset(-width / 2, -height / 2);
@@ -475,8 +497,8 @@ public sealed partial class SceneSurface : FrameworkElement
                 if (HoveredEdge is { } edge)
                 {
                     double offset = selected.ConnectCellCenters ? 0.5 : 0;
-                    var p = new Point((edge.Column + offset) * grid.CellSize, (edge.Row + offset) * grid.CellHeight);
-                    dc.DrawLine(new Pen(Brushes.DodgerBlue, 3), p, new Point(p.X + (edge.Vertical ? 0 : grid.CellSize), p.Y + (edge.Vertical ? grid.CellHeight : 0)));
+                    var p = new Point((edge.Start.X + offset) * grid.CellSize, (edge.Start.Y + offset) * grid.CellHeight);
+                    dc.DrawLine(new Pen(Brushes.DodgerBlue, 3), p, new Point((edge.End.X + offset) * grid.CellSize, (edge.End.Y + offset) * grid.CellHeight));
                 }
                 foreach (var glyph in Preview)
                 {

@@ -235,6 +235,7 @@ public partial class MainWindow : Window
                 Pair("マス内余白・左右（px）", node.Margin, v => node.Margin = v, "マス内余白・上下（px）", node.MarginY, v => node.MarginY = v);
                  break;
             case ObjectKind.Border:
+                if (node.ConnectCellCenters) CenterDirectionIcons(node);
                 ColorField("色", node.Color, v => node.Color = v); Number("太さ（0～64px）", node.Thickness, v => node.Thickness = v, 0, 64); StrokeIconChoice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v); StrokeIconChoice("端・角の形", node.EffectiveBorderEndCap, ["中央まで", "四角", "丸"], v => node.BorderEndCap = v, caps: true); Label($"対象：{node.Pattern}"); break;
             case ObjectKind.Fill:
                 Choice("塗る範囲", node.UseCellMargin ? "余白の内側" : "マス全体", ["マス全体", "余白の内側"], v => node.UseCellMargin = v == "余白の内側");
@@ -325,6 +326,14 @@ public partial class MainWindow : Window
             System.Windows.Automation.AutomationProperties.SetName(check, labels[i]); Canvas.SetLeft(check, rect.X); Canvas.SetTop(check, rect.Y); preview.Children.Add(check); toggles.Add(check);
         }
         Properties.Children.Add(preview);
+        var downDiagonal = new CheckBox { Content = "斜め ↘", IsChecked = true, Margin = new Thickness(0, 0, 12, 0) };
+        var upDiagonal = new CheckBox { Content = "斜め ↗", IsChecked = true };
+        if (node.ConnectCellCenters)
+        {
+            var diagonals = new WrapPanel(); diagonals.Children.Add(downDiagonal); diagonals.Children.Add(upDiagonal);
+            Properties.Children.Add(diagonals);
+            Label("選んだ接続方向の線を追加・削除します。");
+        }
         var presets = new WrapPanel();
         foreach (var name in new[] { "外枠", "内側", "すべて", "なし" })
         {
@@ -346,7 +355,13 @@ public partial class MainWindow : Window
                 if (toggles[1].IsChecked == true) edges.Add(new(left, r, true)); if (toggles[3].IsChecked == true) edges.Add(new(right, r, true));
                 if (toggles[2].IsChecked == true) for (int c = left + 1; c < right; c++) edges.Add(new(c, r, true));
             }
-            edges.RemoveWhere(e => !SceneDocument.BorderEdgeInside(node, grid, e));
+            if (node.ConnectCellCenters && node.CenterDirections != "縦横")
+                for (int c = left; c < right; c++) for (int r = top; r < bottom; r++)
+                {
+                    if (downDiagonal.IsChecked == true) edges.Add(new(c, r, false) { Diagonal = 1 });
+                    if (upDiagonal.IsChecked == true) edges.Add(new(c, r, false) { Diagonal = -1 });
+                }
+            edges.RemoveWhere(e => !SceneDocument.BorderEdgeInside(node, grid, e) || !SceneDocument.BorderDirectionAllowed(node, e));
             node.Edges = SceneDocument.BorderEdges(node, grid).ToHashSet(); node.Pattern = "個別"; if (remove) node.Edges.ExceptWith(edges); else node.Edges.UnionWith(edges);
         });
         Button("チェックした辺を追加", () => Apply(false)); Button("チェックした辺を削除", () => Apply(true));

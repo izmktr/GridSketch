@@ -29,7 +29,7 @@ public sealed partial class SceneDocument
         GridEdge? MapEdge(GridEdge edge, bool centers)
         {
             int value = rows ? edge.Row : edge.Column;
-            bool alongAxis = rows == edge.Vertical;
+            bool alongAxis = edge.Diagonal != 0 || rows == edge.Vertical;
             int mapped;
             if (centers)
             {

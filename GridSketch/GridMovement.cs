@@ -13,8 +13,9 @@ public sealed partial class SceneDocument
             foreach (var edge in node.Kind == ObjectKind.EdgeSelection ? node.StateEdges.Select(e => e.Edge) : BorderEdges(node, grid))
             {
                 double offset = node.ConnectCellCenters ? 0.5 : 0;
-                var start = new Point((edge.Column + offset) * grid.CellSize, (edge.Row + offset) * grid.CellHeight);
-                bounds.Union(new Rect(start, start + (edge.Vertical ? new Vector(0, grid.CellHeight) : new Vector(grid.CellSize, 0))));
+                var start = new Point((edge.Start.X + offset) * grid.CellSize, (edge.Start.Y + offset) * grid.CellHeight);
+                var end = new Point((edge.End.X + offset) * grid.CellSize, (edge.End.Y + offset) * grid.CellHeight);
+                bounds.Union(new Rect(start, end));
             }
         return bounds;
     }
@@ -46,7 +47,7 @@ public sealed partial class SceneDocument
         {
             node.Pattern = dx == 0 && dy == 0 ? source.Pattern : "個別";
             node.Edges = (node.Pattern == "個別" ? BorderEdges(source, grid) : source.Edges)
-                .Select(e => new GridEdge(e.Column + dx, e.Row + dy, e.Vertical)).ToHashSet();
+                .Select(e => e with { Column = e.Column + dx, Row = e.Row + dy }).ToHashSet();
         }
         if (node.Kind == ObjectKind.GridText)
             node.Glyphs = source.Glyphs.Select(g => new Glyph { Column = g.Column + dx, Row = g.Row + dy,

@@ -10,6 +10,44 @@ namespace GridSketch;
 
 public partial class MainWindow
 {
+    private void CenterDirectionIcons(SceneObject node)
+    {
+        Label("接続方向");
+        var row = new WrapPanel { Margin = new Thickness(0, 3, 0, 8) };
+        Properties.Children.Add(row);
+        foreach (var direction in new[] { "縦横", "斜め", "縦横＋斜め" })
+        {
+            var button = new ToggleButton { Width = 72, Height = 48, Margin = new Thickness(0, 0, 8, 0),
+                Style = (Style)FindResource("IconToggleStyle"), IsChecked = node.CenterDirections == direction,
+                ToolTip = "接続方向：" + direction };
+            AutomationProperties.SetName(button, "接続方向：" + direction);
+            var icon = new Canvas { Width = 68, Height = 44, IsHitTestVisible = false };
+            void Add(string data, bool background)
+            {
+                var path = new Path { Data = Geometry.Parse(data), StrokeThickness = background ? 1 : 2.5,
+                    Opacity = background ? 0.45 : 1 };
+                if (background) path.StrokeDashArray = new DoubleCollection { 1, 2 };
+                path.SetBinding(Shape.StrokeProperty, new Binding(nameof(Control.Foreground)) { Source = button });
+                icon.Children.Add(path);
+            }
+            Add("M14,2 H54 V42 H14 Z M34,2 V42 M14,22 H54", true);
+            if (direction != "斜め") Add("M24,12 H44 V32 H24 Z", false);
+            if (direction != "縦横") Add("M24,12 L44,32 M44,12 L24,32", false);
+            button.Content = icon;
+            button.Click += (_, _) =>
+            {
+                ImmediateProperty(button, () =>
+                {
+                    node.Edges = SceneDocument.BorderEdges(node, document.GridFor(node)!).ToHashSet();
+                    node.Pattern = "個別"; node.CenterDirections = direction;
+                });
+                foreach (var sibling in row.Children.OfType<ToggleButton>()) sibling.IsChecked = sibling == button;
+                button.ToolTip = "接続方向：" + direction;
+            };
+            row.Children.Add(button);
+        }
+    }
+
     private void RegionIcons(string label, string value, string outer, string inner, Action<string> setter, bool hasInner = true)
         => LayoutIcons(label, value, hasInner ? [(outer, outer), (inner, inner)] : [(outer, outer)], setter, true);
 

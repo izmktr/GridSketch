@@ -98,6 +98,7 @@ public sealed class SceneObject
     public string? BorderEndCap { get; set; }
     [JsonIgnore] public string EffectiveBorderEndCap => BorderEndCap ?? (SquareCaps ? "四角" : "中央まで");
     public bool ConnectCellCenters { get; set; }
+    public string CenterDirections { get; set; } = "縦横";
     public bool JoinSegments { get; set; } = true;
     public string Pattern { get; set; } = "個別";
     public HashSet<GridEdge> Edges { get; set; } = [];
@@ -240,13 +241,18 @@ public sealed partial class SceneDocument
     public static bool BorderEdgeInside(SceneObject border, SceneObject grid, GridEdge edge)
     {
         var (columns, rows) = BorderDimensions(border, grid);
-        return edge.IsInside(columns, rows);
+        return (edge.Diagonal == 0 || border.ConnectCellCenters) && edge.IsInside(columns, rows);
     }
     public static IEnumerable<GridEdge> BorderEdges(SceneObject border, SceneObject grid)
     {
         var (columns, rows) = BorderDimensions(border, grid);
         if (border.Pattern == "個別") return border.Edges;
         var edges = new List<GridEdge>();
+        if (border.ConnectCellCenters && border.CenterDirections != "縦横")
+            for (int c = 0; c < columns; c++) for (int r = 0; r < rows; r++)
+                if (border.Pattern is "すべて" or "内側")
+                { edges.Add(new(c, r, false) { Diagonal = 1 }); edges.Add(new(c, r, false) { Diagonal = -1 }); }
+        if (border.ConnectCellCenters && border.CenterDirections == "斜め") return edges;
         for (int c = 0; c <= columns; c++) for (int r = 0; r < rows; r++)
             if (border.Pattern == "すべて" || (c == 0 || c == columns ? border.Pattern == "外枠" : border.Pattern == "内側")) edges.Add(new(c, r, true));
         for (int r = 0; r <= rows; r++) for (int c = 0; c < columns; c++)

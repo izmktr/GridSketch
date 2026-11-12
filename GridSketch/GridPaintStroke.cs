@@ -81,18 +81,19 @@ public sealed class GridPaintStroke
     private void FollowEdge(Point p)
     {
         var current = currentEdge!.Value;
-        var first = new Point(current.Column, current.Row);
-        var second = first + (current.Vertical ? new Vector(0, 1) : new Vector(1, 0));
+        var first = current.Start;
+        var second = current.End;
         GridEdge? best = null; double bestDistance = 0.28;
         foreach (var vertex in new[] { first, second })
-        foreach (var direction in new[] { new Vector(1, 0), new Vector(-1, 0), new Vector(0, 1), new Vector(0, -1) })
+        foreach (var candidate in SceneDocument.EdgesAtVertex((int)vertex.X, (int)vertex.Y))
         {
-            var other = vertex + direction;
-            var candidate = new GridEdge((int)Math.Min(vertex.X, other.X), (int)Math.Min(vertex.Y, other.Y), direction.X == 0);
+            if (!SceneDocument.BorderDirectionAllowed(node, candidate)) continue;
+            var other = candidate.Start == vertex ? candidate.End : candidate.Start;
+            var direction = other - vertex;
             if (node.Kind == ObjectKind.EdgeSelection && !SceneDocument.EdgeSelectable(node, candidate)) continue;
             if (candidate == current || !SceneDocument.BorderEdgeInside(node, grid, candidate)) continue;
             var delta = p - vertex;
-            double progress = Vector.Multiply(delta, direction);
+            double progress = Vector.Multiply(delta, direction) / direction.LengthSquared;
             // Require deliberate movement away from the shared vertex before changing edges.
             if (progress < 0.3 || progress > 1.2) continue;
             double distance = (delta - direction * Math.Clamp(progress, 0, 1)).Length;

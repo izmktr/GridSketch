@@ -26,8 +26,11 @@ public sealed class Cell
 // Shared edges have a single grid coordinate, regardless of which adjacent cell is used.
 public readonly record struct GridEdge(int Column, int Row, bool Vertical)
 {
+    public int Diagonal { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore] public System.Windows.Point Start => new(Column, Row + (Diagonal == -1 ? 1 : 0));
+    [System.Text.Json.Serialization.JsonIgnore] public System.Windows.Point End => new(Column + (Diagonal != 0 || !Vertical ? 1 : 0), Row + (Diagonal == 1 || Diagonal == 0 && Vertical ? 1 : 0));
     public bool IsInside(int columns, int rows) => Column >= 0 && Row >= 0 &&
-        (Vertical ? Column <= columns && Row < rows : Column < columns && Row <= rows);
+        (Diagonal != 0 ? Diagonal is -1 or 1 && !Vertical && Column < columns && Row < rows : Vertical ? Column <= columns && Row < rows : Column < columns && Row <= rows);
 }
 
 public sealed class Document
