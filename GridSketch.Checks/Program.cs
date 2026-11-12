@@ -133,6 +133,7 @@ internal static class Program
             ImageRotationChecks.Run();
             CenterRotationChecks.Run();
             GridGuideChecks.Run(window, Path.GetDirectoryName(temp)!);
+            RangeDeleteChecks.Run(window);
             PartLibraryChecks.Run(window, Path.GetDirectoryName(temp)!);
             BorderCapChecks.Run(Path.GetDirectoryName(temp)!);
             CenterBorderChecks.Run(window, Path.GetDirectoryName(temp)!);
@@ -155,6 +156,7 @@ internal static class Program
             ReparentDialogChecks.Run(window, Path.GetDirectoryName(temp)!);
             DuplicateTargetChecks.Run(window);
             TabChecks.Run(window, Path.GetDirectoryName(temp)!);
+            ShortcutChecks.Run(window, Path.GetDirectoryName(temp)!);
             GridCoordinateChecks.Run(window, Path.GetDirectoryName(temp)!);
             PropertySectionChecks.Run(window, Path.GetDirectoryName(temp)!);
             window.Close(); app.Shutdown();

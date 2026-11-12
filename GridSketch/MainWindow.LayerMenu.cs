@@ -45,7 +45,7 @@ public partial class MainWindow
         void Item(string title, bool enabled, Action action)
         {
             if (SelectedLayers().Count > 1 && title is not ("グループ化" or "親の変更…" or "複製先を選択…")) enabled = false;
-            var entry = new MenuItem { Header = title, IsEnabled = enabled, InputGestureText = title == "削除" ? "Delete" : "" };
+            var entry = new MenuItem { Header = title, IsEnabled = enabled, InputGestureText = title switch { "削除" => "Delete", "複製" => "Ctrl+D", "名前の変更…" => "F2", _ => "" } };
             entry.Click += (_, _) => { if (enabled && document.Find(node.Id) is not null) { selectedId = node.Id; Try(action); } };
             menu.Items.Add(entry);
         }

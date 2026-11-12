@@ -32,6 +32,8 @@ public partial class MainWindow : Window
         Layers.PreviewMouseDown += LayerMouseDown;
         Surface.MouseRightButtonDown += GridContextMenu;
         PreviewKeyDown += CancelLineHandle;
+        PreviewKeyDown += EditorShortcutKey;
+        PreviewKeyDown += GridRangeDeleteKey;
         PreviewKeyDown += GuidePreviewKeyDown; PreviewKeyUp += GuidePreviewKeyUp;
         Deactivated += (_, _) => SetCleanPreview(false);
         TextCompositionManager.AddPreviewTextInputStartHandler(GridInput, (_, _) => gridComposing = true);
@@ -517,7 +519,7 @@ public partial class MainWindow : Window
                 if (cells.Contains(first) && cells.Contains(second))
                 { StartPaint(node, grid, p, regionEdge); e.Handled = true; return; }
             }
-            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) && cell is { } rangeEnd && node.Kind is not (ObjectKind.Line or ObjectKind.EdgeSelection)) { Surface.ActiveCell ??= rangeEnd; Surface.RangeEnd = rangeEnd; Surface.InvalidateVisual(); return; }
+            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) && cell is { } rangeEnd && node.Kind is not (ObjectKind.Line or ObjectKind.EdgeSelection)) { Surface.ActiveCell ??= rangeEnd; Surface.RangeEnd = rangeEnd; Viewport.Focus(); Surface.InvalidateVisual(); return; }
             if (node.Kind is ObjectKind.Border or ObjectKind.EdgeSelection && Surface.EdgeAt(grid, p, Zoom.Value) is { } edge) { StartPaint(node, grid, p, edge); e.Handled = true; return; }
             if (node.Kind == ObjectKind.EdgeSelection || cell is not { } c) return;
             if (node.Kind == ObjectKind.GridText) { SelectTextCell(c); e.Handled = true; return; }

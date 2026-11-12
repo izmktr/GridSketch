@@ -29,7 +29,7 @@ public partial class MainWindow
         bool opened = activeTab is not null;
         StartScreen.Visibility = opened ? Visibility.Collapsed : Visibility.Visible;
         EditorArea.Visibility = EditorToolbar.Visibility = TabStrip.Visibility = opened ? Visibility.Visible : Visibility.Collapsed;
-        foreach (var menu in new[] { CloseDocumentMenu, SaveDocumentMenu, SaveAsDocumentMenu, ExportDocumentMenu,
+        foreach (var menu in new[] { CloseDocumentMenu, SaveDocumentMenu, SaveAllDocumentMenu, SaveAsDocumentMenu, ExportDocumentMenu,
             ExportSettingsMenu, EditDocumentMenu, AddDocumentMenu, PartsDocumentMenu }) menu.IsEnabled = opened;
     }
 

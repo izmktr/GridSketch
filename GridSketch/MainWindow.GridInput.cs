@@ -179,7 +179,7 @@ public partial class MainWindow
         {
             EditGridKey(e.Key); FocusGridInput(); e.Handled = true;
         }
-        else if (e.Key == Key.Escape) { GridInput.Visibility = Visibility.Collapsed; e.Handled = true; }
+        else if (e.Key == Key.Escape) { GridInput.Visibility = Visibility.Collapsed; Viewport.Focus(); e.Handled = true; }
     }
 
     private void GridInputLostFocus(object sender, KeyboardFocusChangedEventArgs e)

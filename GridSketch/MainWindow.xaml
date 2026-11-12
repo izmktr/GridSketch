@@ -60,12 +60,13 @@
  <DockPanel>
   <Menu DockPanel.Dock="Top">
    <MenuItem Header="ファイル(_F)">
-    <MenuItem x:Name="CloseDocumentMenu" Header="タブを閉じる" Click="CloseTabClick"/>
+    <MenuItem x:Name="CloseDocumentMenu" Header="タブを閉じる" InputGestureText="Ctrl+W / Ctrl+F4" Click="CloseTabClick"/>
     <MenuItem Header="新規(_N)…" InputGestureText="Ctrl+N" Click="NewClick"/>
     <MenuItem Header="開く(_O)…" InputGestureText="Ctrl+O" Click="OpenClick"/>
     <MenuItem x:Name="RecentFilesMenu" Header="最近使ったファイル(_R)"/>
     <Separator/>
     <MenuItem x:Name="SaveDocumentMenu" Header="保存(_S)" InputGestureText="Ctrl+S" Click="SaveClick"/>
+    <MenuItem x:Name="SaveAllDocumentMenu" Header="すべて保存" InputGestureText="Ctrl+Shift+S" Click="SaveAllClick"/>
     <MenuItem x:Name="SaveAsDocumentMenu" Header="名前を付けて保存(_A)…" Click="SaveAsClick"/>
     <MenuItem x:Name="ExportDocumentMenu" Header="エクスポート(_E)"><MenuItem Header="PNG(_P)…" Click="ExportClick"/><MenuItem Header="PDF(_D)…" Click="ExportPdfClick"/><Separator/><MenuItem Header="一括エクスポート…" Click="BatchExportClick"/></MenuItem>
     <MenuItem x:Name="ExportSettingsMenu" Header="エクスポート設定…" Click="ExportSettingsClick"/>
@@ -101,7 +102,7 @@
    </MenuItem>
   </Menu>
   <ScrollViewer x:Name="TabStrip" DockPanel.Dock="Top" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-   <TabControl x:Name="DocumentTabs" SelectionChanged="DocumentTabChanged" MinHeight="36">
+   <TabControl x:Name="DocumentTabs" ToolTip="Ctrl+Tab：次のタブ／Ctrl+Shift+Tab：前のタブ" SelectionChanged="DocumentTabChanged" MinHeight="36">
     <TabControl.Template>
      <ControlTemplate TargetType="TabControl">
       <TabPanel IsItemsHost="True" Background="#E5EBF1" Margin="2,2,2,0"/>
@@ -112,17 +113,17 @@
   <Button x:Name="ApplyPartButton" DockPanel.Dock="Top" Content="ライブラリへ反映" Visibility="Collapsed" HorizontalAlignment="Left" Click="ApplyPartClick"/>
   <Border x:Name="EditorToolbar" DockPanel.Dock="Top" Background="White" Padding="8">
    <WrapPanel VerticalAlignment="Center">
-    <ToggleButton x:Name="MoveModeButton" Style="{StaticResource IconToggleStyle}" Width="36" Height="32" Margin="8,0,3,0" Click="ModeChanged" ToolTip="移動：オブジェクトを選択・ドラッグ移動" AutomationProperties.Name="移動モード">
+    <ToggleButton x:Name="MoveModeButton" Style="{StaticResource IconToggleStyle}" Width="36" Height="32" Margin="8,0,3,0" Click="ModeChanged" ToolTip="移動（V）：オブジェクトを選択・ドラッグ移動" AutomationProperties.Name="移動モード">
      <Path Data="M10,1 L10,19 M1,10 L19,10 M6,5 L10,1 14,5 M6,15 L10,19 14,15 M5,6 L1,10 5,14 M15,6 L19,10 15,14" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.6" Width="20" Height="20" Stretch="Uniform"/>
     </ToggleButton>
-    <ToggleButton x:Name="CellModeButton" Style="{StaticResource IconToggleStyle}" Width="36" Height="32" Margin="3,0,12,0" IsChecked="True" Click="ModeChanged" ToolTip="選択・編集：マスや辺をクリック・ドラッグで編集" AutomationProperties.Name="マス・辺の選択編集モード">
+    <ToggleButton x:Name="CellModeButton" Style="{StaticResource IconToggleStyle}" Width="36" Height="32" Margin="3,0,12,0" IsChecked="True" Click="ModeChanged" ToolTip="選択・編集（E）：マスや辺をクリック・ドラッグで編集" AutomationProperties.Name="マス・辺の選択編集モード">
      <Grid Width="20" Height="20">
       <Path Data="M1,1 L19,1 19,19 1,19 Z M10,1 L10,19 M1,10 L19,10" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.4" Stretch="Fill"/>
       <Rectangle Width="7" Height="7" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="2"/>
      </Grid>
     </ToggleButton>
     <TextBlock Text="表示" VerticalAlignment="Center"/><Slider x:Name="Zoom" IsTabStop="False" KeyboardNavigation.TabNavigation="None" VerticalAlignment="Center" Width="110" Minimum="0.25" Maximum="3" Value="1" TickFrequency="0.25" IsSnapToTickEnabled="True" ValueChanged="ZoomChanged" Margin="8,0"/>
-    <Button Content="キャンバスへ" Click="CenterClick"/>
+    <Button Content="キャンバスへ" ToolTip="Home：全体表示／Ctrl+0：100%" Click="CenterClick"/>
     <TextBlock Text="ガイド" VerticalAlignment="Center" Margin="12,0,4,0"/>
     <ComboBox Width="100" SelectedIndex="0" SelectionChanged="GuideModeChanged" AutomationProperties.Name="グリッドガイド" ToolTip="編集用の補助線です。PNG・PDFには出力されません。">
      <ComboBoxItem Content="自動"/><ComboBoxItem Content="常に表示"/><ComboBoxItem Content="非表示"/>
