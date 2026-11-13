@@ -102,6 +102,7 @@ public partial class MainWindow
             ApplyPartButton.Visibility = activeTab?.Owner is null ? Visibility.Collapsed : Visibility.Visible;
         }
         finally { updatingTabs = false; }
+        refreshPartLibrary?.Invoke();
     }
     private void DocumentTabChanged(object sender, SelectionChangedEventArgs e)
     {

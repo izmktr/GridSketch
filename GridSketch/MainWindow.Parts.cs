@@ -7,6 +7,8 @@ namespace GridSketch;
 
 public partial class MainWindow
 {
+    private Window? partLibraryWindow;
+    private Action? refreshPartLibrary;
     private const string PartFilter = "GridSketch部品|*.gspart";
     private string? PartName(Window owner, string current, string title)
     {
@@ -39,21 +41,33 @@ public partial class MainWindow
         Status.Text = "部品をインポートしました。ライブラリからコピーを追加できます。";
         return part.Id;
     }
-    private void PartLibraryClick(object sender, RoutedEventArgs e) => CreatePartLibraryWindow().ShowDialog();
+    private void PartLibraryClick(object sender, RoutedEventArgs e)
+    {
+        if (partLibraryWindow is { } existing)
+        {
+            if (existing.WindowState == WindowState.Minimized) existing.WindowState = WindowState.Normal;
+            existing.Activate(); return;
+        }
+        CreatePartLibraryWindow().Show();
+    }
     private Window CreatePartLibraryWindow()
     {
-        string parentId = AddParent(false).Id, sourceId = Selected.Id;
+        string parentId = AddParent(false).Id, sourceId = Selected.Id, lastSelection = Selected.Id;
+        SceneDocument? shownDocument = null;
+        var shownParts = new List<(string Id, string Name, SceneObject Template)>();
+        bool reloading = false;
         var dialog = new Window { Owner = this, Title = "部品ライブラリ", Width = 760, Height = 570, MinWidth = 620, MinHeight = 400, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        partLibraryWindow = dialog;
         var layout = new DockPanel { Margin = new Thickness(14) }; dialog.Content = layout;
-        var help = new TextBlock { Text = $"コピーの追加先：{document.Find(parentId)?.Name}\nこのプロジェクトに保存される部品です。登録・更新・削除は配置済みのコピーに影響しません。", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) };
+        var help = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) };
         DockPanel.SetDock(help, Dock.Top); layout.Children.Add(help);
         var actions = new WrapPanel(); DockPanel.SetDock(actions, Dock.Bottom); layout.Children.Add(actions);
         var list = new ListBox { Name = "PartList", HorizontalContentAlignment = HorizontalAlignment.Stretch }; layout.Children.Add(list);
         LibraryPart? SelectedPart() => list.SelectedItem is ListBoxItem { Tag: string id } ? document.Parts.FirstOrDefault(p => p.Id == id) : null;
         void Reload(string? selection = null)
         {
-            selection ??= SelectedPart()?.Id; list.Items.Clear();
-            foreach (var part in document.Parts)
+            selection ??= (list.SelectedItem as ListBoxItem)?.Tag as string; list.Items.Clear();
+            foreach (var part in activeTab is null ? Enumerable.Empty<LibraryPart>() : document.Parts)
             {
                 var scene = new SceneDocument(); scene.Canvas.Children.Add(part.Template);
                 var drawing = new SceneRenderer(scene).Drawing;
@@ -68,7 +82,7 @@ public partial class MainWindow
         Button AddButton(string label, Action action)
         {
             var button = new Button { Content = label }; actions.Children.Add(button);
-            button.Click += (_, _) => Try(action); return button;
+            button.Click += (_, _) => Try(() => { refreshPartLibrary?.Invoke(); action(); }); return button;
         }
         var insert = AddButton("コピーを追加", () =>
         {
@@ -77,14 +91,16 @@ public partial class MainWindow
             {
                 var parent = document.Find(parentId) ?? throw new InvalidOperationException("追加先がありません。");
                 var copy = document.InsertPart(part, parent); selectedId = copy.Id;
+                // Automatic selection of a new copy must not nest the next copy inside it.
+                lastSelection = copy.Id;
             });
         });
-        AddButton("別タブで編集", () =>
+        var edit = AddButton("別タブで編集", () =>
         {
             if (SelectedPart() is not { } part) return;
-            dialog.Close(); EditPartTab(part);
+            EditPartTab(part);
         });
-        AddButton("インポート…", () => { var id = ImportPart(dialog); Reload(id); });
+        var import = AddButton("インポート…", () => { var id = ImportPart(dialog); Reload(id); });
         var export = AddButton("エクスポート…", () =>
         {
             if (SelectedPart() is not { } part) return;
@@ -106,17 +122,48 @@ public partial class MainWindow
             var replacement = LibraryPart.FromGroup(source, name);
             Change(() => { part.Name = name; part.Template = replacement.Template; }); Reload(part.Id);
         });
-        update.ToolTip = "ライブラリを開いたときに選択していたグループまたはフレームで更新します。";
+        update.ToolTip = "本体で現在選択しているグループまたはフレームで更新します。";
         var delete = AddButton("登録を削除", () => { if (SelectedPart() is { } part) { Change(() => document.Parts.Remove(part)); Reload(); } });
         void UpdateButtons()
         {
-            bool selected = SelectedPart() is not null;
+            bool selected = activeTab is not null && SelectedPart() is not null;
+            import.IsEnabled = activeTab is not null;
             insert.IsEnabled = selected && document.Find(parentId) is { } parent && document.Editable(parent);
-            export.IsEnabled = rename.IsEnabled = delete.IsEnabled = selected;
+            edit.IsEnabled = export.IsEnabled = rename.IsEnabled = delete.IsEnabled = selected;
             update.IsEnabled = selected && document.Find(sourceId)?.Kind == ObjectKind.Group;
         }
-        list.SelectionChanged += (_, _) => UpdateButtons();
+        void RefreshLibrary()
+        {
+            if (reloading) return;
+            reloading = true;
+            try
+            {
+                bool changedDocument = !ReferenceEquals(shownDocument, document);
+                if (changedDocument || lastSelection != Selected.Id || document.Find(parentId) is null)
+                    parentId = AddParent(false).Id;
+                sourceId = Selected.Id; lastSelection = Selected.Id;
+                var parts = activeTab is null ? [] : document.Parts.Select(p => (p.Id, p.Name, p.Template)).ToList();
+                if (changedDocument || !parts.SequenceEqual(shownParts))
+                {
+                    shownDocument = document; shownParts = parts; Reload();
+                }
+                string title = activeTab?.Owner is not null ? "部品：" + activeTab.Name
+                    : path is null ? "無題" : System.IO.Path.GetFileName(path);
+                dialog.Title = activeTab is null ? "部品ライブラリ" : "部品ライブラリ — " + title;
+                help.Text = activeTab is null ? "プロジェクトを開くと部品を表示します。"
+                    : $"コピーの追加先：{document.Find(parentId)?.Name}\n現在のタブの部品を表示しています。本体で選択すると追加先が変わります。\n登録・更新・削除は配置済みのコピーに影響しません。";
+                UpdateButtons();
+            }
+            finally { reloading = false; }
+        }
+        list.SelectionChanged += (_, _) => { if (!reloading) UpdateButtons(); };
         AddButton("閉じる", () => dialog.Close());
-        Reload(); UpdateButtons(); return dialog;
+        refreshPartLibrary = RefreshLibrary;
+        dialog.Activated += (_, _) => RefreshLibrary();
+        dialog.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(partLibraryWindow, dialog)) { partLibraryWindow = null; refreshPartLibrary = null; }
+        };
+        RefreshLibrary(); return dialog;
     }
 }
