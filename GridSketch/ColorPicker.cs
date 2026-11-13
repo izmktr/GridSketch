@@ -10,7 +10,9 @@ public sealed partial class ColorPicker : Window
 {
     private readonly SaturationValueBox field = new();
     private readonly Slider hue = new() { Minimum = 0, Maximum = 360, Width = 32, Height = 260, Orientation = Orientation.Vertical, IsDirectionReversed = true };
-    private readonly Slider alpha = new() { Minimum = 0, Maximum = 255, TickFrequency = 1, IsSnapToTickEnabled = true, Width = 200 };
+    private readonly Slider alpha = new() { Minimum = 0, Maximum = 255,
+        Ticks = new DoubleCollection { 0x00, 0x20, 0x40, 0x60, 0x80, 0xA0, 0xC0, 0xE0, 0xFF },
+        SmallChange = 32, LargeChange = 32, IsSnapToTickEnabled = true, Width = 200 };
     private readonly TextBox hex = new();
     private readonly TextBox[] channels = [new(), new(), new(), new()];
     private readonly Border preview = Swatch();

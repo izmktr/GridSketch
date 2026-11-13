@@ -45,6 +45,21 @@ internal static class ColorPickerChecks
         hex.Text = "#2A82D2";
         var alpha = Find<Slider>(picker).Single(s => s.Maximum == 255); alpha.Value = 128;
         if (picker.SelectedColor.A != 128 || hex.Text != "#802A82D2") throw new Exception("Opacity synchronization failed");
+        double[] alphaSteps = [0x00, 0x20, 0x40, 0x60, 0x80, 0xA0, 0xC0, 0xE0, 0xFF];
+        if (!alpha.IsSnapToTickEnabled || !alpha.Ticks.SequenceEqual(alphaSteps)) throw new Exception("Opacity slider must have nine alpha steps");
+        alpha.Value = 0;
+        foreach (var step in alphaSteps.Skip(1))
+        {
+            Slider.IncreaseSmall.Execute(null, alpha);
+            if (alpha.Value != step || picker.SelectedColor.A != step) throw new Exception("Opacity step increase failed");
+        }
+        foreach (var step in alphaSteps.Reverse().Skip(1))
+        {
+            Slider.DecreaseSmall.Execute(null, alpha);
+            if (alpha.Value != step || picker.SelectedColor.A != step) throw new Exception("Opacity step decrease failed");
+        }
+        hex.Text = "#472A82D2";
+        if (picker.SelectedColor.A != 0x47) throw new Exception("Direct alpha input must retain exact values");
         var themes = Find<ToggleButton>(picker).ToList();
         if (themes.Count != 6) throw new Exception("Missing palette themes");
         foreach (var theme in themes)
