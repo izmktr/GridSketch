@@ -80,6 +80,7 @@
     <MenuItem Header="グリッド（方眼紙）…" Tag="Grid" Click="AddClick"/>
     <MenuItem Header="グリッド（独立マス）…" Tag="IndependentGrid" Click="AddClick"/>
     <MenuItem Header="グループ" Tag="Group" Click="AddClick"/>
+    <MenuItem Header="フレーム" Tag="Frame" Click="AddClick"/>
     <Separator/>
     <MenuItem Header="罫線" Tag="Border" Click="AddClick"/>
     <MenuItem Header="中心罫線（マスの中心をつなぐ）" Tag="CenterBorder" Click="AddClick"/>
@@ -96,7 +97,7 @@
    </MenuItem>
    <MenuItem x:Name="PartsDocumentMenu" Header="部品(_P)">
     <MenuItem Header="ライブラリ…" Click="PartLibraryClick"/>
-    <MenuItem Header="選択グループを登録…" Click="RegisterPartClick"/>
+    <MenuItem Header="選択グループ・フレームを登録…" Click="RegisterPartClick"/>
     <Separator/>
     <MenuItem Header="インポート…" Click="ImportPartClick"/>
    </MenuItem>

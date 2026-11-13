@@ -151,6 +151,7 @@ internal static class Program
             GridStructureChecks.Run(window);
             StrokeIconChecks.Run(window, Path.GetDirectoryName(temp)!);
             GroupLayoutChecks.Run(window, Path.GetDirectoryName(temp)!);
+            ContainerChecks.Run(window);
             MultiSelectionChecks.Run(window);
             PropertyHelpChecks.Run(window);
             ReparentDialogChecks.Run(window, Path.GetDirectoryName(temp)!);

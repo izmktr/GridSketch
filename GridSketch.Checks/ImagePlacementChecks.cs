@@ -23,6 +23,7 @@ internal static class ImagePlacementChecks
         Check(new SceneRenderer(scene).Bounds[node.Id] == bounds, "Free placement preserves a cell image's visible size and position");
         Check(!SceneDocument.RequiresGrid(group), "Free image and text no longer block group transforms");
         scene.EnableGroupTransform(group); Check(!group.OrganizeOnly, "Group can return to transform mode");
+        scene.ConvertContainer(group, true);
         scene.SetImageCellPlacement(node, true); scene.Validate();
         Check(node.SnapToCell && node.Column == 2 && node.Row == 2 && group.OrganizeOnly, "Cell placement picks nearest cell and prepares parent groups");
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;

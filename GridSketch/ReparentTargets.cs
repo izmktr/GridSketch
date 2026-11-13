@@ -25,7 +25,7 @@ public sealed partial class SceneDocument
         foreach (var candidate in All().Where(n => n.IsContainer && n != parent && !excluded.Contains(n.Id) && Editable(n)))
         {
             // Use the same mutation and validation as confirmation, on an isolated copy.
-            // This includes automatic group conversion, state limits and layout constraints.
+            // This includes container compatibility, state limits and layout constraints.
             var trial = Restore(snapshot);
             try
             {

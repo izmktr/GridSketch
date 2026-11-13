@@ -19,7 +19,7 @@ internal static class ReparentDialogChecks
         var grid = SceneDocument.CreateGrid("空のグリッド", 4, 4, 40);
         var secondGrid = SceneDocument.CreateGrid("空のグリッド", 4, 4, 40);
         var text = new SceneObject { Kind = ObjectKind.GridText };
-        var group = new SceneObject { Kind = ObjectKind.Group, Name = "整理用へ変換可能" };
+        var group = new SceneObject { Kind = ObjectKind.Group, OrganizeOnly = true, Name = "整理用グループ" };
         var transformed = new SceneObject { Kind = ObjectKind.Group, X = 5 };
         var selector = new SceneObject { Kind = ObjectKind.CellSelection };
         for (int i = 0; i < 128; i++) selector.States.Add(new() { Name = "状態" });
@@ -34,7 +34,7 @@ internal static class ReparentDialogChecks
         Check(gridTargets.Contains(group) && !gridTargets.Contains(transformed) && !gridTargets.Contains(secondGrid) && !gridTargets.Contains(scene.Canvas), "Grid-dependent targets do not respect conversion and grid boundaries");
         Check(!scene.ReparentTargets(grid).Contains(selector), "Grid offered as a cell selection template");
         Check(scene.ReparentTargets(scene.Canvas).Count == 0 && scene.ReparentTargets(locked.Children[0]).Count == 0, "Root or locked child allowed to move");
-        Check(scene.Snapshot() == before && !group.OrganizeOnly, "Building candidates changed the real document");
+        Check(scene.Snapshot() == before && group.OrganizeOnly, "Building candidates changed the real document");
         using (var unused = new DisposableDialog(new ReparentDialog(scene, text)))
         {
             var tree = PropertyChecks.Find<TreeView>(unused.Window, "移動先のレイヤー");

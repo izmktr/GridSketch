@@ -130,7 +130,10 @@ public sealed class SceneObject
     public string VerticalRotation { get; set; } = "右90°";
     [JsonIgnore] public bool IsContainer => Kind is ObjectKind.Canvas or ObjectKind.Group or ObjectKind.Grid or ObjectKind.CellSelection or ObjectKind.EdgeSelection;
     [JsonIgnore] public bool IsGridContent => Kind is ObjectKind.Border or ObjectKind.GridText or ObjectKind.Fill or ObjectKind.CellFrame or ObjectKind.CellSelection or ObjectKind.EdgeSelection || Kind == ObjectKind.Image && SnapToCell;
-    [JsonIgnore] public string Label => $"{(Visible ? "" : "非表示 · ")}{(Locked ? "🔒 " : "")}{Name}  [{(Kind == ObjectKind.Border && ConnectCellCenters ? "中心罫線" : KindName(Kind))}]";
+    [JsonIgnore] public bool IsOrganizer => Kind == ObjectKind.Group && OrganizeOnly;
+    [JsonIgnore] public bool IsFrame => Kind == ObjectKind.Group && !OrganizeOnly;
+    [JsonIgnore] public string DisplayKindName => IsFrame ? "フレーム" : Kind == ObjectKind.Border && ConnectCellCenters ? "中心罫線" : KindName(Kind);
+    [JsonIgnore] public string Label => $"{(Visible ? "" : "非表示 · ")}{(Locked ? "🔒 " : "")}{Name}  [{DisplayKindName}]";
     public static string KindName(ObjectKind kind) => kind switch
     {
         ObjectKind.Canvas => "キャンバス", ObjectKind.Group => "グループ", ObjectKind.Grid => "グリッド",
@@ -196,6 +199,12 @@ public sealed partial class SceneDocument
             if (!Editable(node) || !Editable(target)) throw new InvalidOperationException("ロックされています。");
             PrepareGridGroups(target);
             Parent(node)!.Children.Remove(node); target.Children.Insert(0, node); return;
+        }
+        if (node.IsOrganizer)
+        {
+            if (ContainerOperationError(d => d.ReparentOrganizer(d.Find(node.Id)!, d.Find(target.Id)!)) is { } error)
+                throw new InvalidOperationException(error);
+            ReparentOrganizer(node, target); return;
         }
         if (!Editable(node) || !Editable(target)) throw new InvalidOperationException("ロックされています。");
         var world = World(node); var inverse = World(target); inverse.Invert(); world.Append(inverse);

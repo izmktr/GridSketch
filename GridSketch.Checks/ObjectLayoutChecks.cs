@@ -67,8 +67,10 @@ internal static class ObjectLayoutChecks
         grid.Children.Add(gridGroup);
         var fitted = new SceneObject { Kind = ObjectKind.Shape, Width = 20, Height = 20, UseParentLayout = true, LayoutSizing = "収める" };
         gridGroup.Children.Add(fitted); before = scene.World(fitted);
+        var oldBounds = System.Windows.Rect.Transform(SceneDocument.OwnLayoutRect(fitted), before);
+        scene.ConvertContainer(gridGroup, true);
         gridGroup.Children.Add(new SceneObject { Kind = ObjectKind.GridText }); scene.PrepareGroupLayouts();
-        Check(gridGroup.OrganizeOnly && Same(before, scene.World(fitted)), "Automatic organizing conversion preserves existing child placement");
+        Check(gridGroup.OrganizeOnly && oldBounds == System.Windows.Rect.Transform(SceneDocument.OwnLayoutRect(fitted), scene.World(fitted)) && fitted.PreservedTransform is null, "Explicit conversion uses editable dimensions and preserves placement");
         scene.Validate();
 
         var flags = BindingFlags.Instance | BindingFlags.NonPublic;

@@ -84,7 +84,7 @@ internal static class LayerMenuChecks
         Click(Menu(template), "複製");
         Check(selector.States.Count == 2 && selector.States[1].ObjectId == selector.Children[1].Id, "Duplicating template adds a separate assignment");
         menu = Menu(template);
-        Check(!Entry(menu, "グループ解除").IsEnabled && Entry(menu, "親の変更…").IsEnabled && Entry(menu, "部品として登録…").IsEnabled,
+        Check(!Entry(menu, "フレーム解除").IsEnabled && Entry(menu, "親の変更…").IsEnabled && Entry(menu, "部品として登録…").IsEnabled,
             "Template restrictions and part registration reflected in menu");
         menu = Menu(scene.Canvas);
         Check(!Entry(menu, "複製").IsEnabled && !Entry(menu, "削除").IsEnabled && !Entry(menu, "ロック").IsEnabled, "Canvas restrictions reflected in menu");

@@ -22,7 +22,7 @@ public partial class MainWindow
     private void RegisterPartClick(object sender, RoutedEventArgs e) => Try(() =>
     {
         var node = Selected;
-        if (node.Kind != ObjectKind.Group) throw new InvalidOperationException("登録するグループをレイヤーから選択してください。");
+        if (node.Kind != ObjectKind.Group) throw new InvalidOperationException("登録するグループまたはフレームをレイヤーから選択してください。");
         var name = PartName(this, node.Name, "部品として登録"); if (name is null) return;
         var part = LibraryPart.FromGroup(node, name);
         Change(() => document.Parts.Add(part));
@@ -99,14 +99,14 @@ public partial class MainWindow
             var name = PartName(dialog, part.Name, "部品名を変更"); if (name is null) return;
             Change(() => part.Name = name); Reload(part.Id);
         });
-        var update = AddButton("選択グループで更新…", () =>
+        var update = AddButton("選択グループ・フレームで更新…", () =>
         {
             if (SelectedPart() is not { } part || document.Find(sourceId) is not { Kind: ObjectKind.Group } source) return;
             var name = PartName(dialog, part.Name, $"「{source.Name}」で登録内容を更新"); if (name is null) return;
             var replacement = LibraryPart.FromGroup(source, name);
             Change(() => { part.Name = name; part.Template = replacement.Template; }); Reload(part.Id);
         });
-        update.ToolTip = "ライブラリを開いたときに選択していたグループで更新します。";
+        update.ToolTip = "ライブラリを開いたときに選択していたグループまたはフレームで更新します。";
         var delete = AddButton("登録を削除", () => { if (SelectedPart() is { } part) { Change(() => document.Parts.Remove(part)); Reload(); } });
         void UpdateButtons()
         {

@@ -14,12 +14,11 @@ public partial class PropertyHelpWindow : Window
         cellSelectionContent = HelpScroll.Content;
     }
 
-    public static string TopicName(SceneObject node) => node.Kind == ObjectKind.Border && node.ConnectCellCenters
-        ? "中心罫線" : SceneObject.KindName(node.Kind);
+    public static string TopicName(SceneObject node) => node.DisplayKindName;
 
     public void ShowTopic(SceneObject node)
     {
-        string key = node.Kind + (node.Kind == ObjectKind.Border && node.ConnectCellCenters ? ":center" : "");
+        string key = node.DisplayKindName + (node.Kind == ObjectKind.Border && node.ConnectCellCenters ? ":center" : "");
         if (key == currentTopic) return;
         currentTopic = key;
         Title = HelpHeading.Text = TopicName(node) + "のヘルプ";

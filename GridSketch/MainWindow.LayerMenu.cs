@@ -44,7 +44,7 @@ public partial class MainWindow
         bool parentEditable = parent is not null && document.Editable(parent);
         void Item(string title, bool enabled, Action action)
         {
-            if (SelectedLayers().Count > 1 && title is not ("グループ化" or "親の変更…" or "複製先を選択…")) enabled = false;
+            if (SelectedLayers().Count > 1 && title is not ("グループ化" or "フレームにまとめる" or "親の変更…" or "複製先を選択…")) enabled = false;
             var entry = new MenuItem { Header = title, IsEnabled = enabled, InputGestureText = title switch { "削除" => "Delete", "複製" => "Ctrl+D", "名前の変更…" => "F2", _ => "" } };
             entry.Click += (_, _) => { if (enabled && document.Find(node.Id) is not null) { selectedId = node.Id; Try(action); } };
             menu.Items.Add(entry);
@@ -56,8 +56,21 @@ public partial class MainWindow
         menu.Items.Add(new Separator());
         Item("名前の変更…", editable, RenameLayer);
         Item("グループ化", GroupSelectionError() is null, () => WrapClick(this, new RoutedEventArgs()));
-        Item("グループ解除", node.Kind == ObjectKind.Group && editable && parent?.IsStateSelector != true
-            && node.Children.All(c => document.Editable(c)), () => UngroupClick(this, new RoutedEventArgs()));
+        var frameError = GroupSelectionError() ?? document.FrameWrapError(SelectedLayers());
+        Item("フレームにまとめる", frameError is null,
+            () => FrameWrapClick(this, new RoutedEventArgs()));
+        ((MenuItem)menu.Items[menu.Items.Count - 1]).ToolTip = frameError;
+        var unwrapError = document.UnwrapError(node);
+        Item(node.IsFrame ? "フレーム解除" : "グループ解除", unwrapError is null, () => UngroupClick(this, new RoutedEventArgs()));
+        ((MenuItem)menu.Items[menu.Items.Count - 1]).ToolTip = unwrapError;
+        if (node.Kind == ObjectKind.Group)
+        {
+            var conversionError = document.ConversionError(node, !node.OrganizeOnly);
+            Item(node.IsOrganizer ? "フレームに変換" : "グループに変換", conversionError is null,
+                () => Change(() => document.ConvertContainer(node, !node.OrganizeOnly)));
+            ((MenuItem)menu.Items[menu.Items.Count - 1]).ToolTip = conversionError;
+        }
+        foreach (var entry in menu.Items.OfType<MenuItem>()) ToolTipService.SetShowOnDisabled(entry, true);
         menu.Items.Add(new Separator());
         Item(node.Visible ? "非表示にする" : "表示する", !root && parentEditable, () => ToggleProperty(false));
         Item(node.Locked ? "ロック解除" : "ロック", !root && parentEditable, () => ToggleProperty(true));

@@ -150,7 +150,7 @@ public partial class MainWindow
         {
             FinishDrag(); var tab = activeTab!; var owner = tab.Owner ?? throw new InvalidOperationException("部品編集タブではありません。");
             if (document.Canvas.Children.Count != 1 || document.Canvas.Children[0].Kind != ObjectKind.Group)
-                throw new InvalidOperationException("部品はキャンバス直下の1つのグループにまとめてください。");
+                throw new InvalidOperationException("部品はキャンバス直下の1つのグループまたはフレームにまとめてください。");
             var part = owner.Document.Parts.FirstOrDefault(p => p.Id == tab.PartId) ?? throw new InvalidOperationException("元のライブラリから部品が削除されています。");
             if (PartVersion(part) != tab.PartVersion) throw new InvalidOperationException("元の部品が別の操作で更新されています。編集内容をプロジェクトとして保存し、部品タブを開き直してください。");
             var replacement = LibraryPart.FromGroup(document.Canvas.Children[0], part.Name);

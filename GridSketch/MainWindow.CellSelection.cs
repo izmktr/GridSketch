@@ -11,7 +11,7 @@ public partial class MainWindow
     {
         Label("状態");
         var targets = new List<StateTarget> { new(null, "未割り当て") };
-        targets.AddRange(node.Children.Select(c => new StateTarget(c.Id, c.Name + " [" + SceneObject.KindName(c.Kind) + "]")));
+        targets.AddRange(node.Children.Select(c => new StateTarget(c.Id, c.Name + " [" + c.DisplayKindName + "]")));
         var refreshRotations = new List<Action>();
         Border? activeMarker = null;
         void SetInsertionMarker(Border? next)

@@ -50,11 +50,11 @@ public sealed partial class SceneDocument
                 : new(new Rect(parent.X, parent.Y, parent.CanvasPixelWidth, parent.CanvasPixelHeight), null, "固定サイズのキャンバス");
         if (parent.Kind == ObjectKind.Group)
         {
-            if (!parent.HasLayoutFrame) return new(null, null, "このグループは従来方式です。親グループで固定の配置範囲を有効にしてください。");
+            if (!parent.HasLayoutFrame) return new(null, null, "このフレームは従来方式です。");
             var outer = new Rect(0, 0, parent.Width, parent.Height);
             Rect? inner = parent.LayoutHasInner ? new Rect(parent.LayoutInsetX, parent.LayoutInsetY,
                 Math.Max(0, parent.Width - 2 * parent.LayoutInsetX), Math.Max(0, parent.Height - 2 * parent.LayoutInsetY)) : null;
-            return new(outer, inner, "親グループ自身の配置範囲（拡縮前）");
+            return new(outer, inner, "親フレーム自身の配置範囲（拡縮前）");
         }
         if (parent.IsStateSelector && GridFor(parent) is { } cells)
             return CellRegions(cells, new(0, 0), "マス切り替えから渡される1マスの範囲");
@@ -157,7 +157,7 @@ public sealed partial class SceneDocument
             throw new InvalidDataException("内側の余白は自身のサイズの半分未満にしてください。");
         if (ObjectLayoutActive(node))
         {
-            if (node.Kind == ObjectKind.Group && !node.HasLayoutFrame) throw new InvalidDataException("親に合わせるグループには固定の配置範囲が必要です。");
+            if (node.Kind == ObjectKind.Group && !node.HasLayoutFrame) throw new InvalidDataException("親に合わせるフレームには固定の配置範囲が必要です。");
             var regions = ParentRegions(node);
             if (regions.Outer is not null && node.LayoutRegion == "親の内側" && regions.Inner is null)
                 throw new InvalidDataException("親は内側の範囲を持ちません。「親の外側」を選択してください。");

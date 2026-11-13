@@ -12,7 +12,7 @@ public sealed class LibraryPart
     public void Validate()
     {
         if (string.IsNullOrWhiteSpace(Id) || string.IsNullOrWhiteSpace(Name) || Name.Length > 200 || Template is null || Template.Kind != ObjectKind.Group)
-            throw new InvalidDataException("部品には名前（200文字以内）とグループが必要です。");
+            throw new InvalidDataException("部品には名前（200文字以内）とグループまたはフレームが必要です。");
         var check = new SceneDocument(); check.Canvas.Children.Add(Template); check.Validate();
     }
     public static LibraryPart FromGroup(SceneObject group, string name)

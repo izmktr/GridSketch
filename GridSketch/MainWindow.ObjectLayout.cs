@@ -16,6 +16,7 @@ public partial class MainWindow
                 "ずらし量 Y（px）", node.PlacementOffsetY, v => node.PlacementOffsetY = v);
             return;
         }
+        if (node.IsOrganizer) return;
         var regions = document.ParentRegions(node);
         string Describe(Rect r) => $"X {r.X:0.##}, Y {r.Y:0.##} / {r.Width:0.##} × {r.Height:0.##}";
         if (regions.Outer is not null || regions.Inner is not null) Label("親の配置範囲");
@@ -39,10 +40,12 @@ public partial class MainWindow
     }
     private void InitializeObjectLayout(SceneObject node, SceneObject parent)
     {
+        var layoutParent = parent;
+        while (layoutParent.IsOrganizer && document.Parent(layoutParent) is { } ancestor) layoutParent = ancestor;
         if (node.Kind != ObjectKind.Canvas && !node.IsGridContent && !(node.Kind == ObjectKind.Group && node.OrganizeOnly))
         {
             node.UseParentLayout = true; node.LayoutSizing = "固定";
-            node.LayoutRegion = parent.Kind == ObjectKind.Group && parent.LayoutHasInner ? "親の内側" : "親の外側";
+            node.LayoutRegion = layoutParent.IsFrame && layoutParent.LayoutHasInner ? "親の内側" : "親の外側";
         }
         if (node.Kind == ObjectKind.Image && node.ImageData is { } data)
         {
@@ -51,24 +54,12 @@ public partial class MainWindow
         }
         if (node.Kind == ObjectKind.Shape)
             node.Width = node.Height = document.InitialSquareSize(parent);
-        if (node.Kind == ObjectKind.Group) { node.HasLayoutFrame = true; node.Width = node.Height = 100; }
+        if (node.IsFrame) { node.HasLayoutFrame = true; node.Width = node.Height = 100; }
         if (document.CoordinateGrid(parent) is not null && SceneDocument.CanUseGridCoordinates(node))
             SceneDocument.InitializeGridCoordinates(node, (Surface.ActiveCell?.Column ?? 0) + 1, (Surface.ActiveCell?.Row ?? 0) + 1);
-        if (parent.IsStateSelector && parent.UseObjectLayout)
+        if (!node.IsOrganizer && layoutParent.IsStateSelector && layoutParent.UseObjectLayout)
         {
             node.UseParentLayout = true; node.LayoutRegion = "親の内側"; node.LayoutSizing = "固定"; node.LayoutAnchor = "中央";
-        }
-    }
-    private void InitializeWrappingFrame(SceneObject group, SceneObject node)
-    {
-        if (!node.UseParentLayout && document.SelectionOwner(node) is not { UseObjectLayout: true }) return;
-        var regions = document.ParentRegions(node);
-        if (regions.Outer is not { } outer) return;
-        group.HasLayoutFrame = true; group.Width = outer.Width; group.Height = outer.Height;
-        group.X = outer.X; group.Y = outer.Y;
-        if (regions.Inner is { } inner)
-        {
-            group.LayoutHasInner = true; group.LayoutInsetX = inner.X - outer.X; group.LayoutInsetY = inner.Y - outer.Y;
         }
     }
 }

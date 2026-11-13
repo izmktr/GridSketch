@@ -11,11 +11,11 @@ internal static class GroupLayoutChecks
         void Check(bool ok, string label) { if (!ok) throw new Exception(label); }
         var doc = new SceneDocument(); var grid = SceneDocument.CreateGrid("基本の方眼紙"); doc.Canvas.Children.Add(grid);
         var border = grid.Children.First(n => n.Kind == ObjectKind.Border);
-        var outer = new SceneObject { Kind = ObjectKind.Group }; var inner = new SceneObject { Kind = ObjectKind.Group };
+        var outer = new SceneObject { Kind = ObjectKind.Group, OrganizeOnly = true }; var inner = new SceneObject { Kind = ObjectKind.Group, OrganizeOnly = true };
         grid.Children.Add(outer); outer.Children.Add(inner);
         var bounds = new SceneRenderer(doc).OutputBounds;
         doc.Reparent(border, inner); doc.Validate();
-        Check(inner.OrganizeOnly && outer.OrganizeOnly && doc.GridFor(border) == grid, "Nested groups auto-convert and inherit grid");
+        Check(inner.OrganizeOnly && outer.OrganizeOnly && doc.GridFor(border) == grid, "Nested organizers inherit grid");
         Check(new SceneRenderer(doc).OutputBounds == bounds, "Grouping preserves drawing extent");
         inner.Visible = false; Check(!doc.Shown(border) && border.Visible, "Group hides children without changing visibility flags"); inner.Visible = true;
         try { doc.EnableGroupTransform(outer); throw new Exception("Dependent group enabled transforms"); } catch (InvalidOperationException) { }
@@ -24,6 +24,7 @@ internal static class GroupLayoutChecks
         outer.Angle = 15; var snapshot = doc.Snapshot();
         try { doc.Reparent(border, inner); throw new Exception("Transformed ancestor accepted content"); } catch (InvalidOperationException) { }
         Check(doc.Snapshot() == snapshot, "Failed conversion leaves hierarchy and group modes unchanged"); outer.Angle = 0;
+        doc.ConvertContainer(outer, true); doc.ConvertContainer(inner, true);
         doc.Reparent(border, inner);
         var other = SceneDocument.CreateGrid("空のグリッド"); doc.Canvas.Children.Add(other);
         try { doc.Reparent(outer, other); throw new Exception("Dependent group moved to another grid"); } catch (InvalidOperationException) { }
@@ -44,7 +45,7 @@ internal static class GroupLayoutChecks
         var added = doc.Parent(border)!;
         Check(added.Kind == ObjectKind.Group && added.OrganizeOnly, "UI grouping of a border auto-converts");
         var panel = (StackPanel)window.FindName("Properties");
-        Button RestoreButton() => PropertyChecks.Section(panel, "グループ").Children.OfType<Button>().Single(b => Equals(b.Content, "一括変形用に戻す"));
+        Button RestoreButton() => PropertyChecks.Section(panel, "グループ").Children.OfType<Button>().Single(b => Equals(b.Content, "フレームに変換"));
         Check(!RestoreButton().IsEnabled, "Restore button disabled while dependent content exists");
         Set("selectedId", border.Id); Call("RefreshAll"); Call("Change", new Action(() => doc.ReparentMany(new[] { border }, inner)));
         Check(doc.Parent(border) == inner, "Dependent content can leave organizer within its grid");

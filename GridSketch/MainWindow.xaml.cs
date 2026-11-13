@@ -185,11 +185,17 @@ public partial class MainWindow : Window
             Properties.IsEnabled = SelectedLayers().All(document.Editable);
             VisibilityToggle.Visibility = LockToggle.Visibility = Visibility.Collapsed; PropertyLockNotice.Visibility = Visibility.Collapsed;
             Label($"{SelectedLayers().Count}個のレイヤーを選択中");
-            if (GroupSelectionError() is { } error) Label(error);
+            var groupError = GroupSelectionError();
+            if (groupError is not null) Label(groupError);
             Button("グループ化", () => WrapClick(this, new RoutedEventArgs()));
+            ((Button)Properties.Children[Properties.Children.Count - 1]).IsEnabled = groupError is null;
+            Button("フレームにまとめる", () => FrameWrapClick(this, new RoutedEventArgs()));
+            var frameError = groupError ?? document.FrameWrapError(SelectedLayers());
+            ((Button)Properties.Children[Properties.Children.Count - 1]).IsEnabled = frameError is null;
+            if (frameError is not null && frameError != groupError) Label(frameError);
             return;
         }
-        var node = Selected; Label(node.Kind == ObjectKind.Border && node.ConnectCellCenters ? "中心罫線" : SceneObject.KindName(node.Kind)); TextField("名前", node.Name, v => node.Name = v);
+        var node = Selected; Label(node.DisplayKindName); TextField("名前", node.Name, v => node.Name = v);
         UpdatePropertyToggles();
 
         if (node.Kind == ObjectKind.Text) TextField("文章", node.Text, v => node.Text = v, true);
@@ -216,7 +222,7 @@ public partial class MainWindow : Window
         else if (!gridCoordinates && !node.IsGridContent && !(node.Kind == ObjectKind.Group && node.OrganizeOnly)) { Section("位置・回転"); Pair(document.SelectionOwner(node)?.UseCellLayout == true ? "位置 X（ずらし量）" : "位置 X（px）", node.X, v => node.X = v, document.SelectionOwner(node)?.UseCellLayout == true ? "位置 Y（ずらし量）" : "位置 Y（px）", node.Y, v => node.Y = v); Number("回転（度 / オブジェクト中央）", node.Angle, v => node.Angle = v); }
         Section(node.Kind switch
         {
-            ObjectKind.Group => "グループ", ObjectKind.Grid => "グリッド", ObjectKind.Border => "線の見た目",
+            ObjectKind.Group => node.DisplayKindName, ObjectKind.Grid => "グリッド", ObjectKind.Border => "線の見た目",
             ObjectKind.GridText or ObjectKind.Text => "文字", ObjectKind.CellSelection or ObjectKind.EdgeSelection => "状態",
             ObjectKind.Image => "サイズ・配置", ObjectKind.Shape => "図形", ObjectKind.Line => "経路",
             ObjectKind.Fill => "塗り", _ => "設定"
@@ -397,8 +403,8 @@ public partial class MainWindow : Window
     private void AddClick(object sender, RoutedEventArgs e) => Try(() =>
     {
         if (sender is not MenuItem { Tag: string tag }) return;
-        bool independent = tag == "IndependentGrid", centerBorder = tag == "CenterBorder";
-        if (!Enum.TryParse<ObjectKind>(independent ? "Grid" : centerBorder ? "Border" : tag, out var kind)) return;
+        bool independent = tag == "IndependentGrid", centerBorder = tag == "CenterBorder", frame = tag == "Frame";
+        if (!Enum.TryParse<ObjectKind>(independent ? "Grid" : centerBorder ? "Border" : frame ? "Group" : tag, out var kind)) return;
         if (kind == ObjectKind.Grid)
         {
             var grid = GridDialog(false, independent ? "独立マス" : "基本の方眼紙"); if (grid is null) return;
@@ -408,7 +414,7 @@ public partial class MainWindow : Window
         Change(() =>
         {
             var (parent, index) = AddPlacement(kind is ObjectKind.Border or ObjectKind.GridText or ObjectKind.Fill or ObjectKind.CellFrame or ObjectKind.CellSelection or ObjectKind.EdgeSelection); RequireEditable(parent);
-            var node = new SceneObject { Kind = kind, Name = centerBorder ? "中心罫線" : SceneObject.KindName(kind), ConnectCellCenters = centerBorder, UseCellLayout = kind is ObjectKind.CellSelection or ObjectKind.EdgeSelection, UseObjectLayout = kind is ObjectKind.CellSelection or ObjectKind.EdgeSelection, ImageData = image };
+            var node = new SceneObject { Kind = kind, OrganizeOnly = kind == ObjectKind.Group && !frame, Name = frame ? "フレーム" : centerBorder ? "中心罫線" : SceneObject.KindName(kind), ConnectCellCenters = centerBorder, UseCellLayout = kind is ObjectKind.CellSelection or ObjectKind.EdgeSelection, UseObjectLayout = kind is ObjectKind.CellSelection or ObjectKind.EdgeSelection, ImageData = image };
             InitializeObjectLayout(node, parent);
             if (kind == ObjectKind.Image && parent.Kind == ObjectKind.Grid && !node.GridColumn.HasValue) { node.SnapToCell = true; node.Column = Surface.ActiveCell?.Column ?? 0; node.Row = Surface.ActiveCell?.Row ?? 0; }
             if (kind == ObjectKind.Fill) node.Color = "#000000";
@@ -467,29 +473,19 @@ public partial class MainWindow : Window
         if (node.Children.Count > 0 && MessageBox.Show(this, "子オブジェクトも削除しますか？", "削除", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
         Change(() => { var parent = document.Parent(node)!; parent.Children.Remove(node); selectedId = parent.Id; Surface.ActiveCell = null; Surface.RangeEnd = null; });
     });
-    private void WrapClick(object sender, RoutedEventArgs e) => Change(() =>
+    private void WrapClick(object sender, RoutedEventArgs e) => WrapSelection(false);
+    private void FrameWrapClick(object sender, RoutedEventArgs e) => WrapSelection(true);
+    private void WrapSelection(bool frame) => Change(() =>
     {
         if (GroupSelectionError() is { } error) throw new InvalidOperationException(error);
-        var nodes = SelectedLayers(); var parent = document.Parent(nodes[0])!;
-        nodes = parent.Children.Where(n => nodes.Contains(n)).ToList();
-        int index = parent.Children.IndexOf(nodes[0]);
-        var group = new SceneObject { Kind = ObjectKind.Group, Name = "グループ" };
-        InitializeWrappingFrame(group, nodes.FirstOrDefault(n => n.UseParentLayout) ?? nodes[0]);
-        parent.Children.Insert(index, group);
-        document.AdoptGridCoordinates(group);
-        foreach (var node in nodes) document.Reparent(node, group);
-        group.Children = nodes;
-        if (parent.IsStateSelector)
-            foreach (var state in parent.States.Where(s => s.ObjectId == nodes[0].Id)) state.ObjectId = group.Id;
-        layerSelection.Clear(); layerSelection.Add(group.Id); selectedId = group.Id;
+        var container = document.WrapContainers(SelectedLayers(), frame);
+        layerSelection.Clear(); layerSelection.Add(container.Id); selectedId = container.Id;
     });
     private void UngroupClick(object sender, RoutedEventArgs e) => Change(() =>
     {
-        RequireSingleLayer(); var node = Selected; RequireEditable(node); if (node.Kind != ObjectKind.Group) throw new InvalidOperationException("通常のグループを選択してください。");
-        var parent = document.Parent(node)!;
-        if (parent.IsStateSelector) throw new InvalidOperationException("見本グループは解除せず、子を個別に移動して割り当て直してください。");
-        var children = node.Children.ToList(); int index = parent.Children.IndexOf(node);
-        foreach (var child in children) document.Reparent(child, parent); foreach (var child in children) parent.Children.Remove(child); parent.Children.Remove(node); parent.Children.InsertRange(index, children); selectedId = parent.Id;
+        RequireSingleLayer(); var node = Selected;
+        var parent = document.Parent(node);
+        document.UnwrapContainer(node); selectedId = parent!.Id;
     });
     private void ModeChanged(object sender, RoutedEventArgs e)
     {
