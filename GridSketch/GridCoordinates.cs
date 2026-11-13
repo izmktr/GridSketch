@@ -24,11 +24,29 @@ public sealed partial class SceneDocument
         node.UseParentLayout = true;
         node.LayoutRegion = "親の内側"; node.LayoutAnchor = "中央"; node.LayoutSizing = "固定";
         if (node.Kind == ObjectKind.Group) node.HasLayoutFrame = true;
+        if (node.Kind == ObjectKind.Line && node.PointLine) ClearLinePlacement(node);
     }
 
     // Import legacy pixel placements without changing their rendered position or size.
     public void AdoptGridCoordinates(SceneObject node)
     {
+        if (node.Kind == ObjectKind.Line)
+        {
+            if (!node.PointLine) NormalizeLine(node);
+            else if (CoordinateGrid(Parent(node)) is { } lineGrid)
+            {
+                if (!UsesGridCoordinates(node)) SetLineStart(node, new(node.X, node.Y));
+                else
+                {
+                    if (node.LineCellWidth > 0 && node.LineCellHeight > 0)
+                        ScaleLinePoints(node, lineGrid.CellSize / node.LineCellWidth, lineGrid.CellHeight / node.LineCellHeight);
+                    node.LineCellWidth = lineGrid.CellSize; node.LineCellHeight = lineGrid.CellHeight;
+                }
+            }
+            else if (node.GridColumn.HasValue && node.LineCellWidth > 0 && node.LineCellHeight > 0)
+                SetLineStart(node, new((node.GridColumn.Value - .5) * node.LineCellWidth, (node.GridRow!.Value - .5) * node.LineCellHeight));
+            return;
+        }
         if (UsesGridCoordinates(node) || !CanUseGridCoordinates(node) || CoordinateGrid(Parent(node)) is not { } grid) return;
         var matrix = EffectiveLocalMatrix(node);
         var original = matrix;

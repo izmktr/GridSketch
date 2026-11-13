@@ -56,6 +56,8 @@ public sealed partial class SceneDocument
         {
             if (UsesGridCoordinates(node))
             {
+                var lineEnd = node.Kind == ObjectKind.Line && node.PointLine ? LinePoint(node, LineHandle.End) : new System.Windows.Point();
+                var lineControl = node.Kind == ObjectKind.Line && node.PointLine ? LinePoint(node, LineHandle.Control) : new System.Windows.Point();
                 double coordinate = (rows ? node.GridRow : node.GridColumn)!.Value - 1;
                 if (delete && coordinate >= start && coordinate < start + count)
                 { Parent(node)!.Children.Remove(node); continue; }
@@ -63,6 +65,17 @@ public sealed partial class SceneDocument
                 {
                     if (rows) node.GridRow += delete ? -count : count;
                     else node.GridColumn += delete ? -count : count;
+                }
+                if (node.Kind == ObjectKind.Line && node.PointLine)
+                {
+                    double MapPoint(double value)
+                    {
+                        double index = value - 1;
+                        return index < start ? value : delete && index < start + count ? start + 1 : value + (delete ? -count : count);
+                    }
+                    if (rows) { lineEnd.Y = MapPoint(lineEnd.Y); lineControl.Y = MapPoint(lineControl.Y); }
+                    else { lineEnd.X = MapPoint(lineEnd.X); lineControl.X = MapPoint(lineControl.X); }
+                    SetLinePoint(node, LineHandle.End, lineEnd); SetLinePoint(node, LineHandle.Control, lineControl);
                 }
             }
             node.Glyphs.RemoveAll(g => Removed(rows ? g.Row : g.Column));

@@ -77,10 +77,10 @@ internal static class GridCoordinateChecks
         typeof(MainWindow).GetField("selectedId", flags)!.SetValue(window, line.Id);
         typeof(MainWindow).GetMethod("RefreshAll", flags)!.Invoke(window, null);
         var panel = (StackPanel)window.FindName("Properties");
-        PropertyChecks.Find<TextBox>(panel, "列（マス座標）").Text = "2.5";
-        PropertyChecks.Find<TextBox>(panel, "ずらし量 X（px）").Text = "3";
+        PropertyChecks.Find<TextBox>(panel, "始点 X（マス座標）").Text = "2.5";
+        PropertyChecks.Find<TextBox>(panel, "終点 Y（マス座標）").Text = "3";
         LivePropertyChecks.Commit(window);
-        Check(line.GridColumn == 2.5 && line.PlacementOffsetX == 3, "Coordinate and placement editors change independent values");
+        Check(line.GridColumn == 2.5 && doc.LinePoint(line, LineHandle.End).Y == 3 && line.PlacementOffsetX == 0, "Line point editors use absolute cell coordinates");
         var organizer = new SceneObject { Kind = ObjectKind.Group, OrganizeOnly = true };
         var nestedOrganizer = new SceneObject { Kind = ObjectKind.Group, OrganizeOnly = true };
         other.Children.Add(organizer); organizer.Children.Add(nestedOrganizer);

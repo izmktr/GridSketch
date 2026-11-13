@@ -159,6 +159,7 @@ internal static class Program
             TabChecks.Run(window, Path.GetDirectoryName(temp)!);
             ShortcutChecks.Run(window, Path.GetDirectoryName(temp)!);
             GridCoordinateChecks.Run(window, Path.GetDirectoryName(temp)!);
+            LineCoordinateChecks.Run(window, Path.GetDirectoryName(temp)!);
             PropertySectionChecks.Run(window, Path.GetDirectoryName(temp)!);
             window.Close(); app.Shutdown();
             Console.WriteLine("All checks passed.");

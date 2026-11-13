@@ -134,7 +134,7 @@ public partial class MainWindow
     private void TemplateProperties(SceneObject node)
     {
         if (document.SelectionOwner(node) is not { } owner) return;
-        if (node.Kind != ObjectKind.Group && !owner.UseObjectLayout)
+        if (node.Kind is not (ObjectKind.Group or ObjectKind.Line) && !owner.UseObjectLayout)
         {
             RegionIcons("配置領域", node.TemplateRegion, "マス全体", "余白の内側", v => node.TemplateRegion = v);
             SizeIcons("領域への収め方", node.TemplateSizing, v => node.TemplateSizing = v, template: true);

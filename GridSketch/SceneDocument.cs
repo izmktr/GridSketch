@@ -116,6 +116,9 @@ public sealed class SceneObject
     public string Shape { get; set; } = "四角";
     public string FillColor { get; set; } = "#FFFFFF";
     public string PathKind { get; set; } = "直線";
+    public bool PointLine { get; set; }
+    public double LineCellWidth { get; set; }
+    public double LineCellHeight { get; set; }
     public double EndX { get; set; } = 120;
     public double EndY { get; set; } = 60;
     public double ControlX { get; set; } = 60;
@@ -165,6 +168,7 @@ public sealed partial class SceneDocument
     private static Matrix LocalMatrix(SceneObject node, bool rotate)
     {
         var matrix = Matrix.Identity;
+        if (node.Kind == ObjectKind.Line && node.PointLine) { matrix.Translate(node.X, node.Y); return matrix; }
         if (node.Kind == ObjectKind.Canvas || node.Kind == ObjectKind.Group && node.OrganizeOnly) return matrix;
         if (node.PreservedTransform is { } preserved) matrix = preserved.Matrix;
         if (rotate) RotateAroundCenter(ref matrix, node);
@@ -188,6 +192,12 @@ public sealed partial class SceneDocument
     public void Reparent(SceneObject node, SceneObject target)
     {
         if (node == Canvas || !target.IsContainer || node == target || Walk(node).Contains(target)) throw new InvalidOperationException("この親には移動できません。");
+        if (node.Kind == ObjectKind.Line && node.PointLine)
+        {
+            if (ContainerOperationError(d => d.ReparentPointLine(d.Find(node.Id)!, d.Find(target.Id)!)) is { } lineError)
+                throw new InvalidOperationException(lineError);
+            ReparentPointLine(node, target); return;
+        }
         if (UsesGridCoordinates(node) && CoordinateGrid(target) is not null)
         {
             if (!Editable(node) || !Editable(target)) throw new InvalidOperationException("ロックされています。");
@@ -345,6 +355,7 @@ public sealed partial class SceneDocument
             PruneRegionLinks(frame, resized);
         }
         grid.Columns = columns; grid.Rows = rows; grid.CellSize = cellSize; grid.SeparateCellHeight = separateCellHeight; grid.Margin = margin; grid.MarginY = verticalMargin ?? margin;
+        foreach (var line in GridMembers(grid).Where(n => n.Kind == ObjectKind.Line && n.PointLine)) AdoptGridCoordinates(line);
     }
 
     public List<Glyph> PlanText(SceneObject text, int column, int row, string input, bool vertical)
@@ -392,6 +403,8 @@ public sealed partial class SceneDocument
             if (node.FrameCells is null || node.RegionLinks is null || !double.IsFinite(node.MarginY)) throw new InvalidDataException("領域枠またはマス内余白が不正です。");
             if (node.BorderEndCap is not (null or "中央まで" or "四角" or "丸")) throw new InvalidDataException("罫線の端の形が不正です。");
             if (node.Style is null || !double.IsFinite(node.Style.OutlineWidth) || node.Style.OutlineWidth < 0 || node.Style.OutlineWidth > 64) throw new InvalidDataException("縁取りの太さは0～64pxで指定してください。");
+            if (!double.IsFinite(node.LineCellWidth) || !double.IsFinite(node.LineCellHeight) || node.LineCellWidth < 0 || node.LineCellHeight < 0)
+                throw new InvalidDataException("ラインのマス寸法が不正です。");
             _ = (Color)ColorConverter.ConvertFromString(node.Style.OutlineColor);
             if (parent is not null && (node.Kind == ObjectKind.Canvas || !parent.IsContainer)) throw new InvalidDataException("不正な親子構造です。");
             if (node.IsGridContent && (GridFor(node) is null || node.Angle != 0)) throw new InvalidDataException("マスに配置する内容はグリッド内で管理し、個別に回転できません。");

@@ -6,6 +6,7 @@ public partial class MainWindow
 {
     private void ObjectLayoutProperties(SceneObject node)
     {
+        if (node.Kind == ObjectKind.Line) return;
         if (document.UsesGridCoordinates(node))
         {
             RegionIcons("基準", node.LayoutRegion == "親の内側" ? "余白の内側" : "マス全体", "マス全体", "余白の内側",
@@ -40,6 +41,18 @@ public partial class MainWindow
     }
     private void InitializeObjectLayout(SceneObject node, SceneObject parent)
     {
+        if (node.Kind == ObjectKind.Line)
+        {
+            node.PointLine = true;
+            if (document.CoordinateGrid(parent) is { } lineGrid)
+            {
+                node.GridColumn = (Surface.ActiveCell?.Column ?? 0) + 1; node.GridRow = (Surface.ActiveCell?.Row ?? 0) + 1;
+                node.EndX = lineGrid.CellSize * 2; node.EndY = lineGrid.CellHeight;
+                node.ControlX = lineGrid.CellSize; node.ControlY = -lineGrid.CellHeight;
+                node.LineCellWidth = lineGrid.CellSize; node.LineCellHeight = lineGrid.CellHeight;
+            }
+            return;
+        }
         var layoutParent = parent;
         while (layoutParent.IsOrganizer && document.Parent(layoutParent) is { } ancestor) layoutParent = ancestor;
         if (node.Kind != ObjectKind.Canvas && !node.IsGridContent && !(node.Kind == ObjectKind.Group && node.OrganizeOnly))

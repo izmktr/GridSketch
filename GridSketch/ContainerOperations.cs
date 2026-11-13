@@ -30,6 +30,7 @@ public sealed partial class SceneDocument
     // scaling must never become an invisible compensation matrix.
     private void SetEditablePlacement(SceneObject node, Matrix local)
     {
+        if (node.Kind == ObjectKind.Line) { NormalizeLine(node, local, false); return; }
         double sx = Math.Sqrt(local.M11 * local.M11 + local.M12 * local.M12);
         double sy = Math.Sqrt(local.M21 * local.M21 + local.M22 * local.M22);
         if (local.Determinant <= 0 || Math.Abs(local.M11 * local.M21 + local.M12 * local.M22) > 1e-7 * sx * sy)
@@ -78,9 +79,12 @@ public sealed partial class SceneDocument
         RequireContainerEditable(node);
         if (!Editable(target)) throw new InvalidOperationException("ロックされています。");
         var roots = PlacementRoots(node.Children).ToList();
+        var gridLines = roots.Where(n => n.Kind == ObjectKind.Line && n.PointLine && UsesGridCoordinates(n)).ToList();
         var placements = roots.Where(n => !(UsesGridCoordinates(n) && CoordinateGrid(target) is not null))
             .ToDictionary(n => n, World);
         Parent(node)!.Children.Remove(node); target.Children.Insert(0, node);
+        if (CoordinateGrid(target) is not null)
+            foreach (var line in gridLines) AdoptGridCoordinates(line);
         if (target.IsStateSelector) AssignNewState(target, node);
         RestorePlacements(placements);
     }

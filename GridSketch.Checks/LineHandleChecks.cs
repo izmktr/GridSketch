@@ -12,12 +12,13 @@ internal static class LineHandleChecks
         var scene = new SceneDocument(); var group = new SceneObject { Kind = ObjectKind.Group, X = 50, Y = 30, Angle = 30 };
         scene.Canvas.Children.Add(group);
         var line = new SceneObject { Kind = ObjectKind.Line, X = 20, Y = 40, Angle = 20, EndX = 120, EndY = 30, ControlX = 60, ControlY = -50, PathKind = "曲線" }; group.Children.Add(line);
+        scene.NormalizeLine(line); var initialX = line.X; var initialY = line.Y;
         Point World(Point p) => scene.World(line).Transform(p);
         var end = World(new(line.EndX, line.EndY)); var control = World(new(line.ControlX, line.ControlY));
         var drag = new LineHandleDrag(scene, line, LineHandle.Start); drag.Move(new Vector(20, 10), 1); scene.Validate();
         Check((World(new(line.EndX, line.EndY)) - end).Length < 1e-7 && (World(new(line.ControlX, line.ControlY)) - control).Length < 1e-7,
             "Moving the start must keep end/control fixed under rotated ancestors");
-        drag.Move(new Vector(), 1); Check(line.X == 20 && line.Y == 40 && line.Angle == 20, "Returning to drag origin restores the original transform");
+        drag.Move(new Vector(), 1); Check(line.X == initialX && line.Y == initialY && line.Angle == 0, "Returning to drag origin restores the original transform");
         var start = World(new Point());
         drag = new LineHandleDrag(scene, line, LineHandle.End); drag.Move(new Vector(25, -12), 2); scene.Validate();
         Check((World(new Point()) - start).Length < 1e-7 && (World(new(line.ControlX, line.ControlY)) - control).Length < 1e-7, "Moving end preserves start and control");

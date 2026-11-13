@@ -78,7 +78,7 @@ public sealed class SceneRenderer
                     foreach (var cell in node.StateCells)
                     {
                         if (!states.TryGetValue(cell.StateId, out var state) || state.ObjectId is null || !templates.TryGetValue(state.ObjectId, out var template)) continue;
-                        if (node.UseCellLayout || node.UseObjectLayout)
+                        if (node.UseCellLayout || node.UseObjectLayout || node.Children.Any(c => c.Id == state.ObjectId && c.Kind == ObjectKind.Line && c.PointLine))
                         {
                             var fullCell = SceneDocument.CellRect(grid, new(cell.Column, cell.Row), false);
                             dc.PushClip(new RectangleGeometry(fullCell));
@@ -218,6 +218,7 @@ public sealed class SceneRenderer
         var result = new DrawingGroup();
         using var dc = result.Open();
         if (!node.Visible) return result;
+        if (node.Kind == ObjectKind.Line && node.PointLine) { dc.DrawDrawing(ObjectTemplate(node)); return result; }
         if (node.Kind == ObjectKind.Group)
         {
             // Groups pass both regions through unchanged. Sibling bounds never determine scale.
@@ -464,7 +465,7 @@ public sealed partial class SceneSurface : FrameworkElement
                     dc.DrawRectangle(null, new Pen(Brushes.DodgerBlue, 1) { DashStyle = DashStyles.Dash }, SceneDocument.OwnLayoutRect(selected)); dc.Pop();
                 }
                 else dc.DrawRectangle(null, new Pen(Brushes.DodgerBlue, 1) { DashStyle = DashStyles.Dash }, selectedBounds);
-                if (!selected.IsGridContent && Renderer.Document.SelectionOwner(selected) is null && Renderer.Document.Parent(selected) is { } parent)
+                if (selected.Kind != ObjectKind.Line && !selected.IsGridContent && Renderer.Document.SelectionOwner(selected) is null && Renderer.Document.Parent(selected) is { } parent)
                 {
                     var regions = Renderer.Document.ParentRegions(selected);
                     dc.PushTransform(new MatrixTransform(Renderer.Document.World(parent)));

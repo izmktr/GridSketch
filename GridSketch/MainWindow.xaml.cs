@@ -203,7 +203,7 @@ public partial class MainWindow : Window
         void Section(string title, bool initial = true, Func<string>? summary = null)
             => sections.Add(new(title, Properties.Children.Count, initial, summary));
         bool gridCoordinates = document.UsesGridCoordinates(node);
-        if (gridCoordinates)
+        if (gridCoordinates && node.Kind != ObjectKind.Line)
         {
             Section("マス座標");
             Pair("列（マス座標）", node.GridColumn!.Value, v => node.GridColumn = v,
@@ -219,7 +219,7 @@ public partial class MainWindow : Window
             Section("キャンバス");
             CanvasSettings(Properties, node, Surface.Renderer!.OutputBounds);
         }
-        else if (!gridCoordinates && !node.IsGridContent && !(node.Kind == ObjectKind.Group && node.OrganizeOnly)) { Section("位置・回転"); Pair(document.SelectionOwner(node)?.UseCellLayout == true ? "位置 X（ずらし量）" : "位置 X（px）", node.X, v => node.X = v, document.SelectionOwner(node)?.UseCellLayout == true ? "位置 Y（ずらし量）" : "位置 Y（px）", node.Y, v => node.Y = v); Number("回転（度 / オブジェクト中央）", node.Angle, v => node.Angle = v); }
+        else if (node.Kind != ObjectKind.Line && !gridCoordinates && !node.IsGridContent && !(node.Kind == ObjectKind.Group && node.OrganizeOnly)) { Section("位置・回転"); Pair(document.SelectionOwner(node)?.UseCellLayout == true ? "位置 X（ずらし量）" : "位置 X（px）", node.X, v => node.X = v, document.SelectionOwner(node)?.UseCellLayout == true ? "位置 Y（ずらし量）" : "位置 Y（px）", node.Y, v => node.Y = v); Number("回転（度 / オブジェクト中央）", node.Angle, v => node.Angle = v); }
         Section(node.Kind switch
         {
             ObjectKind.Group => node.DisplayKindName, ObjectKind.Grid => "グリッド", ObjectKind.Border => "線の見た目",
@@ -287,8 +287,19 @@ public partial class MainWindow : Window
                 ColorField("塗り色", node.FillColor, v => node.FillColor = v); ColorField("線の色", node.Color, v => node.Color = v); Number("線の太さ", node.Thickness, v => node.Thickness = v, 0, 64); break;
             case ObjectKind.Line:
                 Choice("経路", node.PathKind, ["直線", "折れ線", "曲線"], v => node.PathKind = v);
-                Pair("終点 X（始点から）", node.EndX, v => node.EndX = v, "終点 Y（始点から）", node.EndY, v => node.EndY = v);
-                Pair("制御点 X（始点から）", node.ControlX, v => node.ControlX = v, "制御点 Y（始点から）", node.ControlY, v => node.ControlY = v);
+                var pathChoice = (ComboBox)Properties.Children[Properties.Children.Count - 1];
+                LinePointFields(node, LineHandle.Start, "始点");
+                LinePointFields(node, LineHandle.End, "終点");
+                int controlStart = Properties.Children.Count;
+                LinePointFields(node, LineHandle.Control, "制御点");
+                var controlFields = Properties.Children.Cast<UIElement>().Skip(controlStart).ToList();
+                void UpdateControlFields()
+                {
+                    foreach (var field in controlFields)
+                        field.Visibility = node.PathKind == "直線" ? Visibility.Collapsed : Visibility.Visible;
+                }
+                UpdateControlFields();
+                pathChoice.SelectionChanged += (_, _) => UpdateControlFields();
                 Section("矢印");
                 Choice("始点の矢印", node.StartArrow, ["なし", "三角", "開いた矢印"], v => node.StartArrow = v); Choice("終点の矢印", node.EndArrow, ["なし", "三角", "開いた矢印"], v => node.EndArrow = v);
                 Number("矢印の大きさ", node.ArrowSize, v => node.ArrowSize = v, 1, 200); Section("線の見た目"); ColorField("線の色", node.Color, v => node.Color = v); Number("線の太さ", node.Thickness, v => node.Thickness = v, 0, 64); StrokeIconChoice("線種", node.LineStyle, ["実線", "破線", "点線"], v => node.LineStyle = v); break;
@@ -525,9 +536,9 @@ public partial class MainWindow : Window
             else if (node.Kind == ObjectKind.Line) Change(() =>
             {
                 var center = new Point((c.Column + 0.5) * grid.CellSize, (c.Row + 0.5) * grid.CellHeight);
-                if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) { var inverse = document.EffectiveLocalMatrix(node); inverse.Invert(); var end = inverse.Transform(center); node.EndX = end.X; node.EndY = end.Y; }
-                else if (document.UsesGridCoordinates(node)) { node.GridColumn = c.Column + 1; node.GridRow = c.Row + 1; }
-                else { node.X = center.X; node.Y = center.Y; }
+                var inverse = document.World(document.Parent(node)!); inverse.Invert();
+                center = inverse.Transform(document.World(grid).Transform(center));
+                document.SetLinePoint(node, Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? LineHandle.End : LineHandle.Start, center, false);
             });
             Surface.InvalidateVisual(); Status.Text = $"{c.Column + 1}列・{c.Row + 1}行を選択。Shift+クリックで範囲選択。"; return;
         }

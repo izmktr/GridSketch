@@ -19,6 +19,7 @@ public sealed partial class SceneDocument
 {
     public void EnableParentLayout(SceneObject node, Matrix? previous = null)
     {
+        if (node.Kind == ObjectKind.Line) { if (node.PointLine) AdoptGridCoordinates(node); else NormalizeLine(node, previous); return; }
         if (node.UseParentLayout || node.Kind == ObjectKind.Canvas || node.IsGridContent
             || node.Kind == ObjectKind.Group && node.OrganizeOnly || SelectionOwner(node) is { UseObjectLayout: false }) return;
         if (UsesGridCoordinates(node)) { node.UseParentLayout = true; return; }
@@ -117,12 +118,16 @@ public sealed partial class SceneDocument
         }
         return new Rect(0, 0, node.Width, node.Height);
     }
-    public bool ObjectLayoutActive(SceneObject node) => (UsesGridCoordinates(node) || node.UseParentLayout) && !node.IsGridContent &&
+    public bool ObjectLayoutActive(SceneObject node) => !(node.Kind == ObjectKind.Line && node.PointLine) && (UsesGridCoordinates(node) || node.UseParentLayout) && !node.IsGridContent &&
         node.Kind != ObjectKind.Canvas && !(node.Kind == ObjectKind.Group && node.OrganizeOnly) &&
         (SelectionOwner(node) is not { } owner || owner.UseObjectLayout);
 
     public Matrix EffectiveLocalMatrix(SceneObject node)
     {
+        if (node.Kind == ObjectKind.Line && node.PointLine)
+        {
+            var start = LineStart(node); return new Matrix(1, 0, 0, 1, start.X, start.Y);
+        }
         if (!ObjectLayoutActive(node)) return LocalMatrix(node);
         var regions = ParentRegions(node);
         var target = node.LayoutRegion == "親の内側" ? regions.Inner : regions.Outer;
