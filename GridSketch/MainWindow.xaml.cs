@@ -204,6 +204,7 @@ public partial class MainWindow : Window
         else if (node.PartOwnerId is not null) PartOverrideList(node);
 
         if (node.Kind == ObjectKind.Text) TextField("文章", node.Text, v => node.Text = v, true);
+        if (node.Kind is ObjectKind.GridText or ObjectKind.CellSelection) Button("テキスト入出力…", () => OpenGridTextExchange(node));
         var sections = new List<PropertySection>();
         void Section(string title, bool initial = true, Func<string>? summary = null)
             => sections.Add(new(title, Properties.Children.Count, initial, summary));

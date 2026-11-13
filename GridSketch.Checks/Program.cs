@@ -137,6 +137,8 @@ internal static class Program
             PartLibraryChecks.Run(window, Path.GetDirectoryName(temp)!);
             PartLibraryModelessChecks.Run();
             PartReferenceChecks.Run(Path.GetDirectoryName(temp)!);
+            GridTextTransferChecks.Run(Path.GetDirectoryName(temp)!);
+            CellStateTextTransferChecks.Run();
             BorderCapChecks.Run(Path.GetDirectoryName(temp)!);
             CenterBorderChecks.Run(window, Path.GetDirectoryName(temp)!);
             DiagonalBorderChecks.Run(window, Path.GetDirectoryName(temp)!);
