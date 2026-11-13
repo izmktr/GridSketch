@@ -27,7 +27,7 @@ public partial class MainWindow
                 Properties.Children.RemoveAt(section.Start);
                 body.Children.Add(child);
             }
-            string kind = node.IsFrame ? "Frame" : node.Kind == ObjectKind.Border && node.ConnectCellCenters ? "CenterBorder" : node.Kind.ToString();
+            string kind = node.IsPart ? "Part" : node.IsFrame ? "Frame" : node.Kind == ObjectKind.Border && node.ConnectCellCenters ? "CenterBorder" : node.Kind.ToString();
             string key = kind + "/" + section.Title;
             var arrow = new TextBlock { Width = 18, VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Right };
             var summary = new TextBlock { Foreground = Brushes.DimGray, Margin = new Thickness(8, 0, 8, 0), TextTrimming = TextTrimming.CharacterEllipsis,

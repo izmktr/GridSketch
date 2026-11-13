@@ -15,6 +15,7 @@ public sealed class SceneRenderer
     public SceneRenderer(SceneDocument document)
     {
         Document = document;
+        document.ResolveParts();
         using (var dc = Drawing.Open()) foreach (var node in document.Canvas.Children.AsEnumerable().Reverse()) DrawNode(dc, node, null);
         var root = document.Canvas;
         if (root.AutoSize)

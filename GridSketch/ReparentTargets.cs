@@ -11,6 +11,7 @@ public sealed partial class SceneDocument
     {
         if (nodes.Count == 0 || nodes.Any(n => n == Canvas || Find(n.Id) != n)) return "キャンバスは親を変更できません。";
         if (nodes.Any(n => !Editable(n))) return "ロックされたレイヤーが含まれています。";
+        if (nodes.Any(n => n.PartOwnerId is not null)) return "パーツの構造は定義側で編集してください。";
         if (nodes.Any(n => Parent(n) != Parent(nodes[0]))) return "同じ親を持つレイヤーを選択してください。";
         return null;
     }

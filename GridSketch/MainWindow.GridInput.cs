@@ -121,7 +121,7 @@ public partial class MainWindow
     {
         CommitPropertyEdit();
         var before = document.Snapshot();
-        try { action(); document.Validate(); }
+        try { action(); document.CapturePartOverrides(SceneDocument.Restore(before)); document.Validate(); }
         catch { document = SceneDocument.Restore(before); Surface.Selected = Selected; RefreshSurface(); throw; }
         if (before != document.Snapshot()) RememberUndo(before);
         Surface.Preview = []; RefreshSurface();

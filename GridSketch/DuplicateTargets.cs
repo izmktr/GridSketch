@@ -7,6 +7,7 @@ public sealed partial class SceneDocument
     public string? DuplicateSelectionError(IReadOnlyList<SceneObject> nodes)
     {
         if (nodes.Count == 0 || nodes.Any(n => n == Canvas || Find(n.Id) != n)) return "キャンバスは複製できません。";
+        if (nodes.Any(n => n.PartOwnerId is not null)) return "パーツの子を複製するには独立化してください。";
         if (nodes.Any(n => Parent(n) != Parent(nodes[0]))) return "同じ親を持つレイヤーを選択してください。";
         return null;
     }
@@ -30,21 +31,27 @@ public sealed partial class SceneDocument
         return targets;
     }
 
-    public IReadOnlyList<SceneObject> DuplicateInto(IReadOnlyList<SceneObject> nodes, SceneObject target, SceneDocument? sourceDocument = null)
+    public IReadOnlyList<SceneObject> DuplicateInto(IReadOnlyList<SceneObject> nodes, SceneObject target, SceneDocument? sourceDocument = null, PartConflictPolicy policy = PartConflictPolicy.Separate)
     {
         sourceDocument ??= this;
         if (sourceDocument.DuplicateSelectionError(nodes) is { } error) throw new InvalidOperationException(error);
         if (Find(target.Id) != target || !target.IsContainer || !Editable(target)) throw new InvalidOperationException("この親には複製できません。");
         var trial = Restore(Snapshot());
-        trial.DuplicateIntoCore(nodes, trial.Find(target.Id)!, sourceDocument, sourceDocument == this);
-        return DuplicateIntoCore(nodes, target, sourceDocument, sourceDocument == this);
+        trial.DuplicateIntoCore(nodes, trial.Find(target.Id)!, sourceDocument, sourceDocument == this, policy);
+        return DuplicateIntoCore(nodes, target, sourceDocument, sourceDocument == this, policy);
     }
 
-    private List<SceneObject> DuplicateIntoCore(IReadOnlyList<SceneObject> nodes, SceneObject target, SceneDocument sourceDocument, bool sameDocument)
+    private List<SceneObject> DuplicateIntoCore(IReadOnlyList<SceneObject> nodes, SceneObject target, SceneDocument sourceDocument, bool sameDocument, PartConflictPolicy policy = PartConflictPolicy.Separate)
     {
+        if (!PartStructureEditable(target)) throw new InvalidOperationException("パーツの内部には追加できません。");
         var parent = sourceDocument.Parent(nodes[0])!;
         // Clone all sources before inserting anything, even if the target is inside a source.
         var copies = parent.Children.Where(nodes.Contains).Select(LibraryPart.Clone).ToList();
+        if (!sameDocument)
+        {
+            var mapping = ImportPartDefinitions(ReferencedParts(copies), sourceDocument.Parts, policy);
+            RemapPartReferences(copies, mapping);
+        }
         foreach (var copy in copies)
         {
             if (sameDocument && RequiresGrid(copy) && sourceDocument.GridContainer(parent)?.Id != GridContainer(target)?.Id)
@@ -64,7 +71,7 @@ public sealed partial class SceneDocument
             if (target.IsStateSelector) AssignNewState(target, copy);
         }
         target.LayerExpanded = true;
-        PrepareGroupLayouts(); ClearMissingStateObjects(); Validate();
+        ResolveParts(); PrepareGroupLayouts(); ClearMissingStateObjects(); Validate();
         return copies;
     }
 }

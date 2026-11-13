@@ -58,7 +58,7 @@ public partial class MainWindow : Window
     {
         CommitPropertyEdit();
         var before = document.Snapshot();
-        try { action(); document.PrepareGroupLayouts(); document.ClearMissingStateObjects(); document.EnableParentLayouts(); document.Validate(); }
+        try { action(); document.CapturePartOverrides(SceneDocument.Restore(before)); document.ResolveParts(); document.PrepareGroupLayouts(); document.ClearMissingStateObjects(); document.EnableParentLayouts(); document.Validate(); }
         catch { document = SceneDocument.Restore(before); RefreshAll(); throw; }
         if (document.Snapshot() != before) RememberUndo(before);
         Surface.Preview = []; Surface.HoveredEdge = null; RefreshAll(); Status.Text = "変更しました。Ctrl+Sで保存できます。";
@@ -100,6 +100,7 @@ public partial class MainWindow : Window
     }
     private void RefreshSurface()
     {
+        if (dragSnapshot is { } snapshot) document.CapturePartOverrides(SceneDocument.Restore(snapshot), force: true);
         foreach (var update in propertySectionSummaries) update();
         double oldX = Surface.OriginX, oldY = Surface.OriginY;
         double scrollX = Viewport.HorizontalOffset, scrollY = Viewport.VerticalOffset;
@@ -116,6 +117,7 @@ public partial class MainWindow : Window
     private void TextField(string key, string value, Action<string> setter, bool multiline = false)
     {
         Label(key); var box = new TextBox { Text = value, AcceptsReturn = multiline, MinHeight = multiline ? 70 : 0, TextWrapping = multiline ? TextWrapping.Wrap : TextWrapping.NoWrap };
+        System.Windows.Automation.AutomationProperties.SetName(box, key);
         Properties.Children.Add(box); LiveText(box, () => setter(box.Text));
     }
     private void Number(string key, double value, Action<double> setter, double? minimum = null, double maximum = 1000)
@@ -198,6 +200,8 @@ public partial class MainWindow : Window
         }
         var node = Selected; Label(node.DisplayKindName); TextField("名前", node.Name, v => node.Name = v);
         UpdatePropertyToggles();
+        if (node.IsPart) PartProperties(node);
+        else if (node.PartOwnerId is not null) PartOverrideList(node);
 
         if (node.Kind == ObjectKind.Text) TextField("文章", node.Text, v => node.Text = v, true);
         var sections = new List<PropertySection>();
@@ -231,7 +235,9 @@ public partial class MainWindow : Window
         switch (node.Kind)
         {
             case ObjectKind.Group:
-                GroupProperties(node); break;
+                if (!node.IsPart) GroupProperties(node);
+                else Pair("パーツの幅（px）", node.Width, v => node.Width = v, "パーツの高さ（px）", node.Height, v => node.Height = v, 1, 10000);
+                break;
             case ObjectKind.EdgeSelection:
                 EdgeSelectionProperties(node);
                 break;
@@ -321,7 +327,7 @@ public partial class MainWindow : Window
         {
             Section("レイヤーの操作");
             Button("親を変更…", () => ChooseParent(node));
-            ((Button)Properties.Children[Properties.Children.Count - 1]).IsEnabled = document.Editable(node);
+            ((Button)Properties.Children[Properties.Children.Count - 1]).IsEnabled = document.Editable(node) && node.PartOwnerId is null;
         }
 
         WrapPropertySections(node, sections);
@@ -402,6 +408,7 @@ public partial class MainWindow : Window
         bool asChild = selected == document.Canvas ||
             (selected.IsContainer && (selected.LayerExpanded || selected.Children.Count == 0));
         var parent = asChild ? selected : document.Parent(selected)!;
+        if (!SceneDocument.PartStructureEditable(parent)) throw new InvalidOperationException("パーツの内部は定義側で編集してください。");
         if (gridRequired && document.GridContainer(parent) is null)
             throw new InvalidOperationException("このオブジェクトはグリッドの子として追加します。グリッドを開いて選択するか、グリッド直下のレイヤーを選択してください。");
         return (parent, asChild ? parent.Children.Count : parent.Children.IndexOf(selected) + 1);
@@ -476,12 +483,15 @@ public partial class MainWindow : Window
     private void LayerDown(object sender, RoutedEventArgs e) => MoveLayer(1);
     private void MoveLayer(int offset) => Change(() =>
     {
-        RequireSingleLayer(); var node = Selected; RequireEditable(node); var parent = document.Parent(node); if (parent is null) return;
+        RequireSingleLayer(); var node = Selected; RequireEditable(node);
+        if (node.PartOwnerId is not null) throw new InvalidOperationException("パーツの並び順は定義側で編集してください。");
+        var parent = document.Parent(node); if (parent is null) return;
         int index = parent.Children.IndexOf(node), next = index + offset; if (next < 0 || next >= parent.Children.Count) return; parent.Children.RemoveAt(index); parent.Children.Insert(next, node);
     });
     private void DeleteClick(object sender, RoutedEventArgs e) => Try(() =>
     {
         RequireSingleLayer(); var node = Selected; if (node == document.Canvas) return; RequireEditable(node);
+        if (node.PartOwnerId is not null) throw new InvalidOperationException("パーツの子の削除は定義側で行ってください。");
         if (node.Children.Count > 0 && MessageBox.Show(this, "子オブジェクトも削除しますか？", "削除", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
         Change(() => { var parent = document.Parent(node)!; parent.Children.Remove(node); selectedId = parent.Id; Surface.ActiveCell = null; Surface.RangeEnd = null; });
     });
@@ -603,7 +613,7 @@ public partial class MainWindow : Window
     {
         string? mergeKey = lineHandleDrag is not null ? "line-handle:" + Selected.Id + ":" + lineHandleDrag.Handle : dragStart is not null ? "move:" + Selected.Id : null;
         if (dragStart is null && paintStroke is null) return; dragStart = null; paintStroke = null; paintGrid = null;
-        if (dragSnapshot is { } snapshot) { try { document.EnableParentLayouts(); document.Validate(); if (snapshot != document.Snapshot()) RecordUndo(snapshot, mergeKey); } catch { document = SceneDocument.Restore(snapshot); BreakUndoMerge(); } }
+        if (dragSnapshot is { } snapshot) { try { document.CapturePartOverrides(SceneDocument.Restore(snapshot)); document.EnableParentLayouts(); document.Validate(); if (snapshot != document.Snapshot()) RecordUndo(snapshot, mergeKey); } catch { document = SceneDocument.Restore(snapshot); BreakUndoMerge(); } }
         dragSnapshot = null; dragContentOrigin = null; lineHandleDrag = null; Surface.Cursor = null; RefreshAll();
     }
     private void SurfaceUp(object sender, MouseButtonEventArgs e) { if (paintStroke is not null) paintStroke.Move(Surface.EditLocal(paintGrid!, e.GetPosition(Surface))); FinishDrag(); Surface.ReleaseMouseCapture(); }

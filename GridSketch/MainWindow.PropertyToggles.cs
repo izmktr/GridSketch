@@ -42,6 +42,7 @@ public partial class MainWindow
         if (node == document.Canvas || document.Parent(node) is { } parent && !document.Editable(parent)) { UpdatePropertyToggles(); return; }
         var before = document.Snapshot();
         if (locking) node.Locked = !node.Locked; else node.Visible = !node.Visible;
+        document.CapturePartOverrides(SceneDocument.Restore(before));
         RememberUndo(before);
         bool shown = document.Shown(node);
         if (!document.Editable(node) || !shown) GridInput.Visibility = Visibility.Collapsed;

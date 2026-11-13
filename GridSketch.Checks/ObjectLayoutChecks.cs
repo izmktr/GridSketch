@@ -47,7 +47,7 @@ internal static class ObjectLayoutChecks
         Check(SceneDocument.Load(file).Snapshot() == scene.Snapshot(), "Object frames and layout survive project round trip");
         var partFile = Path.Combine(directory, "object-layout.gspart"); PartFile.Export(LibraryPart.FromGroup(group, "固定範囲"), partFile);
         var copy = PartFile.Import(partFile).CreateCopy();
-        Check(copy.HasLayoutFrame && copy.Width == 100 && copy.LayoutInsetY == 20 && copy.UseParentLayout, "Parts preserve their coordinate frames and parent layout");
+        Check(copy.HasLayoutFrame && copy.Width == 100 && copy.LayoutInsetY == 20 && !copy.UseParentLayout, "Part definitions retain their coordinate frame independently of the original parent placement");
         encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(new SceneRenderer(scene).Export()));
         using (var output = File.Create(Path.Combine(directory, "object-layout.png"))) encoder.Save(output);
         PdfExporter.Save(scene, Path.Combine(directory, "object-layout.pdf"));

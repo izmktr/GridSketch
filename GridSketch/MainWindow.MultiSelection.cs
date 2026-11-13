@@ -88,6 +88,7 @@ public partial class MainWindow
     private string? GroupSelectionError()
     {
         var nodes = SelectedLayers();
+        if (nodes.Any(n => n.PartOwnerId is not null)) return "パーツの構造は定義側で編集してください。";
         if (nodes.Any(n => n == document.Canvas)) return "キャンバスはグループ化できません。";
         if (nodes.Any(n => !document.Editable(n))) return "ロックされたレイヤーが含まれています。";
         var parent = document.Parent(nodes[0])!;

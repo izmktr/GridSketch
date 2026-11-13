@@ -138,7 +138,8 @@ public partial class MainWindow
         CaptureTab(); var owner = activeTab!;
         var existing = editorTabs.FirstOrDefault(t => t.Owner == owner && t.PartId == part.Id);
         if (existing is not null) { SwitchTab(existing); return; }
-        var scene = new SceneDocument(); var root = part.CreateCopy(); scene.Canvas.Children.Add(root);
+        var scene = new SceneDocument { Parts = SceneDocument.Restore(owner.Document.Snapshot()).Parts };
+        var root = SceneDocument.CopyPartTemplate(part.Template); scene.Canvas.Children.Add(root);
         scene.EnableParentLayouts();
         var tab = new EditorTab { Document = scene, SelectedId = root.Id, Saved = scene.Snapshot(), Owner = owner,
             PartId = part.Id, PartVersion = PartVersion(part), Name = part.Name };
@@ -154,11 +155,18 @@ public partial class MainWindow
                 throw new InvalidOperationException("部品はキャンバス直下の1つのグループまたはフレームにまとめてください。");
             var part = owner.Document.Parts.FirstOrDefault(p => p.Id == tab.PartId) ?? throw new InvalidOperationException("元のライブラリから部品が削除されています。");
             if (PartVersion(part) != tab.PartVersion) throw new InvalidOperationException("元の部品が別の操作で更新されています。編集内容をプロジェクトとして保存し、部品タブを開き直してください。");
-            var replacement = LibraryPart.FromGroup(document.Canvas.Children[0], part.Name);
-            owner.Undo.Add(owner.Document.Snapshot()); owner.Redo.Clear(); part.Template = replacement.Template;
+            var replacement = LibraryPart.FromGroup(document.Canvas.Children[0], part.Name, document.Parts);
+            var trial = SceneDocument.Restore(owner.Document.Snapshot());
+            var dependencyIds = SceneDocument.ReferencedParts([replacement.Template]).ToList();
+            trial.ImportPartDefinitions(dependencyIds, document.Parts, PartConflictPolicy.UpdateDestination);
+            trial.Parts.Single(p => p.Id == part.Id).Template = replacement.Template;
+            trial.ResolveParts(); trial.Validate();
+            owner.Undo.Add(owner.Document.Snapshot()); owner.Redo.Clear();
+            owner.Document.ImportPartDefinitions(dependencyIds, document.Parts, PartConflictPolicy.UpdateDestination);
+            part.Template = replacement.Template; owner.Document.ResolveParts();
             if (owner.Undo.Count > 30) owner.Undo.RemoveAt(0);
             tab.PartVersion = PartVersion(part); savedState = document.Snapshot(); tab.Saved = savedState;
-            applied = true; UpdateTabHeaders(); Status.Text = "ライブラリへ反映しました。元のプロジェクトを保存すると部品も保存されます。配置済みのコピーは変更しません。";
+            applied = true; UpdateTabHeaders(); Status.Text = "ライブラリへ反映しました。元のプロジェクトを保存すると部品も保存されます。上書きしていない項目は配置済みパーツにも反映されます。";
         });
         return applied;
     }

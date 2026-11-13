@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Automation;
@@ -44,8 +44,8 @@ internal static class LineCoordinateChecks
         Check(doc.LinePoint(line, LineHandle.Start) == start && doc.LinePoint(line, LineHandle.End) == end, "Organizer reparent preserves point coordinates on a differently sized grid");
         var copy = doc.DuplicateInto([line], grid).Single();
         Check(doc.LinePoint(copy, LineHandle.Start) == start && doc.LinePoint(copy, LineHandle.End) == end, "Duplicate rescales pixel geometry to retain all cell coordinates");
-        var part = LibraryPart.FromGroup(group, "線の部品"); var inserted = doc.InsertPart(part, grid).Children.Single();
-        Check(doc.LinePoint(inserted, LineHandle.End) == end, "Parts preserve line cell coordinates across grid sizes");
+        var part = LibraryPart.FromGroup(group, "線の部品"); var inserted = doc.InsertPart(part, grid).Children.Single().Children.Single();
+        Check(inserted.EndX == line.EndX && inserted.EndY == line.EndY, "Part references preserve definition geometry within their own frame");
         var beforeStart = doc.World(copy).Transform(new Point()); var beforeEnd = doc.World(copy).Transform(new Point(copy.EndX, copy.EndY));
         var frame = doc.WrapContainers([copy], true);
         Check(!doc.UsesGridCoordinates(copy) && Near(doc.World(copy).Transform(new Point()), beforeStart)

@@ -8,17 +8,26 @@ public sealed class LibraryPart
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Name { get; set; } = "部品";
     public SceneObject Template { get; set; } = new() { Kind = ObjectKind.Group };
+    public List<PublishedPartProperty> Published { get; set; } = [];
+    [System.Text.Json.Serialization.JsonIgnore] public List<LibraryPart> Dependencies { get; set; } = [];
 
-    public void Validate()
+    public void Validate(IEnumerable<LibraryPart>? library = null)
     {
         if (string.IsNullOrWhiteSpace(Id) || string.IsNullOrWhiteSpace(Name) || Name.Length > 200 || Template is null || Template.Kind != ObjectKind.Group)
             throw new InvalidDataException("部品には名前（200文字以内）とグループまたはフレームが必要です。");
-        var check = new SceneDocument(); check.Canvas.Children.Add(Template); check.Validate();
+        if (Published is null || Published.Any(p => p is null || string.IsNullOrWhiteSpace(p.Label) || p.Label.Length > 200
+            || !SceneDocument.CanOverridePartProperty(p.Property)) || Published.Count > 128)
+            throw new InvalidDataException("公開プロパティの設定が不正です。");
+        var check = new SceneDocument { Parts = (library ?? Dependencies.Append(this)).DistinctBy(p => p.Id).ToList() };
+        check.Canvas.Children.Add(SceneDocument.CopyPartTemplate(Template)); check.ResolveParts(); check.Validate(false);
     }
-    public static LibraryPart FromGroup(SceneObject group, string name)
+    public static LibraryPart FromGroup(SceneObject group, string name, IEnumerable<LibraryPart>? library = null)
     {
-        var part = new LibraryPart { Name = name, Template = Clone(group) };
+        var part = new LibraryPart { Name = name, Template = SceneDocument.CopyPartTemplate(group) };
         part.Template.X = part.Template.Y = 0;
+        part.Template.GridColumn = part.Template.GridRow = null;
+        part.Template.UseParentLayout = false;
+        part.Dependencies = SceneDocument.PartDependencies(SceneDocument.ReferencedParts([part.Template]), library ?? []);
         part.Validate(); return part;
     }
     public SceneObject CreateCopy()
@@ -53,18 +62,19 @@ public sealed class PartFile
     public string Format { get; set; } = "GridSketch.Part";
     public int Version { get; set; } = 1;
     public LibraryPart? Part { get; set; }
+    public List<LibraryPart> Definitions { get; set; } = [];
     public static LibraryPart Import(string path)
     {
         if (new FileInfo(path).Length > 100_000_000) throw new InvalidDataException("部品ファイルは100MB以下にしてください。");
         var file = JsonSerializer.Deserialize<PartFile>(File.ReadAllText(path), SceneDocument.JsonOptions);
-        if (file is null || file.Format != "GridSketch.Part" || file.Version != 1 || file.Part is null) throw new InvalidDataException("未対応の部品ファイルです。");
-        file.Part.Validate();
-        // Import is always an independent entry, even when importing the same file twice.
-        return LibraryPart.FromGroup(file.Part.Template, file.Part.Name);
+        if (file is null || file.Format != "GridSketch.Part" || file.Version is not (1 or 2) || file.Part is null) throw new InvalidDataException("未対応の部品ファイルです。");
+        file.Part.Dependencies = file.Definitions.Where(p => p.Id != file.Part.Id).ToList();
+        file.Part.Validate(); return file.Part;
     }
-    public static void Export(LibraryPart part, string path)
+    public static void Export(LibraryPart part, string path, IEnumerable<LibraryPart>? library = null)
     {
-        part.Validate(); var bytes = JsonSerializer.SerializeToUtf8Bytes(new PartFile { Part = part }, SceneDocument.JsonOptions);
+        var definitions = SceneDocument.PartDependencies([part.Id], library ?? part.Dependencies.Append(part));
+        part.Validate(definitions); var bytes = JsonSerializer.SerializeToUtf8Bytes(new PartFile { Version = 2, Part = part, Definitions = definitions.Where(p => p.Id != part.Id).ToList() }, SceneDocument.JsonOptions);
         if (bytes.Length > 100_000_000) throw new InvalidDataException("部品ファイルは100MB以下にしてください。");
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try { File.WriteAllBytes(temporary, bytes); File.Move(temporary, path, true); }
@@ -77,15 +87,20 @@ public sealed partial class SceneDocument
     public List<LibraryPart> Parts { get; set; } = [];
     public SceneObject InsertPart(LibraryPart part, SceneObject parent)
     {
-        if (!All().Contains(parent) || !parent.IsContainer || !Editable(parent)) throw new InvalidOperationException("編集可能な追加先を選択してください。");
-        var copy = part.CreateCopy(); parent.Children.Insert(0, copy);
-        if (parent.IsStateSelector && parent.UseObjectLayout && !copy.UseParentLayout && copy.HasLayoutFrame)
+        if (!All().Contains(parent) || !parent.IsContainer || !Editable(parent) || !PartStructureEditable(parent)) throw new InvalidOperationException("編集可能な追加先を選択してください。");
+        bool added = Parts.All(p => p.Id != part.Id);
+        if (added) Parts.Add(part);
+        var copy = new SceneObject { Kind = ObjectKind.Group, Name = part.Name, HasLayoutFrame = true,
+            Width = part.Template.Width, Height = part.Template.Height, Part = new() { DefinitionId = part.Id } };
+        parent.Children.Insert(0, copy);
+        if (parent.IsStateSelector && parent.UseObjectLayout)
         {
             copy.UseParentLayout = true; copy.LayoutRegion = "親の内側"; copy.LayoutSizing = "固定"; copy.LayoutAnchor = "中央";
         }
         int stateCount = parent.States.Count;
         try
         {
+            ResolveParts();
             foreach (var child in Walk(copy)) AdoptGridCoordinates(child);
             if (parent.IsStateSelector) AssignNewState(parent, copy);
             Validate(); return copy;
@@ -93,6 +108,7 @@ public sealed partial class SceneDocument
         catch
         {
             parent.Children.Remove(copy);
+            if (added) Parts.Remove(part);
             if (parent.States.Count > stateCount) parent.States.RemoveRange(stateCount, parent.States.Count - stateCount);
             throw;
         }

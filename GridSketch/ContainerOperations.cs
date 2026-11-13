@@ -23,6 +23,7 @@ public sealed partial class SceneDocument
     private void RequireContainerEditable(SceneObject node)
     {
         if (node.Kind != ObjectKind.Group || Parent(node) is null) throw new InvalidOperationException("グループまたはフレームを選択してください。");
+        if (!PartStructureEditable(node)) throw new InvalidOperationException("パーツは独立化してから構造を変更してください。");
         if (Walk(node).Any(n => !Editable(n))) throw new InvalidOperationException("ロックされたオブジェクトを含むため操作できません。");
     }
 
@@ -139,6 +140,7 @@ public sealed partial class SceneDocument
     }
     private SceneObject WrapCore(IReadOnlyList<SceneObject> nodes, bool frame)
     {
+        if (nodes.Any(n => n.PartOwnerId is not null)) throw new InvalidOperationException("パーツの構造は定義側で編集してください。");
         if (nodes.Count == 0 || Parent(nodes[0]) is not { } parent || nodes.Any(n => Parent(n) != parent || !Editable(n)))
             throw new InvalidOperationException("同じ親の編集可能なオブジェクトを選択してください。");
         var ordered = parent.Children.Where(nodes.Contains).ToList();

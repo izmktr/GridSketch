@@ -30,6 +30,7 @@ public sealed partial class SceneDocument
     // Import legacy pixel placements without changing their rendered position or size.
     public void AdoptGridCoordinates(SceneObject node)
     {
+        if (node.PartOwnerId is not null) return;
         if (node.Kind == ObjectKind.Line)
         {
             if (!node.PointLine) NormalizeLine(node);

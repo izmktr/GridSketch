@@ -19,6 +19,7 @@ public sealed partial class SceneDocument
 {
     public void EnableParentLayout(SceneObject node, Matrix? previous = null)
     {
+        if (node.PartOwnerId is not null) return;
         if (node.Kind == ObjectKind.Line) { if (node.PointLine) AdoptGridCoordinates(node); else NormalizeLine(node, previous); return; }
         if (node.UseParentLayout || node.Kind == ObjectKind.Canvas || node.IsGridContent
             || node.Kind == ObjectKind.Group && node.OrganizeOnly || SelectionOwner(node) is { UseObjectLayout: false }) return;
@@ -34,6 +35,7 @@ public sealed partial class SceneDocument
 
     public void EnableParentLayouts()
     {
+        ResolveParts();
         // Capture every local placement before group frames change their children's regions.
         var placements = All().ToDictionary(n => n, EffectiveLocalMatrix);
         foreach (var (node, matrix) in placements) EnableParentLayout(node, matrix);

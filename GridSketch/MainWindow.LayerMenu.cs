@@ -49,9 +49,9 @@ public partial class MainWindow
             entry.Click += (_, _) => { if (enabled && document.Find(node.Id) is not null) { selectedId = node.Id; Try(action); } };
             menu.Items.Add(entry);
         }
-        Item("複製", !root && parentEditable, DuplicateLayer);
+        Item("複製", !root && parentEditable && node.PartOwnerId is null, DuplicateLayer);
         Item("複製先を選択…", document.DuplicateSelectionError(SelectedLayers()) is null, ChooseDuplicateParent);
-        Item("削除", !root && editable, () => DeleteClick(this, new RoutedEventArgs()));
+        Item("削除", !root && editable && node.PartOwnerId is null, () => DeleteClick(this, new RoutedEventArgs()));
         Item("親の変更…", document.ReparentSelectionError(SelectedLayers()) is null, ChooseSelectedParents);
         menu.Items.Add(new Separator());
         Item("名前の変更…", editable, RenameLayer);
@@ -63,13 +63,14 @@ public partial class MainWindow
         var unwrapError = document.UnwrapError(node);
         Item(node.IsFrame ? "フレーム解除" : "グループ解除", unwrapError is null, () => UngroupClick(this, new RoutedEventArgs()));
         ((MenuItem)menu.Items[menu.Items.Count - 1]).ToolTip = unwrapError;
-        if (node.Kind == ObjectKind.Group)
+        if (node.Kind == ObjectKind.Group && !node.IsPart)
         {
             var conversionError = document.ConversionError(node, !node.OrganizeOnly);
             Item(node.IsOrganizer ? "フレームに変換" : "グループに変換", conversionError is null,
                 () => Change(() => document.ConvertContainer(node, !node.OrganizeOnly)));
             ((MenuItem)menu.Items[menu.Items.Count - 1]).ToolTip = conversionError;
         }
+        if (node.IsPart && node.PartOwnerId is null) Item("パーツを独立化", editable, () => Change(() => document.DetachPart(node)));
         foreach (var entry in menu.Items.OfType<MenuItem>()) ToolTipService.SetShowOnDisabled(entry, true);
         menu.Items.Add(new Separator());
         Item(node.Visible ? "非表示にする" : "表示する", !root && parentEditable, () => ToggleProperty(false));
@@ -81,6 +82,7 @@ public partial class MainWindow
     private void DuplicateLayer() => Change(() =>
     {
         var node = Selected;
+        if (node.PartOwnerId is not null) throw new InvalidOperationException("パーツの子を複製するには独立化してください。");
         var parent = document.Parent(node) ?? throw new InvalidOperationException("キャンバスは複製できません。");
         RequireEditable(parent);
         var copy = LibraryPart.Clone(node);

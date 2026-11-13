@@ -55,7 +55,12 @@ public sealed class SceneObject
     public double PlacementOffsetX { get; set; }
     public double PlacementOffsetY { get; set; }
     public double Angle { get; set; }
-    public List<SceneObject> Children { get; set; } = [];
+    [JsonIgnore] public List<SceneObject> Children { get; set; } = [];
+    [JsonPropertyName("Children")] public List<SceneObject> StoredChildren { get => IsPart ? [] : Children; set => Children = value; }
+    public PartReference? Part { get; set; }
+    [JsonIgnore] public bool IsPart => Part is not null;
+    [JsonIgnore] public string? PartOwnerId { get; set; }
+    [JsonIgnore] public string? PartSourcePath { get; set; }
     public double Width { get; set; } = 160;
     public double Height { get; set; } = 80;
     public bool AutoSize { get; set; } = true;
@@ -135,7 +140,7 @@ public sealed class SceneObject
     [JsonIgnore] public bool IsGridContent => Kind is ObjectKind.Border or ObjectKind.GridText or ObjectKind.Fill or ObjectKind.CellFrame or ObjectKind.CellSelection or ObjectKind.EdgeSelection || Kind == ObjectKind.Image && SnapToCell;
     [JsonIgnore] public bool IsOrganizer => Kind == ObjectKind.Group && OrganizeOnly;
     [JsonIgnore] public bool IsFrame => Kind == ObjectKind.Group && !OrganizeOnly;
-    [JsonIgnore] public string DisplayKindName => IsFrame ? "フレーム" : Kind == ObjectKind.Border && ConnectCellCenters ? "中心罫線" : KindName(Kind);
+    [JsonIgnore] public string DisplayKindName => IsPart ? "パーツ" : IsFrame ? "フレーム" : Kind == ObjectKind.Border && ConnectCellCenters ? "中心罫線" : KindName(Kind);
     [JsonIgnore] public string Label => $"{(Visible ? "" : "非表示 · ")}{(Locked ? "🔒 " : "")}{Name}  [{DisplayKindName}]";
     public static string KindName(ObjectKind kind) => kind switch
     {
@@ -152,7 +157,11 @@ public sealed partial class SceneDocument
     public SceneObject Canvas { get; set; } = new() { Kind = ObjectKind.Canvas, Name = "キャンバス", Width = 800, Height = 600 };
     public static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, MaxDepth = 128 };
     public string Snapshot() => JsonSerializer.Serialize(this, JsonOptions);
-    public static SceneDocument Restore(string json) => JsonSerializer.Deserialize<SceneDocument>(json, JsonOptions) ?? throw new InvalidDataException("空のプロジェクトです。");
+    public static SceneDocument Restore(string json)
+    {
+        var scene = JsonSerializer.Deserialize<SceneDocument>(json, JsonOptions) ?? throw new InvalidDataException("空のプロジェクトです。");
+        scene.ResolveParts(); return scene;
+    }
     public IEnumerable<SceneObject> All() => Walk(Canvas);
     private static IEnumerable<SceneObject> Walk(SceneObject node)
     {
@@ -191,6 +200,7 @@ public sealed partial class SceneDocument
 
     public void Reparent(SceneObject node, SceneObject target)
     {
+        if (node.PartOwnerId is not null || !PartStructureEditable(target)) throw new InvalidOperationException("パーツの構造は定義側で編集してください。");
         if (node == Canvas || !target.IsContainer || node == target || Walk(node).Contains(target)) throw new InvalidOperationException("この親には移動できません。");
         if (node.Kind == ObjectKind.Line && node.PointLine)
         {
@@ -385,11 +395,11 @@ public sealed partial class SceneDocument
         PruneRegionLinks(frame, grid);
     }
 
-    public void Validate()
+    public void Validate(bool validateDefinitions = true)
     {
         if (Parts is null || Parts.Count > 128 || Parts.Any(p => p is null) || Parts.Select(p => p.Id).Distinct().Count() != Parts.Count)
             throw new InvalidDataException("部品ライブラリは128件以内で、IDが重複しないようにしてください。");
-        foreach (var part in Parts) part.Validate();
+        if (validateDefinitions) foreach (var part in Parts) part.Validate(Parts);
         if (PdfExport is null) throw new InvalidDataException("PDF出力設定が不正です。");
         PdfExport.Validate();
         if (Canvas is not null && Canvas.CanvasUnit is not ("px" or "mm")) throw new InvalidDataException("キャンバスの単位はpxまたはmmです。");
@@ -399,6 +409,8 @@ public sealed partial class SceneDocument
         void Check(SceneObject node, SceneObject? parent, int depth)
         {
             if (node is null || depth > 24 || ids.Count > 5000 || string.IsNullOrWhiteSpace(node.Id) || !ids.Add(node.Id)) throw new InvalidDataException("階層が深すぎるか、IDが重複しています。");
+            if (node.Part is { } reference && (node.Kind != ObjectKind.Group || reference.Overrides is null || !Parts.Any(p => p.Id == reference.DefinitionId)))
+                throw new InvalidDataException("パーツの参照が不正です。");
             if (!Enum.IsDefined(node.Kind) || node.Children is null || node.Name is null || node.Name.Length > 200 || node.Glyphs is null || node.Edges is null || node.FilledCells is null) throw new InvalidDataException("オブジェクトが不正です。");
             if (node.FrameCells is null || node.RegionLinks is null || !double.IsFinite(node.MarginY)) throw new InvalidDataException("領域枠またはマス内余白が不正です。");
             if (node.BorderEndCap is not (null or "中央まで" or "四角" or "丸")) throw new InvalidDataException("罫線の端の形が不正です。");

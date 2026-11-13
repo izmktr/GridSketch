@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
@@ -30,7 +30,7 @@ internal static class PartLibraryModelessChecks
         Check(ReferenceEquals(library, Field("partLibraryWindow")), "Repeated opening must reuse the library window");
         Set("selectedId", parent.Id); Call("RefreshAll"); window.UpdateLayout();
         Check(layout.Children.OfType<TextBlock>().Single().Text.Contains("追加先：追加先"), "Library target follows selection in the main window");
-        Click("コピーを追加"); Click("コピーを追加");
+        Click("パーツを配置"); Click("パーツを配置");
         Check(parent.Children.Count == 2 && parent.Children.All(c => c.Children.Count == 1), "Repeated insertion stays in the selected parent instead of nesting copies");
         Call("Undo"); first = (SceneDocument)Field("document")!;
         Check(first.Find(parent.Id)!.Children.Count == 1, "Main-window undo remains usable while the library is open");
@@ -43,12 +43,12 @@ internal static class PartLibraryModelessChecks
         second.Parts.Add(LibraryPart.FromGroup(new SceneObject { Kind = ObjectKind.Group }, "部品B"));
         Call("AddProjectTab", second, null);
         Check(list.Items.Count == 1 && Equals(((ListBoxItem)list.Items[0]).Tag, second.Parts[0].Id), "Library follows the active tab without retaining stale parts");
-        Click("コピーを追加");
+        Click("パーツを配置");
         Check(second.Canvas.Children.Single().Name == "部品B" && first.Find(parent.Id)!.Children.Count == 1, "Insertion affects only the current tab");
         Set("savedState", second.Snapshot()); Call("CloseTabClick", window, new RoutedEventArgs());
         Check(Equals(((ListBoxItem)list.Items[0]).Tag, first.Parts[0].Id), "Closing a tab returns the library to the remaining project");
         Set("savedState", ((SceneDocument)Field("document")!).Snapshot()); Call("CloseTabClick", window, new RoutedEventArgs());
-        Check(library.IsVisible && list.Items.Count == 0 && !Button("コピーを追加").IsEnabled && !Button("インポート…").IsEnabled,
+        Check(library.IsVisible && list.Items.Count == 0 && !Button("パーツを配置").IsEnabled && !Button("インポート…").IsEnabled,
             "Closing the last project clears and disables library actions without stale targets");
         library.Close(); Check(Field("partLibraryWindow") is null, "Closed library releases its refresh callback");
         Call("AddProjectTab", new SceneDocument(), null); Call("PartLibraryClick", window, new RoutedEventArgs());

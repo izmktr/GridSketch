@@ -35,7 +35,7 @@ public partial class MainWindow
         foreach (var node in document.All().ToList())
         {
             if (restored.Find(node.Id) is not { } source) continue;
-            foreach (var p in typeof(SceneObject).GetProperties().Where(p => p.CanWrite && p.Name is not ("Children" or "Style")))
+            foreach (var p in typeof(SceneObject).GetProperties().Where(p => p.CanWrite && p.Name is not ("Children" or "StoredChildren" or "Style")))
                 p.SetValue(node, p.GetValue(source));
             foreach (var p in typeof(LayerStyle).GetProperties().Where(p => p.CanWrite)) p.SetValue(node.Style, p.GetValue(source.Style));
         }
@@ -65,6 +65,7 @@ public partial class MainWindow
                 (node.Columns, node.Rows, node.CellSize, node.SeparateCellHeight, node.Margin, node.MarginY) = old;
                 document.ResizeGrid(node, next.Columns, next.Rows, next.CellSize, next.Margin, next.MarginY, next.SeparateCellHeight);
             }
+            document.CapturePartOverrides(SceneDocument.Restore(before)); document.ResolveParts();
             document.PrepareGroupLayouts(); document.ClearMissingStateObjects(); document.Validate();
             RefreshSurface(); editor.ClearValue(Control.BorderBrushProperty); editor.ToolTip = null;
             foreach (var item in LayerItems(Layers)) if (item.Tag is string id && document.Find(id) is { } n) item.Header = n.Label;

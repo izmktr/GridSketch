@@ -136,6 +136,7 @@ internal static class Program
             RangeDeleteChecks.Run(window);
             PartLibraryChecks.Run(window, Path.GetDirectoryName(temp)!);
             PartLibraryModelessChecks.Run();
+            PartReferenceChecks.Run(Path.GetDirectoryName(temp)!);
             BorderCapChecks.Run(Path.GetDirectoryName(temp)!);
             CenterBorderChecks.Run(window, Path.GetDirectoryName(temp)!);
             DiagonalBorderChecks.Run(window, Path.GetDirectoryName(temp)!);

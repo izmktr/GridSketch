@@ -26,6 +26,9 @@ public partial class MainWindow
         try { accepted = dialog.ShowDialog(); }
         finally { selectingLayers = wasSelecting; }
         if (accepted != true || dialog.SelectedParentId is not { } id) return;
+        var policy = dialog.SelectedDocument == sourceDocument ? PartConflictPolicy.Separate
+            : ChoosePartConflict(dialog.SelectedDocument, SceneDocument.ReferencedParts(nodes), sourceDocument.Parts, this);
+        if (policy is null) return;
         if (dialog.SelectedDocument != document)
         {
             var destinationTab = editorTabs.Single(t => t.Document == dialog.SelectedDocument);
@@ -34,7 +37,7 @@ public partial class MainWindow
         Change(() =>
         {
             var target = document.Find(id) ?? throw new InvalidOperationException("複製先が見つかりません。");
-            var copies = document.DuplicateInto(nodes, target, sourceDocument);
+            var copies = document.DuplicateInto(nodes, target, sourceDocument, policy.Value);
             selectedId = copies[0].Id; layerAnchor = selectedId;
             layerSelection.Clear(); foreach (var copy in copies) layerSelection.Add(copy.Id);
         });

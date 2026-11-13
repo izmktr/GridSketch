@@ -21,7 +21,9 @@ public sealed partial class SceneDocument
 
     public void ApplyVisibility(VisibilityPreset? preset)
     {
+        var before = Restore(Snapshot());
         foreach (var node in All()) node.Visible = node == Canvas || preset is null || !preset.HiddenIds.Contains(node.Id);
+        CapturePartOverrides(before);
     }
 
     private void ValidateVisibilityPresets()
