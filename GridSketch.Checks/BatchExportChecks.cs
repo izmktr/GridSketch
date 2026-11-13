@@ -50,6 +50,35 @@ internal static class BatchExportChecks
         var cancelled = new BatchExportDialog([new("キャンセル", scene)], folder) { Owner = window };
         cancelled.Show(); cancelled.Close();
         Check(Directory.EnumerateFiles(folder).Count() == count, "Closing the dialog must not export");
+        scene.VisibilityPresets = [new() { Name = "問題", HiddenIds = [scene.Canvas.Children[0].Id] }, new() { Name = "答え" }];
+        var secondScene = SceneDocument.Restore(scene.Snapshot());
+        secondScene.VisibilityPresets = [new() { Name = "問題" }, new() { Name = "別紙" }];
+        var sources = new[] { new BatchExportItem("A", scene), new BatchExportItem("B", secondScene) };
+        var plan = BatchExporter.Plan(sources, ["問題", "答え"]);
+        Check(plan.Jobs.Count == 3 && plan.Excluded.Count == 1 && plan.Excluded[0].Contains("B：答え"), "Missing presets must exclude only their own combination");
+        snapshot = scene.Snapshot();
+        var presetResults = BatchExporter.Export(plan.Jobs, folder, "PNG");
+        Check(presetResults.All(r => r.Error is null) && File.Exists(Path.Combine(folder, "A_問題.png"))
+            && File.Exists(Path.Combine(folder, "A_答え.png")) && !File.Exists(Path.Combine(folder, "B_答え.png")), "Preset export file naming or exclusion failed");
+        Check(!File.ReadAllBytes(Path.Combine(folder, "A_問題.png")).SequenceEqual(File.ReadAllBytes(Path.Combine(folder, "A_答え.png")))
+            && scene.Snapshot() == snapshot, "Preset export must apply visibility to a copy only");
+        var presetsDialog = new BatchExportDialog(sources, folder) { Owner = window }; presetsDialog.Show(); presetsDialog.UpdateLayout();
+        PropertyChecks.Find<ComboBox>(presetsDialog, "一括出力の表示方法").SelectedIndex = 1;
+        var presetPopup = PropertyChecks.Find<Popup>(presetsDialog, "出力プリセット候補");
+        PropertyChecks.Find<CheckBox>(presetPopup.Child, "出力プリセット：問題").IsChecked = true;
+        PropertyChecks.Find<CheckBox>(presetPopup.Child, "出力プリセット：答え").IsChecked = true;
+        Check(PropertyChecks.Find<TextBlock>(presetsDialog, "一括出力予定").Text == "3件出力・1件除外", "Preset counts must update on selection");
+        PropertyChecks.Find<CheckBox>(presetsDialog, "出力対象：2. B").IsChecked = false;
+        Check(PropertyChecks.Find<TextBlock>(presetsDialog, "一括出力予定").Text == "2件出力・0件除外"
+            && ((string)PropertyChecks.Find<CheckBox>(presetPopup.Child, "出力プリセット：問題").Content).Contains("1/1"), "Unchecked tabs must not contribute to candidates or counts");
+        var presetRows = (StackPanel)((ScrollViewer)((Border)presetPopup.Child).Child).Content;
+        Check(presetRows.Children.OfType<CheckBox>().Count() == 2, "A preset found only in unchecked tabs must disappear");
+        PropertyChecks.Find<CheckBox>(presetsDialog, "出力対象：2. B").IsChecked = true;
+        presetsDialog.UpdateLayout();
+        png = new RenderTargetBitmap((int)presetsDialog.ActualWidth, (int)presetsDialog.ActualHeight, 96, 96, PixelFormats.Pbgra32); png.Render(presetsDialog);
+        encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(png));
+        using (var output = File.Create(Path.Combine(directory, "batch-presets-dialog.png"))) encoder.Save(output);
+        presetsDialog.Close();
         Console.WriteLine("PASS: Batch PNG/PDF, tab selection, duplicates, original preservation, partial failure and cancellation");
     }
 }
