@@ -16,6 +16,8 @@ public sealed class PdfExporter
     private readonly Dictionary<byte, int> alphas = [];
     private readonly List<int> images = [];
     private readonly PdfSettings settings;
+    private PdfColorConverter? colorConverter;
+    private string imageColorSpace = "/DeviceRGB";
     private PdfExporter(PdfSettings settings) { this.settings = settings; }
     private static string N(double n) => n.ToString("0.########", CultureInfo.InvariantCulture);
     private void Emit(string command) => content.AppendLine(command);
@@ -40,6 +42,13 @@ public sealed class PdfExporter
     public static void Save(SceneDocument document, string path)
     {
         document.Validate(); var exporter = new PdfExporter(document.PdfExport);
+        if (document.PdfExport.PrintCompany && document.Canvas.AutoSize)
+            throw new InvalidOperationException("印刷会社用の出力では、キャンバスを固定サイズにして仕上がり寸法を指定してください。");
+        bool cmyk = document.PdfExport.PrintCompany && document.PdfExport.ConvertToCmyk;
+        if (cmyk && document.PdfExport.ProfileData is null)
+            throw new InvalidOperationException("エクスポート設定でCMYKのICCプロファイルを選択してください。");
+        var converter = cmyk ? new PdfColorConverter(document.PdfExport.ProfileData!) : null;
+        exporter.colorConverter = converter;
         var bytes = exporter.Build(new SceneRenderer(document));
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try { File.WriteAllBytes(temporary, bytes); File.Move(temporary, path, true); }
@@ -48,15 +57,50 @@ public sealed class PdfExporter
     private byte[] Build(SceneRenderer renderer)
     {
         var size = PageSize(renderer); var bounds = renderer.OutputBounds;
-        if (size.Width > 14400 || size.Height > 14400) throw new InvalidOperationException("PDFの用紙は各辺5080mm以下にしてください。キャンバスのサイズまたはdpiを調整してください。");
+        double bleed = settings.PrintCompany ? settings.BleedMm * 72 / 25.4 : 0;
+        double marks = settings.PrintCompany && settings.CropMarks ? 8 * 72 / 25.4 : 0;
+        double inset = bleed + marks;
+        var paper = new Size(size.Width + 2 * inset, size.Height + 2 * inset);
+        if (paper.Width > 14400 || paper.Height > 14400) throw new InvalidOperationException("PDFの用紙は各辺5080mm以下にしてください。キャンバスのサイズまたはdpiを調整してください。");
         Add("<< /Type /Catalog /Pages 2 0 R >>"); Add("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"); Add("");
-        var pageTransform = new Matrix(size.Width / bounds.Width, 0, 0, -size.Height / bounds.Height, -bounds.X * size.Width / bounds.Width, size.Height + bounds.Y * size.Height / bounds.Height);
-        Emit("q"); Transform(pageTransform); Path(new RectangleGeometry(bounds)); Emit("W n");
-        Fill(new RectangleGeometry(bounds), SceneRenderer.Brush(renderer.Document.Canvas.Background));
+        string colorResources = "";
+        if (colorConverter is not null)
+        {
+            int profile = Stream("/N 4 /Alternate /DeviceCMYK /Filter /FlateDecode", Deflate(settings.ProfileData!));
+            imageColorSpace = $"[/ICCBased {profile} 0 R]";
+            colorResources = $"/ColorSpace << /DefaultCMYK {imageColorSpace} >>";
+            string name = "<FEFF" + Convert.ToHexString(Encoding.BigEndianUnicode.GetBytes(settings.ProfileName)) + ">";
+            int intent = Add($"<< /Type /OutputIntent /S /GTS_PDFX /OutputConditionIdentifier {name} /Info {name} /DestOutputProfile {profile} 0 R >>");
+            objects[0] = Encoding.ASCII.GetBytes($"<< /Type /Catalog /Pages 2 0 R /OutputIntents [{intent} 0 R] >>");
+        }
+        var pageTransform = new Matrix(size.Width / bounds.Width, 0, 0, -size.Height / bounds.Height, inset - bounds.X * size.Width / bounds.Width, inset + size.Height + bounds.Y * size.Height / bounds.Height);
+        var bleedBounds = bounds;
+        bleedBounds.Inflate(bleed * bounds.Width / size.Width, bleed * bounds.Height / size.Height);
+        Emit("q"); Transform(pageTransform); Path(new RectangleGeometry(bleedBounds)); Emit("W n");
+        if (settings.PrintCompany) Fill(new RectangleGeometry(bleedBounds), Brushes.White);
+        Fill(new RectangleGeometry(bleedBounds), SceneRenderer.Brush(renderer.Document.Canvas.Background));
         Draw(renderer.Drawing, pageTransform); Emit("Q");
+        if (marks > 0)
+        {
+            Emit("q"); Alpha(255); Emit(colorConverter is null ? "0 0 0 RG" : "0 0 0 1 K"); Emit("0.25 w");
+            double gap = 1 * 72 / 25.4, length = 5 * 72 / 25.4;
+            void Mark(double x1, double y1, double x2, double y2) => Emit($"{N(x1)} {N(y1)} m {N(x2)} {N(y2)} l S");
+            foreach (double x in new[] { inset, inset + size.Width })
+            {
+                Mark(x, marks - gap, x, marks - gap - length);
+                Mark(x, paper.Height - marks + gap, x, paper.Height - marks + gap + length);
+            }
+            foreach (double y in new[] { inset, inset + size.Height })
+            {
+                Mark(marks - gap, y, marks - gap - length, y);
+                Mark(paper.Width - marks + gap, y, paper.Width - marks + gap + length, y);
+            }
+            Emit("Q");
+        }
         int commands = Stream("/Filter /FlateDecode", Deflate(Encoding.ASCII.GetBytes(content.ToString())));
         var resources = $"/ExtGState << {string.Join(" ", alphas.Select(pair => $"/A{pair.Key} {pair.Value} 0 R"))} >> /XObject << {string.Join(" ", images.Select((id, i) => $"/I{i} {id} 0 R"))} >>";
-        objects[2] = Encoding.ASCII.GetBytes($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {N(size.Width)} {N(size.Height)}] /Resources << {resources} >> /Contents {commands} 0 R /Group << /Type /Group /S /Transparency /CS /DeviceRGB >> >>");
+        string boxes = settings.PrintCompany ? $"/TrimBox [{N(inset)} {N(inset)} {N(inset + size.Width)} {N(inset + size.Height)}] /BleedBox [{N(marks)} {N(marks)} {N(paper.Width - marks)} {N(paper.Height - marks)}]" : "";
+        objects[2] = Encoding.ASCII.GetBytes($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {N(paper.Width)} {N(paper.Height)}] {boxes} /Resources << {resources} {colorResources} >> /Contents {commands} 0 R /Group << /Type /Group /S /Transparency /CS {imageColorSpace} >> >>");
         using var output = new MemoryStream();
         void Write(string s) => output.Write(Encoding.ASCII.GetBytes(s));
         Write("%PDF-1.4\n%GridSketch\n"); var offsets = new List<long> { 0 };
@@ -111,7 +155,14 @@ public sealed class PdfExporter
     {
         if (brush is not SolidColorBrush solid) throw new InvalidOperationException("PDFで未対応のブラシです。");
         var color = solid.Color; if (color.A == 0) return;
-        Alpha((byte)Math.Round(color.A * solid.Opacity)); Emit($"{N(color.R / 255.0)} {N(color.G / 255.0)} {N(color.B / 255.0)} rg");
+        Alpha((byte)Math.Round(color.A * solid.Opacity));
+        if (colorConverter is null) Emit($"{N(color.R / 255.0)} {N(color.G / 255.0)} {N(color.B / 255.0)} rg");
+        else if (settings.PreserveBlack && color.R == 0 && color.G == 0 && color.B == 0) Emit("0 0 0 1 k");
+        else
+        {
+            var c = colorConverter.Convert(color);
+            Emit($"{N(c[0] / 255.0)} {N(c[1] / 255.0)} {N(c[2] / 255.0)} {N(c[3] / 255.0)} k");
+        }
         Emit(Path(geometry) == FillRule.EvenOdd ? "f*" : "f");
     }
     private void Image(BitmapSource source, Rect rect, Matrix world)
@@ -131,13 +182,18 @@ public sealed class PdfExporter
         string common = $"/Type /XObject /Subtype /Image /Width {w} /Height {h} /BitsPerComponent 8";
         int maskId = transparent ? Stream(common + " /ColorSpace /DeviceGray /Filter /FlateDecode", Deflate(mask)) : 0;
         byte[] encoded; string filter;
-        if (settings.JpegCompression)
+        if (colorConverter is not null)
+        {
+            var bitmap = BitmapSource.Create(w, h, 96, 96, PixelFormats.Rgb24, null, rgb, w * 3);
+            encoded = Deflate(colorConverter.Convert(bitmap)); filter = "/FlateDecode";
+        }
+        else if (settings.JpegCompression)
         {
             var bitmap = BitmapSource.Create(w, h, 96, 96, PixelFormats.Rgb24, null, rgb, w * 3);
             var encoder = new JpegBitmapEncoder { QualityLevel = settings.JpegQuality }; encoder.Frames.Add(BitmapFrame.Create(bitmap)); using var stream = new MemoryStream(); encoder.Save(stream); encoded = stream.ToArray(); filter = "/DCTDecode";
         }
         else { encoded = Deflate(rgb); filter = "/FlateDecode"; }
-        int id = Stream(common + $" /ColorSpace /DeviceRGB /Filter {filter}" + (transparent ? $" /SMask {maskId} 0 R" : ""), encoded);
+        int id = Stream(common + $" /ColorSpace {imageColorSpace} /Filter {filter}" + (transparent ? $" /SMask {maskId} 0 R" : ""), encoded);
         int index = images.Count; images.Add(id);
         Emit("q"); Alpha(255); Transform(new Matrix(rect.Width, 0, 0, -rect.Height, rect.X, rect.Bottom)); Emit($"/I{index} Do"); Emit("Q");
     }

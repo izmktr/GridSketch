@@ -123,6 +123,7 @@ internal static class Program
             PropertyChecks.Run(window, Path.GetDirectoryName(temp)!);
             ColorPickerChecks.Run(window, Path.GetDirectoryName(temp)!);
             PdfChecks.Run(Path.GetDirectoryName(temp)!);
+            PrintExportSettingsChecks.Run(window, Path.GetDirectoryName(temp)!);
             OutlineChecks.Run(Path.GetDirectoryName(temp)!);
             CellFrameChecks.Run(Path.GetDirectoryName(temp)!);
             RegionFrameChecks.Run(Path.GetDirectoryName(temp)!);

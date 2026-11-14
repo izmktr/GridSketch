@@ -36,6 +36,7 @@ internal static class PdfChecks
         var size = PdfExporter.PageSize(new SceneRenderer(scene));
         if (Math.Abs(size.Width * 25.4 / 72 - 210) > 0.00001) throw new Exception("PDF physical size failed");
         try { new PdfSettings { MaxImageDpi = -1 }.Validate(); throw new Exception("Invalid PDF setting accepted"); } catch (InvalidDataException) { }
+        PrintCompanyChecks.Run(directory);
         Console.WriteLine("PASS: PDF exports, presets, settings persistence, validation and exact A4 page size");
     }
 }
