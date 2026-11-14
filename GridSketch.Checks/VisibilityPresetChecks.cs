@@ -65,6 +65,40 @@ internal static class VisibilityPresetChecks
             [surface, new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)]);
         Check(((TextBlock)window.FindName("Status")).Text == "表示してからマス・辺を編集してください。", "Hidden grid content rejects canvas editing");
         mode.SetValue(window, previousMode);
+        // Invoke the real submenu action: overwrite only hidden IDs, keeping order/name and visibility.
+        var overwriteScene = new SceneDocument();
+        var a = new SceneObject { Kind = ObjectKind.Shape, Visible = false };
+        var b = new SceneObject { Kind = ObjectKind.Shape, Locked = true };
+        overwriteScene.Canvas.Children.AddRange([a, b]);
+        overwriteScene.VisibilityPresets.Add(new VisibilityPreset { Name = "問題_A", HiddenIds = [b.Id] });
+        overwriteScene.VisibilityPresets.Add(new VisibilityPreset { Name = "答え", HiddenIds = [a.Id, b.Id] });
+        typeof(MainWindow).GetField("document", flags)!.SetValue(window, overwriteScene);
+        typeof(MainWindow).GetField("selectedId", flags)!.SetValue(window, overwriteScene.Canvas.Id);
+        typeof(MainWindow).GetMethod("RefreshAll", flags)!.Invoke(window, null);
+        ContextMenu Menu() => (ContextMenu)typeof(MainWindow).GetMethod("CreateVisibilityPresetsMenu", flags)!.Invoke(window, [new Button()])!;
+        string Title(MenuItem item) => item.Header is TextBlock label ? label.Text : item.Header.ToString()!;
+        var menu = Menu();
+        var register = menu.Items.OfType<MenuItem>().Single(item => Title(item) == "登録／上書き");
+        Check(register.Items.Count == 4 && Title((MenuItem)register.Items[0]) == "新規登録…" && register.Items[1] is Separator,
+            "Registration submenu must contain new, separator and overwrite targets");
+        string beforeOverwrite = overwriteScene.Snapshot();
+        ((MenuItem)register.Items[2]).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        Check(overwriteScene.VisibilityPresets.Select(p => p.Name).SequenceEqual(new[] { "問題_A", "答え" })
+            && overwriteScene.VisibilityPresets[0].HiddenIds.SetEquals([a.Id])
+            && overwriteScene.VisibilityPresets[1].HiddenIds.SetEquals([a.Id, b.Id])
+            && !a.Visible && b.Visible && b.Locked, "Overwrite changed name/order/other preset or object visibility");
+        string afterOverwrite = overwriteScene.Snapshot();
+        Check(((TextBlock)window.FindName("Status")).Text.Contains("問題_A"), "Overwrite completion should name its target");
+        typeof(MainWindow).GetMethod("Undo", flags)!.Invoke(window, null);
+        Check(((SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!).Snapshot() == beforeOverwrite, "Overwrite undo failed");
+        typeof(MainWindow).GetMethod("Redo", flags)!.Invoke(window, null);
+        var redone = (SceneDocument)typeof(MainWindow).GetField("document", flags)!.GetValue(window)!;
+        Check(redone.Snapshot() == afterOverwrite, "Overwrite redo failed");
+        redone.Save(file);
+        Check(SceneDocument.Load(file).VisibilityPresets[0].HiddenIds.SetEquals([a.Id]), "Overwritten preset did not persist");
+        redone.VisibilityPresets.Clear();
+        register = Menu().Items.OfType<MenuItem>().Single(item => Title(item) == "登録／上書き");
+        Check(register.Items.Count == 1 && Title((MenuItem)register.Items[0]) == "新規登録…", "Empty preset menu should offer only new registration");
         Console.WriteLine("PASS: Visibility presets capture, apply, locks, new/deleted layers, persistence, draft cancellation and undo");
     }
 }
