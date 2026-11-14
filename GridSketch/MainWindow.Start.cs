@@ -13,6 +13,7 @@ public partial class MainWindow
 
     private void ShowStartScreen()
     {
+        displayPreviewWindow?.Close();
         Keyboard.ClearFocus(); propertyHelpWindow?.Close(); propertyHelpOpen = false;
         document = new SceneDocument(); path = null; selectedId = document.Canvas.Id; savedState = document.Snapshot();
         undo.Clear(); redo.Clear(); BreakUndoMerge(); layerSelection.Clear(); layerAnchor = null;
@@ -30,7 +31,7 @@ public partial class MainWindow
         StartScreen.Visibility = opened ? Visibility.Collapsed : Visibility.Visible;
         EditorArea.Visibility = EditorToolbar.Visibility = TabStrip.Visibility = opened ? Visibility.Visible : Visibility.Collapsed;
         foreach (var menu in new[] { CloseDocumentMenu, SaveDocumentMenu, SaveAllDocumentMenu, SaveAsDocumentMenu, ExportDocumentMenu,
-            ExportSettingsMenu, EditDocumentMenu, AddDocumentMenu, PartsDocumentMenu }) menu.IsEnabled = opened;
+            ExportSettingsMenu, ViewDocumentMenu, EditDocumentMenu, AddDocumentMenu, PartsDocumentMenu }) menu.IsEnabled = opened;
     }
 
     private void BuildStartScreen()

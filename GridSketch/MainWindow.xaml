@@ -76,6 +76,9 @@
     <MenuItem Header="元に戻す(_U)" Command="ApplicationCommands.Undo"/>
     <MenuItem Header="やり直し(_R)" Command="ApplicationCommands.Redo"/>
    </MenuItem>
+   <MenuItem x:Name="ViewDocumentMenu" Header="表示(_V)">
+    <MenuItem Header="表示確認…" Click="DisplayPreviewClick"/>
+   </MenuItem>
    <MenuItem x:Name="AddDocumentMenu" Header="追加(_A)">
     <MenuItem Header="グリッド（方眼紙）…" Tag="Grid" Click="AddClick"/>
     <MenuItem Header="グリッド（独立マス）…" Tag="IndependentGrid" Click="AddClick"/>

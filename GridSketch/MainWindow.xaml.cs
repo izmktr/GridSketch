@@ -105,6 +105,7 @@ public partial class MainWindow : Window
         double oldX = Surface.OriginX, oldY = Surface.OriginY;
         double scrollX = Viewport.HorizontalOffset, scrollY = Viewport.VerticalOffset;
         Surface.ShowSelectionBounds = !cellEditMode;
+        UpdateDisplayPreview();
         Surface.Refresh(document);
         if (oldX != Surface.OriginX || oldY != Surface.OriginY)
         {

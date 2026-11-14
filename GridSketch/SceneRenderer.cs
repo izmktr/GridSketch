@@ -451,8 +451,12 @@ public sealed partial class SceneSurface : FrameworkElement
             c.DrawRectangle(Brushes.LightGray, null, new Rect(0, 0, 8, 8)); c.DrawRectangle(Brushes.LightGray, null, new Rect(8, 8, 8, 8));
         }
         var brush = new DrawingBrush(checker) { TileMode = TileMode.Tile, Viewport = new Rect(0, 0, 16, 16), ViewportUnits = BrushMappingMode.Absolute };
-        dc.DrawRectangle(brush, null, bounds); dc.DrawRectangle(SceneRenderer.Brush(Renderer.Document.Canvas.Background), null, bounds);
-        dc.DrawDrawing(Renderer.Drawing);
+        dc.DrawRectangle(brush, null, bounds);
+        if (!DrawDisplayPreview(dc))
+        {
+            dc.DrawRectangle(SceneRenderer.Brush(Renderer.Document.Canvas.Background), null, bounds);
+            dc.DrawDrawing(Renderer.Drawing);
+        }
         if (CleanPreview) { dc.Pop(); return; }
         dc.DrawRectangle(null, new Pen(Brushes.DimGray, 1), bounds);
         DrawGridGuides(dc);

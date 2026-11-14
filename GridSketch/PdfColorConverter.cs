@@ -36,6 +36,11 @@ internal sealed class PdfColorConverter
         converted.CopyPixels(pixels, bitmap.PixelWidth * 4, 0);
         return pixels;
     }
+    public BitmapSource SoftProof(BitmapSource bitmap)
+    {
+        var cmyk = new ColorConvertedBitmap(bitmap, source, destination, PixelFormats.Cmyk32);
+        return new ColorConvertedBitmap(cmyk, destination, source, PixelFormats.Bgra32);
+    }
     public byte[] Convert(Color color)
     {
         uint key = (uint)(color.R << 16 | color.G << 8 | color.B);
